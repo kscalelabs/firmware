@@ -1,0 +1,1 @@
+recursive-include firmware/ *.py *.txt py.typed MANIFEST.in
