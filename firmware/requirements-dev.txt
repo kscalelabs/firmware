@@ -5,3 +5,6 @@ darglint
 mypy
 pytest
 ruff
+
+# Types
+typing_extensions

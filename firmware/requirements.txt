@@ -1,3 +1,7 @@
 # requirements.txt
 
-mlfab
+adafruit-blinka
+pyftdi
+pyserial
+pyusb
+RPi.GPIO
