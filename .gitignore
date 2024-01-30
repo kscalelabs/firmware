@@ -19,3 +19,7 @@ build/
 dist/
 *.so
 out*/
+
+# Virtual environments.
+venv/
+
