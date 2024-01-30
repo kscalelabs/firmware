@@ -3,5 +3,6 @@
 adafruit-blinka
 pyftdi
 pyserial
+python-can
 pyusb
 RPi.GPIO
