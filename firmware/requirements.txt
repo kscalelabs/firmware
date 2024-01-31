@@ -1,6 +1,7 @@
 # requirements.txt
 
 adafruit-blinka
+adafruit-circuitpython-mcp2515
 pyftdi
 pyserial
 python-can

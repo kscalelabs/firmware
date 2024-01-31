@@ -50,8 +50,7 @@ def main() -> None:
     cs = DigitalInOut(board.D5)
     cs.switch_to_output()
     spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
-
-    can_bus = CAN(spi, cs, loopback=True, silent=True)
+    can_bus = CAN(spi, cs, silent=False)
 
     gen_pos = 0
 
@@ -76,23 +75,6 @@ def main() -> None:
             gen_pos = to_pos(raw_pose)
 
         time.sleep(1)
-
-    # while True:
-    #     with can_bus.listen(timeout=1.0) as listener:
-
-    #         message = Message(id=0x1234ABCD, data=b"adafruit", extended=True)
-    #         send_success = can_bus.send(message)
-    #         print("Send success:", send_success)
-    #         message_count = listener.in_waiting()
-    #         print(message_count, "messages available")
-    #         for _i in range(message_count):
-    #             msg = listener.receive()
-    #             print("Message from ", hex(msg.id))
-    #             if isinstance(msg, Message):
-    #                 print("message data:", msg.data)
-    #             if isinstance(msg, RemoteTransmissionRequest):
-    #                 print("RTR length:", msg.length)
-    #     sleep(1)
 
 if __name__ == "__main__":
     # python -m firmware.can

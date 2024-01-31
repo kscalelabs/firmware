@@ -8,6 +8,7 @@
 - [List board info](https://hub.libre.computer/t/libre-computer-wiring-tool/40)
 - [Alternative CAN Bus library to use](https://python-can.readthedocs.io/en/stable/bus.html)
 - [MyActuator documents](https://www.myactuator.com/dowload)
+- [CAN bus on Raspberry Pi using MCP2515](https://forums.raspberrypi.com/viewtopic.php?t=141052)
 
 ## Notes
 
@@ -39,4 +40,18 @@ Checks:
 ls /sys/bus/spi/devices/spi0.0
 ls /sys/bus/spi/devices/spi0.0/net
 ls /dev/spidev0.0
+```
+
+### Raspberry Pi 4
+
+```bash
+ls /dev/spidev0.0  # This should exist
+ls /sys/bus/spi/devices/spi0.0/net/can0  # This should exist if the CAN Bus is up
+```
+
+Add this to `/boot/firmware/config.txt`:
+
+```bash
+dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=12
+dtoverlay=spi0-1cs
 ```
