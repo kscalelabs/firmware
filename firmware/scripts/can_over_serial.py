@@ -50,7 +50,7 @@ def main() -> None:
     cs = DigitalInOut(board.D5)
     cs.switch_to_output()
     spi = busio.SPI(board.SCK, board.MOSI, board.MISO)
-    can_bus = CAN(spi, cs, silent=False)
+    can_bus = CAN(spi, cs, silent=False, baudrate=1_000_000, crystal_freq=16_000_000,)
 
     gen_pos = 0
 
@@ -77,5 +77,5 @@ def main() -> None:
         time.sleep(1)
 
 if __name__ == "__main__":
-    # python -m firmware.can
+    # python -m firmware.scripts.can_over_serial
     main()

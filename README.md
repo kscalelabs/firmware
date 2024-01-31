@@ -18,12 +18,13 @@
 
 ```bash
 # Device Overlays
-sudo ldto list  # List available device overlays
-sudo ldto reset  # Reset device overlays
+ldto list  # List available device overlays
+ldto reset  # Reset device overlays
 
 # CAN Bus
-sudo ip link set can0 up type can bitrate 1000000  # Bring up CAN Bus
-sudo ip link set can0 down  # Bring down CAN Bus
+ip link set can0 up  # Bring up CAN Bus
+ip link set can0 down  # Bring down CAN Bus
+ip link set can0 type can bitrate 1000000 loopback on  # Enable loopback mode
 ```
 
 #### Notes
@@ -42,11 +43,11 @@ ls /sys/bus/spi/devices/spi0.0/net
 ls /dev/spidev0.0
 ```
 
-### Raspberry Pi 4
+### Raspberry Pi 4 (Old)
 
 ```bash
-ls /dev/spidev0.0  # This should exist
-ls /sys/bus/spi/devices/spi0.0/net/can0  # This should exist if the CAN Bus is up
+ls /dev/spidev0.0  # This should exist before the device overlay is added.
+ls /sys/bus/spi/devices/spi0.0/net/can0  # This should exist after, if the CAN board is connected correctly.
 ```
 
 Add this to `/boot/firmware/config.txt`:
@@ -54,4 +55,12 @@ Add this to `/boot/firmware/config.txt`:
 ```bash
 dtoverlay=mcp2515-can0,oscillator=16000000,interrupt=12
 dtoverlay=spi0-1cs
+```
+
+### Raspberry Pi 4 (New)
+
+Install Blinka:
+
+```bash
+python -m firmware.install_blinka
 ```

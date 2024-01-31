@@ -2,6 +2,7 @@
 
 adafruit-blinka
 adafruit-circuitpython-mcp2515
+adafruit-python-shell
 pyftdi
 pyserial
 python-can

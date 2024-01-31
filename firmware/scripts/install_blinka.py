@@ -6,7 +6,6 @@ Written by Melissa LeBlanc-Williams for Adafruit Industries
 """
 
 import os
-import sys
 
 try:
     from adafruit_shell import Shell
@@ -127,7 +126,7 @@ Raspberry Pi and installs Blinka
     set_raspiconfig()
     update_python()
     update_pip()
-    install_blinka(True)
+    install_blinka(False)
 
     # Done
     print("""DONE.
@@ -136,7 +135,7 @@ Settings take effect on next boot.
 """)
     shell.prompt_reboot()
 
-# Main function
 if __name__ == "__main__":
+    # python -m firmware.scripts.install_blinka
     shell.require_root()
     main()
