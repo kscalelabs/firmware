@@ -1,54 +1,64 @@
 #!/usr/bin/env python
-"""Runs the GUI in interactive mode."""
+"""Runs the GUI in interactive mode.
+
+This is a GUI to run on the Raspberry Pi.
+"""
 
 import pygame
 import sys
 
+Color = tuple[int, int, int]
 
-def main() -> None:
-    # Initialize Pygame
-    pygame.init()
+WHITE: Color = (255, 255, 255)
+BLACK: Color = (0, 0, 0)
+RED: Color = (255, 0, 0)
+GREEN: Color = (0, 255, 0)
+BLUE: Color = (0, 0, 255)
 
-    # Set fullscreen display mode
-    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
-    # Colors
-    WHITE = (255, 255, 255)
-    BLACK = (0, 0, 0)
-    RED = (255, 0, 0)
-    GREEN = (0, 255, 0)
+class Button:
+    def __init__(self, rect: pygame.Rect, color: Color, text: str) -> None:
+        self.rect = rect
+        self.color = color
+        self.text = text
 
-    # Button dimensions and positions
-    button1_rect = pygame.Rect(50, 100, 200, 50)
-    button2_rect = pygame.Rect(50, 200, 200, 50)
-
-    def draw_button(rect, color, text):
-        pygame.draw.rect(screen, color, rect)
+    def draw(self, screen: pygame.Surface) -> None:
+        pygame.draw.rect(screen, self.color, self.rect)
         font = pygame.font.Font(None, 36)
-        text_surf = font.render(text, True, BLACK)
-        text_rect = text_surf.get_rect(center=rect.center)
+        text_surf = font.render(self.text, True, BLACK)
+        text_rect = text_surf.get_rect(center=self.rect.center)
         screen.blit(text_surf, text_rect)
 
+    def clicked(self, pos: tuple[int, int]) -> bool:
+        return self.rect.collidepoint(pos)
+
+
+def main() -> None:
+    pygame.init()
+
+    screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+
+    close_button = Button(pygame.Rect(screen.get_width() - 100, 0, 100, 50), RED, "Close")
+
+
+    def draw_screen() -> None:
+        screen.fill(WHITE)
+        close_button.draw(screen)
+
+    # Run the main loop.
     running = True
     while running:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if button1_rect.collidepoint(event.pos):
-                    print("Button 1 clicked")
-                    # Implement your action here
-                elif button2_rect.collidepoint(event.pos):
-                    print("Button 2 clicked")
-                    # Implement your action here
+                if close_button.clicked(event.pos):
+                    running = False
 
-        screen.fill(WHITE)
-        draw_button(button1_rect, RED, "Button 1")
-        draw_button(button2_rect, GREEN, "Button 2")
-
-        # Update the display
+        draw_screen()
         pygame.display.flip()
 
+    # Clean up.
     pygame.quit()
     sys.exit()
 
