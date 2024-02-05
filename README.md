@@ -64,3 +64,11 @@ Install Blinka:
 ```bash
 python -m firmware.install_blinka
 ```
+
+Set up the CAN bus correctly:
+
+```bash
+sudo ip link set can0 down
+sudo ip link set can0 type can bitrate 1000000 loopback off
+sudo ip link set can0 up
+```
