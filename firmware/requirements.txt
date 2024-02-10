@@ -1,12 +1,8 @@
 # requirements.txt
 
-adafruit-blinka
-adafruit-blinka-displayio
-adafruit-circuitpython-mcp2515
-adafruit-python-shell
 pyftdi
+pygame
 pyserial
 python-can
 pyusb
 RPi.GPIO
-pygame

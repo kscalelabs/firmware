@@ -50,7 +50,7 @@ clean:
 #       Static Checks      #
 # ------------------------ #
 
-py-files := $(shell find . -name '*.py')
+py-files := $(shell find . -name '*.py' -not -path './venv/*')
 
 format:
 	@black $(py-files)

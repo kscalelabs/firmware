@@ -4,8 +4,9 @@
 This is a GUI to run on the Raspberry Pi.
 """
 
-import pygame
 import sys
+
+import pygame
 
 Color = tuple[int, int, int]
 
@@ -39,7 +40,6 @@ def main() -> None:
     screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
 
     close_button = Button(pygame.Rect(screen.get_width() - 100, 0, 100, 50), RED, "Close")
-
 
     def draw_screen() -> None:
         screen.fill(WHITE)
