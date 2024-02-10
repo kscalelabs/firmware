@@ -1,15 +1,11 @@
 """Implements the interface for talking to the motor controller."""
 
-from typing import Callable
-import functools
 import asyncio
-from dataclasses import dataclass
-from typing import Literal
-from types import TracebackType
 import datetime
-from typing import Self, TypeVar
+from dataclasses import dataclass
+from types import TracebackType
+from typing import Literal, ParamSpec, Self, TypeVar
 
-from typing import ParamSpec
 from firmware.motors.can.base import CanBase
 from firmware.motors.can.ip import CanIP
 
@@ -38,19 +34,19 @@ class PID:
     position_ki: int
 
 
-class InvalidMotorID(Exception):
+class InvalidMotorIDError(Exception):
     pass
 
 
 def send_id(id: int) -> int:
     if not (1 <= id <= 32):
-        raise InvalidMotorID(f"Motor ID {hex(id)} out of range")
+        raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
     return 0x140 + id
 
 
 def recv_id(id: int) -> int:
     if not (1 <= id <= 32):
-        raise InvalidMotorID(f"Motor ID {hex(id)} out of range")
+        raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
     return 0x240 + id
 
 
@@ -398,7 +394,6 @@ class Motors:
             new_id: The new motor ID (from 1 to 32, inclusive).
             sleep_time: The time to sleep between each command.
         """
-
         # Gets the only attached ID or raises an error if there are multiple
         # or none.
         attached_ids = await self.get_ids(sleep_time)

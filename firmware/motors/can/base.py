@@ -1,10 +1,10 @@
 """"Defines the base interface for controlling the CAN bus."""
 
+import asyncio
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
 from types import TracebackType
 from typing import Deque
-import asyncio
 
 
 class CanBase(ABC):
@@ -44,7 +44,6 @@ class CanBase(ABC):
         Returns:
             The data of the message.
         """
-
         if self._recv_queues[id]:
             return self._recv_queues[id].popleft()
         while True:
