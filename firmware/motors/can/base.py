@@ -1,4 +1,4 @@
-""""Defines the base interface for controlling the CAN bus."""
+""" "Defines the base interface for controlling the CAN bus."""
 
 import asyncio
 from abc import ABC, abstractmethod

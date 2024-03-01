@@ -50,21 +50,22 @@ clean:
 #       Static Checks      #
 # ------------------------ #
 
-py-files := $(shell find . -name '*.py' -not -path './venv/*')
+library-name := firmware
+py-files := $(shell find ${library-name} -name '*.py' -not -path './venv/*')
 
 format:
 	@black $(py-files)
-	@ruff --fix $(py-files)
+	@ruff format $(py-files)
 .PHONY: format
 
 format-cpp:
-	@clang-format -i $(shell find . -name '*.cpp' -o -name '*.h')
-	@cmake-format -i $(shell find . -name 'CMakeLists.txt' -o -name '*.cmake')
+	@clang-format -i $(shell find ${library-name} -name '*.cpp' -o -name '*.h')
+	@cmake-format -i $(shell find ${library-name} -name 'CMakeLists.txt' -o -name '*.cmake')
 .PHONY: format-cpp
 
 static-checks:
 	@black --diff --check $(py-files)
-	@ruff $(py-files)
+	@ruff check $(py-files)
 	@mypy --install-types --non-interactive $(py-files)
 .PHONY: lint
 
