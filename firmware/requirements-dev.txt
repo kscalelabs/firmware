@@ -2,6 +2,8 @@
 
 # Formatting
 black
+clang-format
+cmake-format
 darglint
 mypy
 pytest
