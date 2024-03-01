@@ -1,10 +1,15 @@
 # requirements-dev.txt
 
+# Formatting
 black
 darglint
 mypy
 pytest
 ruff
+
+# Extensions
+cmake
+pybind11
 
 # Types
 typing_extensions
