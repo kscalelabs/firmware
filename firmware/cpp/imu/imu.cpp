@@ -2,10 +2,7 @@
 
 #include "imu.h"
 
-int file;
-int BerryIMUversion = 99;
-
-void readBlock(uint8_t command, uint8_t size, uint8_t *data) {
+void IMU::readBlock(uint8_t command, uint8_t size, uint8_t *data) {
   int result = i2c_smbus_read_i2c_block_data(file, command, size, data);
   if (result != size) {
     printf("Failed to read block from I2C.");
@@ -13,76 +10,85 @@ void readBlock(uint8_t command, uint8_t size, uint8_t *data) {
   }
 }
 
-void selectDevice(int file, int addr) {
+void IMU::selectDevice(int file, int addr) {
   if (ioctl(file, I2C_SLAVE, addr) < 0) {
     printf("Failed to select I2C device.");
   }
 }
 
-void readACC(int a[]) {
+vector_3d_t IMU::readAcc() {
   uint8_t block[6];
-  if (BerryIMUversion == 1) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_ACC_ADDRESS);
     readBlock(0x80 | LSM9DS0_OUT_X_L_A, sizeof(block), block);
-  } else if (BerryIMUversion == 2) {
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_ACC_ADDRESS);
     readBlock(LSM9DS1_OUT_X_L_XL, sizeof(block), block);
-  } else if (BerryIMUversion == 3) {
+  } else if (version == 3) {
     selectDevice(file, LSM6DSL_ADDRESS);
     readBlock(LSM6DSL_OUTX_L_XL, sizeof(block), block);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
   }
 
   // Combine readings for each axis.
-  a[0] = (int16_t)(block[0] | block[1] << 8);
-  a[1] = (int16_t)(block[2] | block[3] << 8);
-  a[2] = (int16_t)(block[4] | block[5] << 8);
+  return {(int16_t)(block[0] | block[1] << 8),
+          (int16_t)(block[2] | block[3] << 8),
+          (int16_t)(block[4] | block[5] << 8)};
 }
 
-void readMAG(int m[]) {
+vector_3d_t IMU::readMag() {
   uint8_t block[6];
-  if (BerryIMUversion == 1) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_MAG_ADDRESS);
     readBlock(0x80 | LSM9DS0_OUT_X_L_M, sizeof(block), block);
-  } else if (BerryIMUversion == 2) {
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_MAG_ADDRESS);
     readBlock(LSM9DS1_OUT_X_L_M, sizeof(block), block);
-  } else if (BerryIMUversion == 3) {
+  } else if (version == 3) {
     selectDevice(file, LIS3MDL_ADDRESS);
     readBlock(LIS3MDL_OUT_X_L, sizeof(block), block);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
   }
 
   // Combine readings for each axis.
-  m[0] = (int16_t)(block[0] | block[1] << 8);
-  m[1] = (int16_t)(block[2] | block[3] << 8);
-  m[2] = (int16_t)(block[4] | block[5] << 8);
+  return {(int16_t)(block[0] | block[1] << 8),
+          (int16_t)(block[2] | block[3] << 8),
+          (int16_t)(block[4] | block[5] << 8)};
 }
 
-void readGYR(int g[]) {
+vector_3d_t IMU::readGyr() {
   uint8_t block[6];
-  if (BerryIMUversion == 1) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_GYR_ADDRESS);
     readBlock(0x80 | LSM9DS0_OUT_X_L_G, sizeof(block), block);
-  } else if (BerryIMUversion == 2) {
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_GYR_ADDRESS);
     readBlock(LSM9DS1_OUT_X_L_G, sizeof(block), block);
-  } else if (BerryIMUversion == 3) {
+  } else if (version == 3) {
     selectDevice(file, LSM6DSL_ADDRESS);
     readBlock(LSM6DSL_OUTX_L_G, sizeof(block), block);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
   }
 
   // Combine readings for each axis.
-  g[0] = (int16_t)(block[0] | block[1] << 8);
-  g[1] = (int16_t)(block[2] | block[3] << 8);
-  g[2] = (int16_t)(block[4] | block[5] << 8);
+  return {(int16_t)(block[0] | block[1] << 8),
+          (int16_t)(block[2] | block[3] << 8),
+          (int16_t)(block[4] | block[5] << 8)};
 }
 
-void writeAccReg(uint8_t reg, uint8_t value) {
-  if (BerryIMUversion == 1)
+void IMU::writeAccReg(uint8_t reg, uint8_t value) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_ACC_ADDRESS);
-  else if (BerryIMUversion == 2)
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_ACC_ADDRESS);
-  else if (BerryIMUversion == 3)
+  } else if (version == 3) {
     selectDevice(file, LSM6DSL_ADDRESS);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
+  }
 
   int result = i2c_smbus_write_byte_data(file, reg, value);
   if (result == -1) {
@@ -91,13 +97,16 @@ void writeAccReg(uint8_t reg, uint8_t value) {
   }
 }
 
-void writeMagReg(uint8_t reg, uint8_t value) {
-  if (BerryIMUversion == 1)
+void IMU::writeMagReg(uint8_t reg, uint8_t value) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_MAG_ADDRESS);
-  else if (BerryIMUversion == 2)
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_MAG_ADDRESS);
-  else if (BerryIMUversion == 3)
+  } else if (version == 3) {
     selectDevice(file, LIS3MDL_ADDRESS);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
+  }
 
   int result = i2c_smbus_write_byte_data(file, reg, value);
   if (result == -1) {
@@ -106,13 +115,16 @@ void writeMagReg(uint8_t reg, uint8_t value) {
   }
 }
 
-void writeGyrReg(uint8_t reg, uint8_t value) {
-  if (BerryIMUversion == 1)
+void IMU::writeGyrReg(uint8_t reg, uint8_t value) {
+  if (version == 1) {
     selectDevice(file, LSM9DS0_GYR_ADDRESS);
-  else if (BerryIMUversion == 2)
+  } else if (version == 2) {
     selectDevice(file, LSM9DS1_GYR_ADDRESS);
-  else if (BerryIMUversion == 3)
+  } else if (version == 3) {
     selectDevice(file, LSM6DSL_ADDRESS);
+  } else {
+    throw std::runtime_error("Invalid IMU version");
+  }
 
   int result = i2c_smbus_write_byte_data(file, reg, value);
   if (result == -1) {
@@ -121,7 +133,7 @@ void writeGyrReg(uint8_t reg, uint8_t value) {
   }
 }
 
-void detectIMU() {
+void IMU::detectIMU() {
 
   __u16 block[I2C_SMBUS_BLOCK_MAX];
 
@@ -146,7 +158,7 @@ void detectIMU() {
 
   if (LSM9DS0_WHO_G_response == 0xd4 && LSM9DS0_WHO_XM_response == 0x49) {
     printf("\n\n\n#####   BerryIMUv1/LSM9DS0  DETECTED    #####\n\n");
-    BerryIMUversion = 1;
+    version = 1;
   }
 
   // Detect if BerryIMUv2 (Which uses a LSM9DS1) is connected
@@ -160,7 +172,7 @@ void detectIMU() {
 
   if (LSM9DS1_WHO_XG_response == 0x68 && LSM9DS1_WHO_M_response == 0x3d) {
     printf("\n\n\n#####   BerryIMUv2/LSM9DS1  DETECTED    #####\n\n");
-    BerryIMUversion = 2;
+    version = 2;
   }
 
   // Detect if BerryIMUv3 (Which uses a LSM6DSL and LIS3MDL) is connected
@@ -173,19 +185,19 @@ void detectIMU() {
 
   if (LSM6DSL_WHO_M_response == 0x6A && LIS3MDL_WHO_XG_response == 0x3D) {
     printf("\n\n\n#####   BerryIMUv3  DETECTED    #####\n\n");
-    BerryIMUversion = 3;
+    version = 3;
   }
 
   sleep(1);
-  if (BerryIMUversion == 99) {
+  if (version == 99) {
     printf("NO IMU DETECTED\n");
     exit(1);
   }
 }
 
-void enableIMU() {
+void IMU::enableIMU() {
 
-  if (BerryIMUversion == 1) { // For BerryIMUv1
+  if (version == 1) { // For BerryIMUv1
     // Enable Gyroscope
     writeGyrReg(LSM9DS0_CTRL_REG1_G,
                 0b00001111); // Normal power mode, all axes enabled
@@ -205,7 +217,7 @@ void enableIMU() {
     writeMagReg(LSM9DS0_CTRL_REG7_XM, 0b00000000); // Continuous-conversion mode
   }
 
-  if (BerryIMUversion == 2) { // For BerryIMUv2
+  if (version == 2) { // For BerryIMUv2
     // Enable gyroscope
     writeGyrReg(LSM9DS1_CTRL_REG4, 0b00111000); // z, y, x axis enabled for gyro
     writeGyrReg(LSM9DS1_CTRL_REG1_G, 0b10111000);  // Gyro ODR = 476Hz, 2000 dps
@@ -223,8 +235,7 @@ void enableIMU() {
     writeMagReg(LSM9DS1_CTRL_REG2_M, 0b01000000); // +/-12gauss
     writeMagReg(LSM9DS1_CTRL_REG3_M, 0b00000000); // continuos update
     writeMagReg(LSM9DS1_CTRL_REG4_M, 0b00000000); // lower power mode for Z axis
-  }
-  if (BerryIMUversion == 3) { // For BerryIMUv3
+  } else if (version == 3) {                      // For BerryIMUv3
     // Enable  gyroscope
     writeGyrReg(LSM6DSL_CTRL2_G, 0b10011100); // ODR 3.3 kHz, 2000 dps
 
@@ -243,7 +254,21 @@ void enableIMU() {
                              // Hz, FAST ODR disabled and Selft test disabled.
     writeMagReg(LIS3MDL_CTRL_REG2, 0b00100000); // +/- 8 gauss
     writeMagReg(LIS3MDL_CTRL_REG3, 0b00000000); // Continuous-conversion mode
+  } else {
+    throw std::runtime_error("Invalid IMU version");
   }
 }
 
-PYBIND11_MODULE(imu, m) {}
+PYBIND11_MODULE(imu, m) {
+  py::class_<vector_3d_t>(m, "Vector3D")
+      .def(py::init<int16_t, int16_t, int16_t>(), "x"_a, "y"_a, "z"_a)
+      .def_readonly("x", &vector_3d_t::x)
+      .def_readonly("y", &vector_3d_t::y)
+      .def_readonly("z", &vector_3d_t::z);
+
+  py::class_<IMU>(m, "IMU")
+      .def(py::init<int>(), "version"_a = 99)
+      .def("read_acc", &IMU::readAcc)
+      .def("read_mag", &IMU::readMag)
+      .def("read_gyr", &IMU::readGyr);
+}

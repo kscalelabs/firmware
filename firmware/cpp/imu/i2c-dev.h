@@ -68,11 +68,11 @@ struct i2c_msg {
 #define I2C_FUNC_SMBUS_I2C_BLOCK                                               \
   (I2C_FUNC_SMBUS_READ_I2C_BLOCK | I2C_FUNC_SMBUS_WRITE_I2C_BLOCK)
 
-/* Old name, for compatibility */
 #define I2C_FUNC_SMBUS_HWPEC_CALC I2C_FUNC_SMBUS_PEC
 
 #define I2C_SMBUS_BLOCK_MAX 32
 #define I2C_SMBUS_I2C_BLOCK_MAX 32
+
 union i2c_smbus_data {
   __u8 byte;
   __u16 word;
