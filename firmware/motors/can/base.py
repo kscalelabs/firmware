@@ -4,7 +4,7 @@ import asyncio
 from abc import ABC, abstractmethod
 from collections import defaultdict, deque
 from types import TracebackType
-from typing import Deque
+from typing import Deque, Self
 
 
 class CanBase(ABC):
@@ -26,7 +26,7 @@ class CanBase(ABC):
     @abstractmethod
     async def recv(self) -> tuple[int, bytes]: ...
 
-    async def __aenter__(self) -> "CanBase":
+    async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, t: type[BaseException] | None, e: BaseException | None, tr: TracebackType | None) -> None:
