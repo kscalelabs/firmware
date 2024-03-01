@@ -114,8 +114,9 @@ vector_2d_t<float> IMU::getAccAngle() {
   // Viewed from the perspective of the face on the board, Z is forward,
   // Y is down, and X is left. This function converts from the accelerometer
   // forces to angles. We can't get yaw because all yaw angles look the same
-  // to the accelerometer.
-  float pitch = atan2(acc.y, acc.z) * RAD_TO_DEG;
+  // to the accelerometer. The resulting angle will be zero if the IMU is
+  // standing up straight.
+  float pitch = atan2(acc.z, acc.y) * RAD_TO_DEG;
   float roll = atan2(acc.x, acc.y) * RAD_TO_DEG;
 
   return {pitch, roll};
