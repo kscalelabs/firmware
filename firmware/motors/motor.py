@@ -456,7 +456,7 @@ class Motors:
 
 
 async def test_motor_adhoc() -> None:
-    async with Motors(CanIP("can0")) as motor:
+    async with Motors(CanIP("can1")) as motor:
         # await asyncio.gather(*(motor.reset(i) for i in range(1, 33)))
         print("ids:", await motor.get_ids())
 

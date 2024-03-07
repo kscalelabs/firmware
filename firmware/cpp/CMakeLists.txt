@@ -13,13 +13,8 @@ elseif(WIN32)
 endif()
 
 # Finds PyTorch and Python libraries.
-find_package(PythonLibs REQUIRED)
+find_package(Python3 3.8...3.12 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
-
-# Links relevant directories.
-if(DEFINED ENV{CONDA_PREFIX})
-  link_directories($ENV{CONDA_PREFIX}/lib)
-endif()
 
 macro(build_extension)
   set(LIBRARY_NAME ${ARGV0})
@@ -38,10 +33,11 @@ macro(build_extension)
   # Links with directories.
   target_include_directories(
     ${LIBRARY_NAME}
-    PUBLIC ${PYTHON_INCLUDE_DIRS}
+    PUBLIC ${Python3_INCLUDE_DIRS}
     PUBLIC ${pybind11_INCLUDE_DIRS})
   target_link_libraries(
     ${LIBRARY_NAME}
+    PUBLIC ${Python3_LIBRARIES}
     PUBLIC ${pybind11_LIBRARIES})
 endmacro()
 
