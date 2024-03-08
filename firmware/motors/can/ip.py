@@ -14,7 +14,7 @@ class CanIP(CanBase):
     def __init__(self, channel: str, bustype: str = "socketcan", log_file: str | Path | None = None) -> None:
         super().__init__()
 
-        self.bus = can.interface.Bus(
+        self.bus = can.ThreadSafeBus(
             channel=channel,
             bustype=bustype,
         )

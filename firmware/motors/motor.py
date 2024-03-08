@@ -186,6 +186,11 @@ class Motors:
         data = [0x76, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
 
+    async def reset_all(self, wait_time: float = 0.005) -> None:
+        for motor_id in range(1, 33):
+            await self.reset(motor_id)
+            await asyncio.sleep(wait_time)
+
     async def get_system_runtime(self, id: int) -> float:
         """Gets the system runtime in seconds.
 
@@ -511,13 +516,13 @@ class Motors:
     async def _read(self, id: int, cmd_byte: int | None) -> bytes:
         response_data = await self.can.recv_id(recv_id(id))
         if cmd_byte is not None and response_data[0] != cmd_byte:
-            raise ValueError(f"Unexpected response command byte {response_data[0]}")
+            raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != {cmd_byte:02x}")
         return response_data
 
-    async def _read_status(self, id: int, cmd_byte: int) -> Status:
+    async def _read_status(self, id: int, cmd_byte: int | None) -> Status:
         response_data = await self.can.recv_id(recv_id(id))
-        if response_data[0] != cmd_byte:
-            raise ValueError(f"Unexpected response command byte {response_data[0]}")
+        if cmd_byte is not None and response_data[0] != cmd_byte:
+            raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != {cmd_byte:02x}")
         temperature = int.from_bytes(response_data[1:2], "little")
         torque_current = int.from_bytes(response_data[2:4], "little")
         shaft_velocity = int.from_bytes(response_data[4:6], "little", signed=True)
@@ -547,8 +552,10 @@ async def test_motor_adhoc() -> None:
     async with Motors(CanIP("can0")) as motor:
         motor_ids = await motor.get_ids(False)
 
-        for motor_id in motor_ids:
-            await motor.set_absolute_location(motor_id, 0)
+        # for motor_id in motor_ids:
+        #     await motor.set_absolute_location(motor_id, 0)
+
+        print(motor_ids)
 
 
 if __name__ == "__main__":
