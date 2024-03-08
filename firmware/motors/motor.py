@@ -8,11 +8,33 @@ from typing import Literal, ParamSpec, Self, TypeVar
 
 from firmware.motors.can.base import CanBase
 from firmware.motors.can.ip import CanIP
+from typing import Literal
 
 T = TypeVar("T")
 P = ParamSpec("P")
 
 DEFAULT_MAX_DPS = 360.0
+
+MotorError = Literal[
+    "motor_stall",
+    "low_pressure",
+    "overvoltage",
+    "overcurrent",
+    "power_overrun",
+    "calibration_parameter_write_error",
+    "speeding",
+    "motor_temperature_over_temperature",
+    "encoder_calibration_error",
+]
+
+
+@dataclass
+class MotorStatus:
+    temperature: int
+    mos_temperature: int
+    brake_is_locked: bool
+    voltage: float
+    errors: list[MotorError]
 
 
 @dataclass
@@ -32,6 +54,13 @@ class PID:
     speed_ki: int
     position_kp: int
     position_ki: int
+
+
+@dataclass
+class EncoderPositions:
+    position: int
+    original_position: int
+    zero_bias: int
 
 
 class InvalidMotorIDError(Exception):
@@ -75,6 +104,78 @@ class Motors:
         data = [0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
         return await self._read_status(id, 0x9C)
+
+    async def read_single_turn_encoder(self, id: int) -> EncoderPositions:
+        """Reads the single-turn encoder positions.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The single-turn encoder positions.
+        """
+        data = [0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return EncoderPositions(
+            position=int.from_bytes(response_data[2:4], "little"),
+            original_position=int.from_bytes(response_data[4:6], "little"),
+            zero_bias=int.from_bytes(response_data[6:8], "little"),
+        )
+
+    async def read_multi_turn_angle(self, id: int) -> float:
+        """Reads the multi-turn encoder angle in degrees.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The multi-turn encoder angle in degrees.
+        """
+        data = [0x92, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return int.from_bytes(response_data[4:8], "little", signed=True) * 0.01
+
+    async def read_motor_status_and_errors(self, id: int) -> MotorStatus:
+        """Reads the motor status and errors.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The motor status and errors.
+        """
+        data = [0x9A, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        errors: list[MotorError] = []
+        error_status = int.from_bytes(response_data[6:8], "little")
+        if error_status & 0x0002:
+            errors.append("motor_stall")
+        if error_status & 0x0004:
+            errors.append("low_pressure")
+        if error_status & 0x0008:
+            errors.append("overvoltage")
+        if error_status & 0x0010:
+            errors.append("overcurrent")
+        if error_status & 0x0020:
+            errors.append("power_overrun")
+        if error_status & 0x0040:
+            errors.append("calibration_parameter_write_error")
+        if error_status & 0x0080:
+            errors.append("speeding")
+        if error_status & 0x0100:
+            errors.append("motor_temperature_over_temperature")
+        if error_status & 0x0200:
+            errors.append("encoder_calibration_error")
+        return MotorStatus(
+            temperature=int.from_bytes(response_data[1:2], "little"),
+            mos_temperature=int.from_bytes(response_data[2:3], "little"),
+            brake_is_locked=bool(response_data[3]),
+            voltage=int.from_bytes(response_data[4:6], "little") * 0.1,
+            errors=errors,
+        )
 
     async def reset(self, id: int) -> None:
         """Resets the motor controller.
@@ -291,6 +392,30 @@ class Motors:
         response_data = await self._read(id, data[0])
         return int.from_bytes(response_data[4:8], "little", signed=True)
 
+    async def shutdown_motor(self, id: int) -> None:
+        """Shuts down the motor.
+
+        Turns off the motor output and clears the motor running state.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+        """
+        data = [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        await self._read(id, data[0])
+
+    async def stop_motor(self, id: int) -> None:
+        """Stops down the motor.
+
+        Stops the motor from spinning, but doesn't clear the running state.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+        """
+        data = [0x81, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        await self._read(id, data[0])
+
     async def set_brake(self, id: int, on: bool) -> None:
         """Sets the brake on or off.
 
@@ -298,10 +423,7 @@ class Motors:
             id: The motor ID (from 1 to 32, inclusive).
             on: Whether to turn the brake on or off.
         """
-        if on:
-            data = [0x78, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        else:
-            data = [0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        data = [0x78 if on else 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
@@ -381,44 +503,6 @@ class Motors:
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA8)
 
-    async def set_can_id(self, new_id: int, sleep_time: float = 0.1) -> None:
-        """Sets the motor ID to a new value.
-
-        The CAN bus should only have a single motor controller connected when
-        running this command. In order to update the motor ID, we first
-        disable the CAN filter, then send the command to update the motor ID,
-        and finally re-enable the CAN filter.
-
-        Args:
-            id: The current motor ID (from 1 to 32, inclusive).
-            new_id: The new motor ID (from 1 to 32, inclusive).
-            sleep_time: The time to sleep between each command.
-        """
-        # Gets the only attached ID or raises an error if there are multiple
-        # or none.
-        attached_ids = await self.get_ids(sleep_time)
-        if len(attached_ids) == 0:
-            raise ValueError("No motor controllers found")
-        if len(attached_ids) > 1:
-            raise ValueError(f"Multiple motor controllers found: {attached_ids}")
-        id = attached_ids[0]
-
-        async def _set_can_filter(id: int, enabled: bool) -> None:
-            data = [0x20, 0x02, 0x00, 0x00, 0x00 if enabled else 0x01, 0x00, 0x00, 0x00]
-            await self._send(id, bytes(data))
-            await self._read(id, data[0])
-
-        async def _set_motor_id(new_id: int) -> None:
-            data = [0x79, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, *new_id.to_bytes(1, "little")]
-            await self.can.send(0x300, bytes(data))
-
-        await _set_can_filter(id, True)
-        await asyncio.sleep(sleep_time)
-        await _set_motor_id(new_id)
-        await asyncio.sleep(sleep_time)
-        await _set_can_filter(new_id, False)
-        await asyncio.sleep(sleep_time)
-
     async def _send(self, id: int, data: bytes) -> None:
         can_id = send_id(id)
         assert len(data) == 8, "Data length must be 8 bytes"
@@ -440,7 +524,7 @@ class Motors:
         shaft_angle = int.from_bytes(response_data[6:8], "little", signed=True)
         return Status(id, temperature, torque_current, shaft_velocity, shaft_angle)
 
-    async def get_ids(self, timeout: float = 0.1) -> list[int]:
+    async def get_ids(self, all_at_once: bool = True, timeout: float = 0.005) -> list[int]:
         """Gets all the motor IDs which return a status response."""
 
         async def _has_motor_id(i: int) -> bool:
@@ -451,41 +535,20 @@ class Motors:
             except asyncio.TimeoutError:
                 return False
 
-        has_id = await asyncio.gather(*[_has_motor_id(i) for i in range(1, 33)])
+        if all_at_once:
+            has_id = await asyncio.gather(*[_has_motor_id(i) for i in range(1, 33)])
+        else:
+            has_id = [await _has_motor_id(i) for i in range(1, 33)]
+
         return [i for i, has in enumerate(has_id, 1) if has]
 
 
 async def test_motor_adhoc() -> None:
-    async with Motors(CanIP("can1")) as motor:
-        # await asyncio.gather(*(motor.reset(i) for i in range(1, 33)))
-        print("ids:", await motor.get_ids())
+    async with Motors(CanIP("can0")) as motor:
+        motor_ids = await motor.get_ids(False)
 
-        # await asyncio.gather(
-        #     motor.set_absolute_location(1, 0),
-        #     motor.set_absolute_location(2, 0),
-        #     motor.set_absolute_location(3, 0),
-        # )
-        # await asyncio.sleep(0.5)
-
-        # for _ in range(3):
-        #     await asyncio.gather(
-        #         motor.set_absolute_location(1, 30),
-        #         motor.set_absolute_location(2, 10),
-        #         motor.set_absolute_location(3, 45),
-        #     )
-        #     await asyncio.sleep(0.5)
-        #     await asyncio.gather(
-        #         motor.set_absolute_location(1, -30),
-        #         motor.set_absolute_location(2, -10),
-        #         motor.set_absolute_location(3, -45),
-        #     )
-        #     await asyncio.sleep(0.5)
-
-        # await asyncio.gather(
-        #     motor.set_absolute_location(1, 0),
-        #     motor.set_absolute_location(2, 0),
-        #     motor.set_absolute_location(3, 0),
-        # )
+        for motor_id in motor_ids:
+            await motor.set_absolute_location(motor_id, 0)
 
 
 if __name__ == "__main__":
