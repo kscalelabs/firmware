@@ -8,6 +8,12 @@ from firmware.motors.can.base import CanBase
 logger = logging.getLogger(__name__)
 
 
+def send_to_recv_id(id: int) -> int:
+    if 0x140 + 1 <= id <= 0x140 + 32:
+        return id - 0x140 + 0x240
+    return id
+
+
 class CanDryRun(CanBase):
     def __init__(self) -> None:
         super().__init__()
@@ -19,7 +25,8 @@ class CanDryRun(CanBase):
         await self._last_command_queue.put((id, data))
 
     async def recv(self) -> tuple[int, bytes]:
-        return await self._last_command_queue.get()
+        id, data = await self._last_command_queue.get()
+        return send_to_recv_id(id), data
 
 
 async def test_can_adhoc() -> None:
