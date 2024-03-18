@@ -3,11 +3,6 @@
 
 #include "imu.h"
 
-#define RAD_TO_DEG 57.29578
-#define M_PI 3.14159265358979323846
-
-#define GYR_GAIN 0.070
-
 template <typename T> std::string vector_2d_t<T>::toString() {
   std::ostringstream ss;
   ss << "Vector2D<x=" << x << ", y=" << y << ">";

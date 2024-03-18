@@ -13,7 +13,7 @@ elseif(WIN32)
 endif()
 
 # Finds PyTorch and Python libraries.
-find_package(Python3 3.8...3.12 COMPONENTS Interpreter Development REQUIRED)
+find_package(Python3 3.8...3.13 COMPONENTS Interpreter Development REQUIRED)
 find_package(pybind11 REQUIRED)
 
 macro(build_extension)

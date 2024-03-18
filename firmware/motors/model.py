@@ -3,7 +3,6 @@
 from dataclasses import dataclass
 
 
-
 @dataclass
 class Head:
     up_down: int
@@ -98,7 +97,13 @@ class Body:
 
     @property
     def motor_ids(self) -> list[int]:
-        return self.head.motor_ids + self.left_arm.motor_ids + [self.waist] + self.left_leg.motor_ids + self.right_leg.motor_ids
+        return (
+            self.head.motor_ids
+            + self.left_arm.motor_ids
+            + [self.waist]
+            + self.left_leg.motor_ids
+            + self.right_leg.motor_ids
+        )
 
 
 Model = Body(

@@ -8,7 +8,6 @@ from typing import Literal, ParamSpec, Self, TypeVar
 
 from firmware.motors.can.base import CanBase
 from firmware.motors.can.ip import CanIP
-from typing import Literal
 
 T = TypeVar("T")
 P = ParamSpec("P")

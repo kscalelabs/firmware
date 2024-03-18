@@ -9,6 +9,11 @@
 #include <pybind11/stl_bind.h>
 #include <stdint.h>
 
+#define RAD_TO_DEG 57.29578
+#define M_PI 3.14159265358979323846
+
+#define GYR_GAIN 0.070
+
 namespace py = pybind11;
 
 using namespace pybind11::literals;
