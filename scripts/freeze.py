@@ -6,6 +6,7 @@ import asyncio
 from firmware.motors.can.ip import CanIP
 from firmware.motors.motor import Motors
 
+
 async def main() -> None:
     motors = [
         1,
@@ -39,4 +40,3 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
-

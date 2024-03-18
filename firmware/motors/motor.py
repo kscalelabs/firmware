@@ -79,7 +79,7 @@ def recv_id(id: int) -> int:
 
 
 class Motors:
-    def __init__(self, can: CanBase) -> None:
+    def __init__(self, can: CanBase, dry_run: bool = False) -> None:
         super().__init__()
 
         self.can = can
@@ -529,7 +529,18 @@ class Motors:
         return Status(id, temperature, torque_current, shaft_velocity, shaft_angle)
 
     async def get_ids(self, all_at_once: bool = True, timeout: float = 0.005) -> list[int]:
-        """Gets all the motor IDs which return a status response."""
+        """Gets all the motor IDs which return a status response.
+
+        This function works by sending out read status commands to each motor.
+        Any motors which return a status response are considered to be attached.
+
+        Args:
+            all_at_once: Whether to read all motor IDs at once.
+            timeout: The timeout for each motor ID.
+
+        Returns:
+            The motor IDs which are attached.
+        """
 
         async def _has_motor_id(i: int) -> bool:
             try:
@@ -545,6 +556,34 @@ class Motors:
             has_id = [await _has_motor_id(i) for i in range(1, 33)]
 
         return [i for i, has in enumerate(has_id, 1) if has]
+
+    async def get_single_motor_id(self) -> int:
+        """Gets a single motor ID.
+
+        This function works by sending out read status commands to each motor.
+        If there are no returned values or multiple returned values, it will
+        throw an error, ensuring that only a single motor is attached.
+
+        Returns:
+            The motor ID.
+        """
+        for i in range(1, 33):
+            data = [0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+            await self._send(i, bytes(data))
+        motor_id: int | None = None
+        while True:
+            try:
+                response_id, response_data = await self.can.recv()
+                if response_data[0] != 0x9C:
+                    raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != 0x9C")
+                if motor_id is not None:
+                    raise ValueError("Multiple motors found")
+                motor_id = response_id - 0x240
+            except asyncio.TimeoutError:
+                break
+        if motor_id is None:
+            raise ValueError("No motors found")
+        return motor_id
 
 
 async def test_motor_adhoc() -> None:

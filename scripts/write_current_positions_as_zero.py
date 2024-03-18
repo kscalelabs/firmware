@@ -1,10 +1,12 @@
 #!/usr/bin/env python
+"""Writes the current motor positions as zero."""
 
 import asyncio
 
 from firmware.motors.can.ip import CanIP
 from firmware.motors.model import Model
 from firmware.motors.motor import Motors
+
 
 async def main() -> None:
     # motors = Model.motor_ids

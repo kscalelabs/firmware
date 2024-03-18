@@ -1,8 +1,5 @@
 # requirements.txt
 
-# pyftdi
-# pygame
 pyserial
 python-can
-# pyusb
-# RPi.GPIO
+typed-argument-parser
