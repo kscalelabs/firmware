@@ -11,12 +11,12 @@ from firmware.motors.can.base import CanBase
 
 
 class CanIP(CanBase):
-    def __init__(self, channel: str, bustype: str = "socketcan", log_file: str | Path | None = None) -> None:
+    def __init__(self, channel: str, interface: str = "socketcan", log_file: str | Path | None = None) -> None:
         super().__init__()
 
-        self.bus = can.ThreadSafeBus(
+        self.bus = can.interface.Bus(
             channel=channel,
-            bustype=bustype,
+            interface=interface,
         )
 
         self.reader = can.AsyncBufferedReader()

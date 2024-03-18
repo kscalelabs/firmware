@@ -2,7 +2,7 @@
 
 # pyftdi
 # pygame
-# pyserial
+pyserial
 python-can
 # pyusb
 # RPi.GPIO
