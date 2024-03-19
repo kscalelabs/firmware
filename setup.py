@@ -210,4 +210,9 @@ setup(
             "cpp/**/*.cpp",
         ],
     },
+    entry_points={
+        "console_scripts": [
+            "motor-cli = firmware.scripts.single_motor:cli_entry_point",
+        ],
+    },
 )

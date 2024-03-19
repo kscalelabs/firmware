@@ -363,6 +363,10 @@ async def main() -> None:
             curses.endwin()
 
 
+def cli_entry_point() -> None:
+    asyncio.run(main())
+
+
 if __name__ == "__main__":
     # python -m firmware.scripts.single_motor
-    asyncio.run(main())
+    cli_entry_point()
