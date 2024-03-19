@@ -7,6 +7,7 @@ import re
 from collections import deque
 from typing import Deque
 
+import traceback
 from tap import Tap
 
 from firmware.motors.can.callback import CanWithCallback
@@ -17,6 +18,7 @@ from firmware.motors.motor import Motors
 
 class ArgumentParser(Tap):
     can_bus: int = 0  # The CAN bus to use.
+    can_read_bus: int = 1  # The CAN bus to use for reading.
     motor_id: int | None = None  # The specific motor to control.
     dry_run: bool = False  # Use the dry run interface.
     width: int = 80  # The width of the Curses window.
@@ -81,9 +83,9 @@ async def main() -> None:
             "q": "Quit the program",
             "c": "Clear the TX and RX panes",
             "m <n>": "Move by N degrees",
-            "v <n>": "Set velocity to N RPM",
+            "v <n>": "Set velocity to N degrees / second",
+            "a <n>": "Set absolute position to N degrees",
             "t <n>": "Set tracking position to N degrees",
-            "r <n>": "Set relative position by N degrees",
             "reset": "Reset the motor",
             "r a": "Read acceleration",
             "r i": "Read single-turn encoder",
@@ -97,7 +99,8 @@ async def main() -> None:
             "r pid": "Read the PID values",
             "w z": "Write multi-turn encoder zero offset",
             "w z <n>": "Write multi-turn encoder zero offset value",
-            "v": "Gets the system version",
+            "w pid <v/p/c> <ki/kp> <n>": "Write PID value",
+            "version": "Gets the system version",
             "shutdown": "Shutdown the motor",
             "stop": "Stop the motor",
         }
@@ -207,6 +210,7 @@ async def main() -> None:
 
         async def run_command(command: str) -> None:
             command = command.lower().strip()
+            await add_tx(command)
             if command == "q":
                 raise KeyboardInterrupt
             try:
@@ -214,7 +218,7 @@ async def main() -> None:
                     if command == "c":
                         clear_tx()
                         clear_rx()
-                    elif command.startswith("m "):
+                    elif command.startswith("a "):
                         degrees = float(command[2:].strip())
                         await motor.set_position(motor_id, degrees)
                     elif command.startswith("v "):
@@ -223,7 +227,7 @@ async def main() -> None:
                     elif command.startswith("t "):
                         degrees = float(command[2:].strip())
                         await motor.set_tracking_position(motor_id, degrees)
-                    elif command.startswith("r "):
+                    elif command.startswith("m "):
                         degrees = float(command[2:].strip())
                         await motor.set_relative_position(motor_id, degrees)
                     elif command == "reset":
@@ -233,7 +237,7 @@ async def main() -> None:
                         await motor.shutdown(motor_id)
                     elif command == "stop":
                         await motor.stop(motor_id)
-                    elif command == "v":
+                    elif command == "version":
                         version_date = await motor.get_system_version(motor_id)
                         version_str = version_date.strftime("%Y-%m-%d %H:%M:%S")
                         await add_rx(f"Version: {version_str}")
@@ -290,6 +294,28 @@ async def main() -> None:
                         elif subcommand.startswith("z "):
                             zero_offset = int(subcommand[2:].strip())
                             await motor.write_multi_turn_encoder_zero_offset(motor_id, zero_offset)
+                        elif subcommand.startswith("pid "):
+                            mode, kp_ki, value_str = subcommand[4:].strip().split()
+                            assert mode in ("v", "p", "c")
+                            assert kp_ki in ("ki", "kp")
+                            pid_value = int(value_str)
+                            pid = await motor.read_pid(motor_id)
+                            if mode == "v":
+                                if kp_ki == "ki":
+                                    pid.speed_ki = pid_value
+                                else:
+                                    pid.speed_kp = pid_value
+                            elif mode == "p":
+                                if kp_ki == "ki":
+                                    pid.position_ki = pid_value
+                                else:
+                                    pid.position_kp = pid_value
+                            else:
+                                if kp_ki == "ki":
+                                    pid.current_ki = pid_value
+                                else:
+                                    pid.current_kp = pid_value
+                            await motor.write_pid_to_ram(motor_id, pid)
                         else:
                             raise ValueError
                     else:

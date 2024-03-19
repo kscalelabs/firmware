@@ -557,12 +557,19 @@ class Motors:
 
         return [i for i, has in enumerate(has_id, 1) if has]
 
-    async def get_single_motor_id(self) -> int:
+    async def get_single_motor_id(self, first_motor_timeout: float = 5.0, other_motor_timeout: float = 0.05) -> int:
         """Gets a single motor ID.
 
         This function works by sending out read status commands to each motor.
         If there are no returned values or multiple returned values, it will
         throw an error, ensuring that only a single motor is attached.
+
+        Args:
+            first_motor_timeout: The amount of time to wait for the first
+                motor to respond.
+            other_motor_timeout: The amount fo tiem to wait for any additional
+                motors to respond, after getting a response from the first
+                motor.
 
         Returns:
             The motor ID.
@@ -573,12 +580,13 @@ class Motors:
         motor_id: int | None = None
         while True:
             try:
-                response_id, response_data = await self.can.recv()
-                if response_data[0] != 0x9C:
-                    raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != 0x9C")
-                if motor_id is not None:
-                    raise ValueError("Multiple motors found")
-                motor_id = response_id - 0x240
+                async with asyncio.timeout(first_motor_timeout if motor_id is None else other_motor_timeout):
+                    response_id, response_data = await self.can.recv()
+                    if response_data[0] != 0x9C:
+                        raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != 0x9C")
+                    if motor_id is not None:
+                        raise ValueError(f"Multiple motors found: {motor_id}, {response_id - 0x240}")
+                    motor_id = response_id - 0x240
             except asyncio.TimeoutError:
                 break
         if motor_id is None:

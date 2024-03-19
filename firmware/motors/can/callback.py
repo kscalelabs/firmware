@@ -1,7 +1,8 @@
 """Defines a wrapper CAN interface which supports callback."""
 
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Self
 
+from types import TracebackType
 from firmware.motors.can.base import CanBase
 
 
@@ -26,3 +27,11 @@ class CanWithCallback(CanBase):
         id, data = await self.can.recv()
         await self.recv_callback(id, data)
         return id, data
+
+    async def __aenter__(self) -> Self:
+        await self.can.__aenter__()
+        return await super().__aenter__()
+
+    async def __aexit__(self, t: type[BaseException] | None, e: BaseException | None, tr: TracebackType | None) -> None:
+        await self.can.__aexit__(t, e, tr)
+        await super().__aexit__(t, e, tr)
