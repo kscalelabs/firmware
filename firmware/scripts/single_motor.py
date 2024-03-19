@@ -326,7 +326,7 @@ async def main() -> None:
                 motor_id = args.motor_id
             else:
                 motor_id = await motor.get_single_motor_id()
-                add_rx(f"Motor ID: {motor_id}")
+                await add_rx(f"Motor ID: {motor_id}")
 
             # Main loop.
             while True:
