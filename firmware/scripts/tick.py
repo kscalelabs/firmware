@@ -22,7 +22,7 @@ async def main() -> None:
             for motor_id in motor_ids:
                 # position = await motor.read_multi_turn_encoder_position(motor_id)
                 # await motor.set_absolute_location(motor_id, position + (delta if flag else -delta))
-                await motor.set_relative_location(motor_id, delta if flag else -delta)
+                await motor.set_relative_position(motor_id, delta if flag else -delta)
 
             flag = not flag
             await asyncio.sleep(1)

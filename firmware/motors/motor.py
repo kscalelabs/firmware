@@ -136,6 +136,34 @@ class Motors:
         response_data = await self._read(id, data[0])
         return int.from_bytes(response_data[4:8], "little", signed=True) * 0.01
 
+    async def read_multi_turn_encoder_position(self, id: int) -> int:
+        """Reads the raw multi-turn encoder position.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The raw multi-turn encoder position.
+        """
+        data = [0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return int.from_bytes(response_data[4:8], "little", signed=True)
+
+    async def read_multi_turn_encoder_original_position(self, id: int) -> int:
+        """Reads the raw multi-turn encoder position.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The raw multi-turn encoder position.
+        """
+        data = [0x61, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return int.from_bytes(response_data[4:8], "little", signed=True)
+
     async def read_motor_status_and_errors(self, id: int) -> MotorStatus:
         """Reads the motor status and errors.
 
@@ -336,34 +364,6 @@ class Motors:
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
-    async def read_multi_turn_encoder_position(self, id: int) -> int:
-        """Reads the raw multi-turn encoder position.
-
-        Args:
-            id: The motor ID (from 1 to 32, inclusive).
-
-        Returns:
-            The raw multi-turn encoder position.
-        """
-        data = [0x60, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        await self._send(id, bytes(data))
-        response_data = await self._read(id, data[0])
-        return int.from_bytes(response_data[4:8], "little", signed=True)
-
-    async def read_multi_turn_encoder_original_position(self, id: int) -> int:
-        """Reads the raw multi-turn encoder position.
-
-        Args:
-            id: The motor ID (from 1 to 32, inclusive).
-
-        Returns:
-            The raw multi-turn encoder position.
-        """
-        data = [0x61, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        await self._send(id, bytes(data))
-        response_data = await self._read(id, data[0])
-        return int.from_bytes(response_data[4:8], "little", signed=True)
-
     async def read_multi_turn_encoder_zero_offset(self, id: int) -> int:
         """Reads the raw multi-turn encoder position.
 
@@ -396,7 +396,7 @@ class Motors:
         response_data = await self._read(id, data[0])
         return int.from_bytes(response_data[4:8], "little", signed=True)
 
-    async def shutdown_motor(self, id: int) -> None:
+    async def shutdown(self, id: int) -> None:
         """Shuts down the motor.
 
         Turns off the motor output and clears the motor running state.
@@ -408,7 +408,7 @@ class Motors:
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
-    async def stop_motor(self, id: int) -> None:
+    async def stop(self, id: int) -> None:
         """Stops down the motor.
 
         Stops the motor from spinning, but doesn't clear the running state.
@@ -483,7 +483,7 @@ class Motors:
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA4)
 
-    async def set_tracking_location(self, id: int, location: float) -> Status:
+    async def set_tracking_position(self, id: int, location: float) -> Status:
         """Sets the target location of the motor in degrees.
 
         Args:
@@ -497,7 +497,7 @@ class Motors:
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA3)
 
-    async def set_relative_location(self, id: int, location: float, max_dps: float = DEFAULT_MAX_DPS) -> Status:
+    async def set_relative_position(self, id: int, location: float, max_dps: float = DEFAULT_MAX_DPS) -> Status:
         data = [
             0xA8,
             0x00,

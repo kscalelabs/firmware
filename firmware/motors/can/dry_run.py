@@ -22,7 +22,11 @@ class CanDryRun(CanBase):
 
     async def send(self, id: int, data: bytes) -> None:
         logger.info("CAN: %s %s", hex(id), data.hex())
-        await self._last_command_queue.put((id, data))
+        if data[0] == 0x76:  # Reset
+            while not self._last_command_queue.empty():
+                self._last_command_queue.get_nowait()
+        else:
+            await self._last_command_queue.put((id, data))
 
     async def recv(self) -> tuple[int, bytes]:
         id, data = await self._last_command_queue.get()

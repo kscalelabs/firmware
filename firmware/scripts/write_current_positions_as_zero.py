@@ -26,7 +26,7 @@ async def main() -> None:
         #     await asyncio.sleep(0.1)
 
         for i in motors:
-            await motor.set_relative_location(i, 0)
+            await motor.set_relative_position(i, 0)
 
 
 if __name__ == "__main__":
