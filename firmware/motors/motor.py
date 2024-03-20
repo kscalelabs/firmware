@@ -4,7 +4,7 @@ import asyncio
 import datetime
 from dataclasses import dataclass
 from types import TracebackType
-from typing import Literal, ParamSpec, Self, TypeVar
+from typing import Literal, NotRequired, ParamSpec, Self, TypedDict, TypeVar
 
 from firmware.motors.can.base import CanBase
 from firmware.motors.can.ip import CanIP
@@ -60,6 +60,21 @@ class EncoderPositions:
     position: int
     original_position: int
     zero_bias: int
+
+
+class MotionModeArgs(TypedDict):
+    desired_position: NotRequired[float]
+    desired_velocity: NotRequired[float]
+    feedforward_torque: NotRequired[float]
+    kp: NotRequired[int]
+    kd: NotRequired[int]
+
+
+@dataclass
+class MotionModeResponse:
+    position: float
+    velocity: float
+    torque: float
 
 
 class InvalidMotorIDError(Exception):
@@ -589,7 +604,7 @@ class Motors:
         feedforward_torque: float = 0.0,
         kp: int = 80,
         kd: int = 2,
-    ) -> None:
+    ) -> MotionModeResponse:
         """Runs the motor motion command.
 
         Args:
@@ -613,11 +628,15 @@ class Motors:
             raise ValueError(f"Position deviation coefficient {kp} out of range")
         if 5 < kd or kd < 0:
             raise ValueError(f"Velocity deviation coefficient {kd} out of range")
-        p_bytes = int(desired_position + 12.5) / 25.0 * 0xFFFF
-        v_bytes = int(desired_velocity + 45) / 90.0 * 0xFFF
-        t_bytes = int(feedforward_torque + 24) / 48.0 * 0xFFF
-        kp_bytes = kp / 500.0 * 0xFFF
-        kd_bytes = kd / 5.0 * 0xFFF
+
+        # Converts to integer values.
+        p_bytes = round((desired_position + 12.5) / 25.0 * 0xFFFF)
+        v_bytes = round((desired_velocity + 45) / 90.0 * 0xFFF)
+        t_bytes = round((feedforward_torque + 24) / 48.0 * 0xFFF)
+        kp_bytes = round(kp / 500.0 * 0xFFF)
+        kd_bytes = round(kd / 5.0 * 0xFFF)
+
+        # Sends the command.
         data = [
             p_bytes & 0xFF,
             (p_bytes >> 8) & 0xFF,
@@ -629,6 +648,14 @@ class Motors:
             (t_bytes >> 4) & 0xFF,
         ]
         await self.can.send(0x400 + motor_id, bytes(data))
+
+        # Reads the response.
+        data = await self._read(motor_id, None)
+        return MotionModeResponse(
+            position=(data[0] + (data[1] << 8)) / 0xFFFF * 25 - 12.5,
+            velocity=(data[2] + ((data[3] & 0xF) << 8)) / 0xFFF * 90 - 45,
+            torque=((data[3] >> 4) & 0xF + (data[7] << 4)) / 0xFFF * 48 - 24,
+        )
 
 
 async def test_motor_adhoc() -> None:

@@ -7,13 +7,12 @@ import re
 from collections import deque
 from typing import Deque
 
-import traceback
 from tap import Tap
 
 from firmware.motors.can.callback import CanWithCallback
 from firmware.motors.can.dry_run import CanDryRun
 from firmware.motors.can.ip import CanIP
-from firmware.motors.motor import Motors
+from firmware.motors.motor import MotionModeArgs, Motors
 
 
 class ArgumentParser(Tap):
@@ -82,6 +81,7 @@ async def main() -> None:
         commands = {
             "q": "Quit the program",
             "c": "Clear the TX and RX panes",
+            "n <p> (<v>) (<t>)": "Motor motion command",
             "m <n>": "Move by N degrees",
             "v <n>": "Set velocity to N degrees / second",
             "a <n>": "Set absolute position to N degrees",
@@ -218,6 +218,25 @@ async def main() -> None:
                     if command == "c":
                         clear_tx()
                         clear_rx()
+                    elif command.startswith("n "):
+                        parts = command[2:].strip().split()
+                        motion_kwargs: MotionModeArgs = {}
+                        if len(parts) < 1:
+                            raise ValueError("Not enough arguments")
+                        if len(parts) >= 1:
+                            motion_kwargs["desired_position"] = float(parts[0])
+                        if len(parts) >= 2:
+                            motion_kwargs["desired_velocity"] = float(parts[1])
+                        if len(parts) >= 3:
+                            motion_kwargs["feedforward_torque"] = float(parts[2])
+                        if len(parts) >= 4:
+                            motion_kwargs["kp"] = int(parts[3])
+                        if len(parts) >= 5:
+                            motion_kwargs["kd"] = int(parts[4])
+                        motion_info = await motor.motor_motion(motor_id, **motion_kwargs)
+                        await add_rx(f"Pos.: {motion_info.position}")
+                        await add_rx(f"Vel.: {motion_info.velocity}")
+                        await add_rx(f"Torque: {motion_info.torque}")
                     elif command.startswith("a "):
                         degrees = float(command[2:].strip())
                         await motor.set_position(motor_id, degrees)
@@ -300,21 +319,24 @@ async def main() -> None:
                             assert kp_ki in ("ki", "kp")
                             pid_value = int(value_str)
                             pid = await motor.read_pid(motor_id)
-                            if mode == "v":
-                                if kp_ki == "ki":
-                                    pid.speed_ki = pid_value
-                                else:
-                                    pid.speed_kp = pid_value
-                            elif mode == "p":
-                                if kp_ki == "ki":
-                                    pid.position_ki = pid_value
-                                else:
-                                    pid.position_kp = pid_value
-                            else:
-                                if kp_ki == "ki":
-                                    pid.current_ki = pid_value
-                                else:
-                                    pid.current_kp = pid_value
+                            match mode:
+                                case "v":
+                                    if kp_ki == "ki":
+                                        pid.speed_ki = pid_value
+                                    else:
+                                        pid.speed_kp = pid_value
+                                case "p":
+                                    if kp_ki == "ki":
+                                        pid.position_ki = pid_value
+                                    else:
+                                        pid.position_kp = pid_value
+                                case "c":
+                                    if kp_ki == "ki":
+                                        pid.current_ki = pid_value
+                                    else:
+                                        pid.current_kp = pid_value
+                                case _:
+                                    raise ValueError
                             await motor.write_pid_to_ram(motor_id, pid)
                         else:
                             raise ValueError

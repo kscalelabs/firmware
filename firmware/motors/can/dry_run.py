@@ -11,6 +11,8 @@ logger = logging.getLogger(__name__)
 def send_to_recv_id(id: int) -> int:
     if 0x140 + 1 <= id <= 0x140 + 32:
         return id - 0x140 + 0x240
+    elif 0x400 + 1 <= id <= 0x400 + 32:
+        return id - 0x400 + 0x240
     return id
 
 
