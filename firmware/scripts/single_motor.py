@@ -81,11 +81,9 @@ async def main() -> None:
         commands = {
             "q": "Quit the program",
             "c": "Clear the TX and RX panes",
-            "n <p> (<v>) (<t>)": "Motor motion command",
             "m <n>": "Move by N degrees",
             "v <n>": "Set velocity to N degrees / second",
             "a <n>": "Set absolute position to N degrees",
-            "p <n>": "Set tracking position to N degrees",
             "t <n>": "Set motor current to N amps",
             "reset": "Reset the motor",
             "r a": "Read acceleration",
@@ -101,6 +99,7 @@ async def main() -> None:
             "w z": "Write multi-turn encoder zero offset",
             "w z <n>": "Write multi-turn encoder zero offset value",
             "w pid <v/p/c> <ki/kp> <n>": "Write PID value",
+            "mode": "Get the system operating mode",
             "version": "Gets the system version",
             "shutdown": "Shutdown the motor",
             "stop": "Stop the motor",
@@ -221,25 +220,6 @@ async def main() -> None:
                     if command == "c":
                         clear_tx()
                         clear_rx()
-                    elif command.startswith("n "):
-                        parts = command[2:].strip().split()
-                        motion_kwargs: MotionModeArgs = {}
-                        if len(parts) < 1:
-                            raise ValueError("Not enough arguments")
-                        if len(parts) >= 1:
-                            motion_kwargs["desired_position"] = float(parts[0])
-                        if len(parts) >= 2:
-                            motion_kwargs["desired_velocity"] = float(parts[1])
-                        if len(parts) >= 3:
-                            motion_kwargs["feedforward_torque"] = float(parts[2])
-                        if len(parts) >= 4:
-                            motion_kwargs["kp"] = int(parts[3])
-                        if len(parts) >= 5:
-                            motion_kwargs["kd"] = int(parts[4])
-                        motion_info = await motor.motor_motion(motor_id, **motion_kwargs)
-                        await add_rx(f"Pos.: {motion_info.position}")
-                        await add_rx(f"Vel.: {motion_info.velocity}")
-                        await add_rx(f"Torque: {motion_info.torque}")
                     elif command.startswith("a "):
                         degrees = float(command[2:].strip())
                         status = await motor.set_position(motor_id, degrees)
@@ -250,13 +230,6 @@ async def main() -> None:
                     elif command.startswith("v "):
                         rpm = float(command[2:].strip())
                         status = await motor.set_velocity(motor_id, rpm)
-                        await add_rx(f"Temp.: {status.temperature}")
-                        await add_rx(f"Trq.: {status.torque_current}")
-                        await add_rx(f"Vel.: {status.shaft_velocity}")
-                        await add_rx(f"Ang.: {status.shaft_angle}")
-                    elif command.startswith("p "):
-                        degrees = float(command[2:].strip())
-                        status = await motor.set_tracking_position(motor_id, degrees)
                         await add_rx(f"Temp.: {status.temperature}")
                         await add_rx(f"Trq.: {status.torque_current}")
                         await add_rx(f"Vel.: {status.shaft_velocity}")
@@ -282,6 +255,9 @@ async def main() -> None:
                         await motor.shutdown(motor_id)
                     elif command == "stop":
                         await motor.stop(motor_id)
+                    elif command == "mode":
+                        mode = await motor.system_operating_mode(motor_id)
+                        await add_rx(f"Mode: {mode}")
                     elif command == "version":
                         version_str = await motor.get_system_version(motor_id)
                         await add_rx(f"Version: {version_str}")

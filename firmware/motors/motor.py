@@ -25,6 +25,8 @@ MotorError = Literal[
     "encoder_calibration_error",
 ]
 
+OperatingMode = Literal["current_loop", "speed_loop", "position_loop"]
+
 
 @dataclass
 class MotorStatus:
@@ -217,6 +219,21 @@ class Motors:
             voltage=int.from_bytes(response_data[4:6], "little") * 0.1,
             errors=errors,
         )
+
+    async def system_operating_mode(self, id: int) -> OperatingMode:
+        data = [0x70, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        mode = response_data[7]
+        match mode:
+            case 0x01:
+                return "current_loop"
+            case 0x02:
+                return "speed_loop"
+            case 0x03:
+                return "position_loop"
+            case _:
+                raise ValueError(f"Invalid operating mode {mode}")
 
     async def reset(self, id: int) -> None:
         """Resets the motor controller.
@@ -607,74 +624,6 @@ class Motors:
         if len(motor_ids) > 1:
             raise RuntimeError(f"Found multiple attached motors: {motor_ids}")
         return motor_ids[0]
-
-    async def motor_motion(
-        self,
-        motor_id: int,
-        desired_position: float = 0.0,
-        desired_velocity: float = 0.0,
-        feedforward_torque: float = 0.0,
-        kp: int = 80,
-        kd: int = 2,
-    ) -> MotionModeResponse:
-        """Runs the motor motion command.
-
-        Args:
-            motor_id: The ID of the motor being controlled.
-            desired_position: The desired position to reach, in radians, from
-                -12.5 to 12.5.
-            desired_velocity: The desired velocity to reach, in radians per
-                second, from -45 to 45.
-            feedforward_torque: The feedforward torque to apply, in Nm, from
-                -24 to 24.
-            kp: The position deviation coefficient, from 0 to 500.
-            kd: The velocity deviation coefficient, from 0 to 5.
-        """
-        if 12.5 < desired_position or desired_position < -12.5:
-            raise ValueError(f"Desired position {desired_position} out of range")
-        if 45 < desired_velocity or desired_velocity < -45:
-            raise ValueError(f"Desired velocity {desired_velocity} out of range")
-        if 24 < feedforward_torque or feedforward_torque < -24:
-            raise ValueError(f"Feedforward torque {feedforward_torque} out of range")
-        if 500 < kp or kp < 0:
-            raise ValueError(f"Position deviation coefficient {kp} out of range")
-        if 5 < kd or kd < 0:
-            raise ValueError(f"Velocity deviation coefficient {kd} out of range")
-
-        # Converts to integer values.
-        p_bytes = round((desired_position + 12.5) / 25 * 0xFFFF)
-        v_bytes = round((desired_velocity + 45) / 90 * 0xFFF)
-        kp_bytes = round(kp / 500 * 0xFFF)
-        kd_bytes = round(kd / 5 * 0xFFF)
-        t_bytes = round((feedforward_torque + 24) / 48 * 0xFFF)
-
-        # Sends the command.
-        data_num = (
-            (p_bytes & 0xFFFF)
-            + ((v_bytes & 0xFFF) << 16)
-            + ((kp_bytes & 0xFFF) << 28)
-            + ((kd_bytes & 0xFFF) << 40)
-            + ((t_bytes & 0xFFF) << 52)
-        )
-        data = data_num.to_bytes(8, "little")
-
-        # Tests decoding, for debugging.
-        # assert int.from_bytes(data[:2], "little") == p_bytes
-        # assert (int.from_bytes(data[2:4], "little") & 0xFFF) == v_bytes
-        # assert (int.from_bytes(data[3:5], "little") >> 4) & 0xFFF == kp_bytes
-        # assert (int.from_bytes(data[5:7], "little") & 0xFFF) == kd_bytes
-        # assert (int.from_bytes(data[6:], "little") >> 4) & 0xFFF == t_bytes
-
-        await self.can.send(0x400 + motor_id, bytes(data))
-
-        # Reads the response.
-        data = await self.can.recv_id(0x500 + motor_id)
-
-        return MotionModeResponse(
-            position=(data[0] + (data[1] << 8)) / 0xFFFF * 25 - 12.5,
-            velocity=(data[2] + ((data[3] & 0xF) << 8)) / 0xFFF * 90 - 45,
-            torque=((data[3] >> 4) & 0xF + (data[7] << 4)) / 0xFFF * 48 - 24,
-        )
 
 
 async def test_motor_adhoc() -> None:
