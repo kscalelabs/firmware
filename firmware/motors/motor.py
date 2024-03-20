@@ -1,7 +1,6 @@
 """Implements the interface for talking to the motor controller."""
 
 import asyncio
-import datetime
 from dataclasses import dataclass
 from types import TracebackType
 from typing import Literal, NotRequired, ParamSpec, Self, TypedDict, TypeVar
@@ -645,21 +644,27 @@ class Motors:
         # Converts to integer values.
         p_bytes = round((desired_position + 12.5) / 25 * 0xFFFF)
         v_bytes = round((desired_velocity + 45) / 90 * 0xFFF)
-        t_bytes = round((feedforward_torque + 24) / 48 * 0xFFF)
         kp_bytes = round(kp / 500 * 0xFFF)
         kd_bytes = round(kd / 5 * 0xFFF)
+        t_bytes = round((feedforward_torque + 24) / 48 * 0xFFF)
 
         # Sends the command.
-        data = [
-            p_bytes & 0xFF,
-            (p_bytes >> 8) & 0xFF,
-            v_bytes & 0xFF,
-            ((v_bytes >> 8) & 0xF) | ((kp_bytes & 0xF) << 4),
-            (kp_bytes >> 4) & 0xFF,
-            kd_bytes & 0xFF,
-            ((kd_bytes >> 8) & 0xF) | ((t_bytes & 0xF) << 4),
-            (t_bytes >> 4) & 0xFF,
-        ]
+        data_num = (
+            (p_bytes & 0xFFFF)
+            + ((v_bytes & 0xFFF) << 16)
+            + ((kp_bytes & 0xFFF) << 28)
+            + ((kd_bytes & 0xFFF) << 40)
+            + ((t_bytes & 0xFFF) << 52)
+        )
+        data = data_num.to_bytes(8, "little")
+
+        # Tests decoding, for debugging.
+        # assert int.from_bytes(data[:2], "little") == p_bytes
+        # assert (int.from_bytes(data[2:4], "little") & 0xFFF) == v_bytes
+        # assert (int.from_bytes(data[3:5], "little") >> 4) & 0xFFF == kp_bytes
+        # assert (int.from_bytes(data[5:7], "little") & 0xFFF) == kd_bytes
+        # assert (int.from_bytes(data[6:], "little") >> 4) & 0xFFF == t_bytes
+
         await self.can.send(0x400 + motor_id, bytes(data))
 
         # Reads the response.
