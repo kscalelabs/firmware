@@ -85,7 +85,8 @@ async def main() -> None:
             "m <n>": "Move by N degrees",
             "v <n>": "Set velocity to N degrees / second",
             "a <n>": "Set absolute position to N degrees",
-            "t <n>": "Set tracking position to N degrees",
+            "p <n>": "Set tracking position to N degrees",
+            "t <n>": "Set motor current to N amps",
             "reset": "Reset the motor",
             "r a": "Read acceleration",
             "r i": "Read single-turn encoder",
@@ -239,16 +240,32 @@ async def main() -> None:
                         await add_rx(f"Torque: {motion_info.torque}")
                     elif command.startswith("a "):
                         degrees = float(command[2:].strip())
-                        await motor.set_position(motor_id, degrees)
+                        status = await motor.set_position(motor_id, degrees)
+                        await add_rx(f"Temp.: {status.temperature}")
+                        await add_rx(f"Trq.: {status.torque_current}")
+                        await add_rx(f"Vel.: {status.shaft_velocity}")
+                        await add_rx(f"Ang.: {status.shaft_angle}")
                     elif command.startswith("v "):
                         rpm = float(command[2:].strip())
-                        await motor.set_velocity(motor_id, rpm)
+                        status = await motor.set_velocity(motor_id, rpm)
+                        await add_rx(f"Temp.: {status.temperature}")
+                        await add_rx(f"Trq.: {status.torque_current}")
+                        await add_rx(f"Vel.: {status.shaft_velocity}")
+                        await add_rx(f"Ang.: {status.shaft_angle}")
                     elif command.startswith("t "):
                         degrees = float(command[2:].strip())
-                        await motor.set_tracking_position(motor_id, degrees)
+                        status = await motor.set_tracking_position(motor_id, degrees)
+                        await add_rx(f"Temp.: {status.temperature}")
+                        await add_rx(f"Trq.: {status.torque_current}")
+                        await add_rx(f"Vel.: {status.shaft_velocity}")
+                        await add_rx(f"Ang.: {status.shaft_angle}")
                     elif command.startswith("m "):
                         degrees = float(command[2:].strip())
-                        await motor.set_relative_position(motor_id, degrees)
+                        status = await motor.set_relative_position(motor_id, degrees)
+                        await add_rx(f"Temp.: {status.temperature}")
+                        await add_rx(f"Trq.: {status.torque_current}")
+                        await add_rx(f"Vel.: {status.shaft_velocity}")
+                        await add_rx(f"Ang.: {status.shaft_angle}")
                     elif command == "reset":
                         await motor.reset(motor_id)
                         await asyncio.sleep(1.0)

@@ -40,7 +40,7 @@ class MotorStatus:
 class Status:
     motor_id: int
     temperature: int
-    torque_current: int
+    torque_current: float
     shaft_velocity: int
     shaft_angle: int
 
@@ -446,6 +446,20 @@ class Motors:
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
+    async def set_torque(self, id: int, torque: float) -> Status:
+        """Sets the target torque of the motor, as current, in amps.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+            torque: The target motor current, in amps.
+
+        Returns:
+            The status of the motor after the command is executed.
+        """
+        data = [0xA1, 0x00, 0x00, 0x00, *round(torque * 100).to_bytes(4, "little", signed=True)]
+        await self._send(id, bytes(data))
+        return await self._read_status(id, 0xA1)
+
     async def set_velocity(self, id: int, dps: float) -> Status:
         """Sets the target velocity of the motor in degrees per second.
 
@@ -538,7 +552,7 @@ class Motors:
         if cmd_byte is not None and response_data[0] != cmd_byte:
             raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != {cmd_byte:02x}")
         temperature = int.from_bytes(response_data[1:2], "little")
-        torque_current = int.from_bytes(response_data[2:4], "little")
+        torque_current = int.from_bytes(response_data[2:4], "little") / 100
         shaft_velocity = int.from_bytes(response_data[4:6], "little", signed=True)
         shaft_angle = int.from_bytes(response_data[6:8], "little", signed=True)
         return Status(id, temperature, torque_current, shaft_velocity, shaft_angle)
