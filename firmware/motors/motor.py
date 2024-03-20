@@ -528,34 +528,34 @@ class Motors:
         shaft_angle = int.from_bytes(response_data[6:8], "little", signed=True)
         return Status(id, temperature, torque_current, shaft_velocity, shaft_angle)
 
-    async def get_ids(self, all_at_once: bool = True, timeout: float = 0.005) -> list[int]:
+    async def get_ids(self, first_motor_timeout: float = 5.0, other_motor_timeout: float = 0.05) -> list[int]:
         """Gets all the motor IDs which return a status response.
 
         This function works by sending out read status commands to each motor.
         Any motors which return a status response are considered to be attached.
 
         Args:
-            all_at_once: Whether to read all motor IDs at once.
-            timeout: The timeout for each motor ID.
+            first_motor_timeout: The amount of time to wait for the first
+                motor to respond.
+            other_motor_timeout: The amount fo tiem to wait for any additional
+                motors to respond, after getting a response from the first
+                motor.
 
         Returns:
             The motor IDs which are attached.
         """
-
-        async def _has_motor_id(i: int) -> bool:
+        await self.can.send(0x280, bytes([0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]))
+        motor_ids: list[int] = []
+        while True:
             try:
-                async with asyncio.timeout(timeout):
-                    await self.read_status(i)
-                    return True
+                async with asyncio.timeout(first_motor_timeout if len(motor_ids) == 0 else other_motor_timeout):
+                    response_id, response_data = await self.can.recv()
+                    if response_data[0] != 0x9C:
+                        raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != 0x9C")
+                    motor_ids.append(response_id - 0x240)
             except asyncio.TimeoutError:
-                return False
-
-        if all_at_once:
-            has_id = await asyncio.gather(*[_has_motor_id(i) for i in range(1, 33)])
-        else:
-            has_id = [await _has_motor_id(i) for i in range(1, 33)]
-
-        return [i for i, has in enumerate(has_id, 1) if has]
+                break
+        return motor_ids
 
     async def get_single_motor_id(self, first_motor_timeout: float = 5.0, other_motor_timeout: float = 0.05) -> int:
         """Gets a single motor ID.
@@ -574,24 +574,61 @@ class Motors:
         Returns:
             The motor ID.
         """
-        for i in range(1, 33):
-            data = [0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-            await self._send(i, bytes(data))
-        motor_id: int | None = None
-        while True:
-            try:
-                async with asyncio.timeout(first_motor_timeout if motor_id is None else other_motor_timeout):
-                    response_id, response_data = await self.can.recv()
-                    if response_data[0] != 0x9C:
-                        raise ValueError(f"Unexpected response command byte {response_data[0]:02x} != 0x9C")
-                    if motor_id is not None:
-                        raise ValueError(f"Multiple motors found: {motor_id}, {response_id - 0x240}")
-                    motor_id = response_id - 0x240
-            except asyncio.TimeoutError:
-                break
-        if motor_id is None:
-            raise ValueError("No motors found")
-        return motor_id
+        motor_ids = await self.get_ids(first_motor_timeout, other_motor_timeout)
+        if len(motor_ids) == 0:
+            raise RuntimeError("Didn't find any attached motors")
+        if len(motor_ids) > 1:
+            raise RuntimeError(f"Found multiple attached motors: {motor_ids}")
+        return motor_ids[0]
+
+    async def motor_motion(
+        self,
+        motor_id: int,
+        desired_position: float = 0.0,
+        desired_velocity: float = 0.0,
+        feedforward_torque: float = 0.0,
+        kp: int = 80,
+        kd: int = 2,
+    ) -> None:
+        """Runs the motor motion command.
+
+        Args:
+            motor_id: The ID of the motor being controlled.
+            desired_position: The desired position to reach, in radians, from
+                -12.5 to 12.5.
+            desired_velocity: The desired velocity to reach, in radians per
+                second, from -45 to 45.
+            feedforward_torque: The feedforward torque to apply, in Nm, from
+                -24 to 24.
+            kp: The position deviation coefficient, from 0 to 500.
+            kd: The velocity deviation coefficient, from 0 to 5.
+        """
+        if 12.5 < desired_position or desired_position < -12.5:
+            raise ValueError(f"Desired position {desired_position} out of range")
+        if 45 < desired_velocity or desired_velocity < -45:
+            raise ValueError(f"Desired velocity {desired_velocity} out of range")
+        if 24 < feedforward_torque or feedforward_torque < -24:
+            raise ValueError(f"Feedforward torque {feedforward_torque} out of range")
+        if 500 < kp or kp < 0:
+            raise ValueError(f"Position deviation coefficient {kp} out of range")
+        if 5 < kd or kd < 0:
+            raise ValueError(f"Velocity deviation coefficient {kd} out of range")
+        p_bytes = int(desired_position + 12.5) / 25.0 * 0xFFFF
+        v_bytes = int(desired_velocity + 45) / 90.0 * 0xFFF
+        t_bytes = int(feedforward_torque + 24) / 48.0 * 0xFFF
+        kp_bytes = kp / 500.0 * 0xFFF
+        kd_bytes = kd / 5.0 * 0xFFF
+        data = [
+            p_bytes & 0xFF,
+            (p_bytes >> 8) & 0xFF,
+            v_bytes & 0xFF,
+            ((v_bytes >> 8) & 0xF) | ((kp_bytes & 0xF) << 4),
+            (kp_bytes >> 4) & 0xFF,
+            kd_bytes & 0xFF,
+            ((kd_bytes >> 8) & 0xF) | ((t_bytes & 0xF) << 4),
+            (t_bytes >> 4) & 0xFF,
+        ]
+        await self.can.send(0x400 + motor_id, bytes(data))
 
 
 async def test_motor_adhoc() -> None:
