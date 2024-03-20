@@ -256,8 +256,8 @@ async def main() -> None:
                     elif command == "stop":
                         await motor.stop(motor_id)
                     elif command == "mode":
-                        mode = await motor.system_operating_mode(motor_id)
-                        await add_rx(f"Mode: {mode}")
+                        system_operating_mode = await motor.system_operating_mode(motor_id)
+                        await add_rx(f"Mode: {system_operating_mode}")
                     elif command == "version":
                         version_str = await motor.get_system_version(motor_id)
                         await add_rx(f"Version: {version_str}")
