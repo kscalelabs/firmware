@@ -206,8 +206,10 @@ async def main() -> None:
                 write_rx()
 
         def set_command(command: str) -> None:
-            cmd_padded = command[: hmiddle - 3].ljust(hmiddle - 3)
+            cmd_padded = (command + "█")[: hmiddle - 3].ljust(hmiddle - 3)
             stdscr.addstr(args.height - 2, 2, cmd_padded)
+
+        set_command("")
 
         async def run_command(command: str) -> None:
             command = command.lower().strip()
@@ -252,9 +254,16 @@ async def main() -> None:
                         await add_rx(f"Trq.: {status.torque_current}")
                         await add_rx(f"Vel.: {status.shaft_velocity}")
                         await add_rx(f"Ang.: {status.shaft_angle}")
-                    elif command.startswith("t "):
+                    elif command.startswith("p "):
                         degrees = float(command[2:].strip())
                         status = await motor.set_tracking_position(motor_id, degrees)
+                        await add_rx(f"Temp.: {status.temperature}")
+                        await add_rx(f"Trq.: {status.torque_current}")
+                        await add_rx(f"Vel.: {status.shaft_velocity}")
+                        await add_rx(f"Ang.: {status.shaft_angle}")
+                    elif command.startswith("t "):
+                        torque = float(command[2:].strip())
+                        status = await motor.set_torque(motor_id, torque)
                         await add_rx(f"Temp.: {status.temperature}")
                         await add_rx(f"Trq.: {status.torque_current}")
                         await add_rx(f"Vel.: {status.shaft_velocity}")
@@ -274,8 +283,7 @@ async def main() -> None:
                     elif command == "stop":
                         await motor.stop(motor_id)
                     elif command == "version":
-                        version_date = await motor.get_system_version(motor_id)
-                        version_str = version_date.strftime("%Y-%m-%d %H:%M:%S")
+                        version_str = await motor.get_system_version(motor_id)
                         await add_rx(f"Version: {version_str}")
                     elif command.startswith("r "):
                         subcommand = command[2:].strip()

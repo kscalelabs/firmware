@@ -456,7 +456,7 @@ class Motors:
         Returns:
             The status of the motor after the command is executed.
         """
-        data = [0xA1, 0x00, 0x00, 0x00, *round(torque * 100).to_bytes(4, "little", signed=True)]
+        data = [0xA1, 0x00, 0x00, 0x00, *round(torque * 100).to_bytes(2, "little", signed=True), 0x00, 0x00]
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA1)
 
@@ -474,7 +474,7 @@ class Motors:
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA2)
 
-    async def get_system_version(self, id: int) -> datetime.datetime:
+    async def get_system_version(self, id: int) -> str:
         """Gets the system version.
 
         Args:
@@ -486,8 +486,7 @@ class Motors:
         data = [0xB2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
         response_data = await self._read(id, data[0])
-        date_str = str(int.from_bytes(response_data[4:8], "little"))[:8]
-        return datetime.datetime.strptime(date_str, "%Y%m%d")
+        return str(int.from_bytes(response_data[4:8], "little"))
 
     async def set_position(self, id: int, position: float, max_dps: float = DEFAULT_MAX_DPS) -> Status:
         return await self.set_absolute_location(id, position, max_dps)
@@ -644,11 +643,11 @@ class Motors:
             raise ValueError(f"Velocity deviation coefficient {kd} out of range")
 
         # Converts to integer values.
-        p_bytes = round((desired_position + 12.5) / 25.0 * 0xFFFF)
-        v_bytes = round((desired_velocity + 45) / 90.0 * 0xFFF)
-        t_bytes = round((feedforward_torque + 24) / 48.0 * 0xFFF)
-        kp_bytes = round(kp / 500.0 * 0xFFF)
-        kd_bytes = round(kd / 5.0 * 0xFFF)
+        p_bytes = round((desired_position + 12.5) / 25 * 0xFFFF)
+        v_bytes = round((desired_velocity + 45) / 90 * 0xFFF)
+        t_bytes = round((feedforward_torque + 24) / 48 * 0xFFF)
+        kp_bytes = round(kp / 500 * 0xFFF)
+        kd_bytes = round(kd / 5 * 0xFFF)
 
         # Sends the command.
         data = [
@@ -664,7 +663,8 @@ class Motors:
         await self.can.send(0x400 + motor_id, bytes(data))
 
         # Reads the response.
-        data = await self._read(motor_id, None)
+        data = await self.can.recv_id(0x500 + motor_id)
+
         return MotionModeResponse(
             position=(data[0] + (data[1] << 8)) / 0xFFFF * 25 - 12.5,
             velocity=(data[2] + ((data[3] & 0xF) << 8)) / 0xFFF * 90 - 45,
