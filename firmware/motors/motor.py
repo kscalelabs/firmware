@@ -235,6 +235,20 @@ class Motors:
             case _:
                 raise ValueError(f"Invalid operating mode {mode}")
 
+    async def get_power(self, id: int) -> float:
+        """Gets the current power to the motor, in Watts.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The power to the motor in Watts.
+        """
+        data = [0x71, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return int.from_bytes(response_data[6:8], "little", signed=True) * 0.1  # Not sure about this...
+
     async def reset(self, id: int) -> None:
         """Resets the motor controller.
 
@@ -243,6 +257,17 @@ class Motors:
         """
         data = [0x76, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
+
+    async def set_brake(self, id: int, on: bool) -> None:
+        """Sets the brake on or off.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+            on: Whether to turn the brake on or off.
+        """
+        data = [0x78 if on else 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        await self._read(id, data[0])
 
     async def reset_all(self, wait_time: float = 0.005) -> None:
         for motor_id in range(1, 33):
@@ -263,6 +288,20 @@ class Motors:
         response_data = await self._read(id, data[0])
         return int.from_bytes(response_data[4:8], "little") * 0.001
 
+    async def get_system_version(self, id: int) -> str:
+        """Gets the system version.
+
+        Args:
+            id: The motor ID (from 1 to 32, inclusive).
+
+        Returns:
+            The system version.
+        """
+        data = [0xB2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+        await self._send(id, bytes(data))
+        response_data = await self._read(id, data[0])
+        return str(int.from_bytes(response_data[4:8], "little"))
+
     async def set_interrupt_protection(self, id: int, ms: float) -> None:
         """Sets the interrupt protection.
 
@@ -274,19 +313,11 @@ class Motors:
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
-    async def get_power(self, id: int) -> float:
-        """Gets the current power to the motor, in Watts.
-
-        Args:
-            id: The motor ID (from 1 to 32, inclusive).
-
-        Returns:
-            The power to the motor in Watts.
-        """
-        data = [0x71, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
+    async def motor_model(self, id: int) -> str:
+        data = [0xB5, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
         await self._send(id, bytes(data))
         response_data = await self._read(id, data[0])
-        return int.from_bytes(response_data[6:8], "little", signed=True) * 0.1  # Not sure about this...
+        return response_data[1:8].decode("ascii")
 
     async def read_pid(self, id: int) -> PID:
         """Reads the motor PID values.
@@ -451,17 +482,6 @@ class Motors:
         await self._send(id, bytes(data))
         await self._read(id, data[0])
 
-    async def set_brake(self, id: int, on: bool) -> None:
-        """Sets the brake on or off.
-
-        Args:
-            id: The motor ID (from 1 to 32, inclusive).
-            on: Whether to turn the brake on or off.
-        """
-        data = [0x78 if on else 0x77, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        await self._send(id, bytes(data))
-        await self._read(id, data[0])
-
     async def set_torque(self, id: int, torque: float) -> Status:
         """Sets the target torque of the motor, as current, in amps.
 
@@ -489,20 +509,6 @@ class Motors:
         data = [0xA2, 0x00, 0x00, 0x00, *round(dps * 100).to_bytes(4, "little", signed=True)]
         await self._send(id, bytes(data))
         return await self._read_status(id, 0xA2)
-
-    async def get_system_version(self, id: int) -> str:
-        """Gets the system version.
-
-        Args:
-            id: The motor ID (from 1 to 32, inclusive).
-
-        Returns:
-            The system version.
-        """
-        data = [0xB2, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]
-        await self._send(id, bytes(data))
-        response_data = await self._read(id, data[0])
-        return str(int.from_bytes(response_data[4:8], "little"))
 
     async def set_position(self, id: int, position: float, max_dps: float = DEFAULT_MAX_DPS) -> Status:
         return await self.set_absolute_location(id, position, max_dps)

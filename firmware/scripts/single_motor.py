@@ -20,8 +20,9 @@ class ArgumentParser(Tap):
     can_read_bus: int = 1  # The CAN bus to use for reading.
     motor_id: int | None = None  # The specific motor to control.
     dry_run: bool = False  # Use the dry run interface.
-    width: int = 80  # The width of the Curses window.
+    width: int = 90  # The width of the Curses window.
     height: int = 25  # The height of the Curses window.
+    txrx_width: int = 40  # The width of the TX and RX panes.
     timeout: float = 1.0  # The timeout for each command.
 
     def configure(self) -> None:
@@ -52,28 +53,28 @@ async def main() -> None:
         curses.init_pair(2, curses.COLOR_YELLOW, -1)
         curses.init_pair(3, curses.COLOR_RED, -1)
 
-        hmiddle = args.width // 2
+        cmd_width = args.width - args.txrx_width
         vmiddle = args.height // 2
 
         # Derived left and right panes.
-        lwin = stdscr.derwin(args.height, hmiddle, 0, 0)
-        rwin = stdscr.derwin(args.height, hmiddle, 0, args.width - hmiddle)
+        lwin = stdscr.derwin(args.height, cmd_width, 0, 0)
+        rwin = stdscr.derwin(args.height, args.txrx_width, 0, cmd_width)
 
         # Command window.
-        cmdwin = lwin.derwin(args.height - 3, hmiddle, 0, 0)
+        cmdwin = lwin.derwin(args.height - 3, cmd_width, 0, 0)
         cmdwin.border(0)
-        cmdwin.addstr(0, hmiddle // 2 - len(" Commands ") // 2, " Commands ", curses.color_pair(1))
+        cmdwin.addstr(0, cmd_width // 2 - len(" Commands ") // 2, " Commands ", curses.color_pair(1))
 
         # Current command window.
-        curwin = lwin.derwin(3, hmiddle, args.height - 3, 0)
+        curwin = lwin.derwin(3, cmd_width, args.height - 3, 0)
         curwin.border(0)
-        curwin.addstr(0, hmiddle // 2 - len(" Enter command: ") // 2, " Enter command ", curses.color_pair(1))
+        curwin.addstr(0, cmd_width // 2 - len(" Enter command: ") // 2, " Enter command ", curses.color_pair(1))
 
         # TX window.
-        txwin = rwin.derwin(vmiddle, hmiddle, 0, 0)
+        txwin = rwin.derwin(vmiddle, args.txrx_width, 0, 0)
 
         # RX window.
-        rxwin = rwin.derwin(args.height - vmiddle, hmiddle, vmiddle, 0)
+        rxwin = rwin.derwin(args.height - vmiddle, args.txrx_width, vmiddle, 0)
 
         command_win_offset_h = 0
         command_win_offset_w = 0
@@ -101,6 +102,7 @@ async def main() -> None:
             "w pid <v/p/c> <ki/kp> <n>": "Write PID value",
             "mode": "Get the system operating mode",
             "version": "Gets the system version",
+            "model": "Gets the motor model",
             "shutdown": "Shutdown the motor",
             "stop": "Stop the motor",
         }
@@ -152,14 +154,14 @@ async def main() -> None:
         def clear_tx() -> None:
             txwin.clear()
             txwin.border(0)
-            txwin.addstr(0, hmiddle // 2 - len(" TX ") // 2, " TX ", curses.color_pair(2))
+            txwin.addstr(0, args.txrx_width // 2 - len(" TX ") // 2, " TX ", curses.color_pair(2))
             txwin.refresh()
             tx_messages.clear()
 
         def clear_rx() -> None:
             rxwin.clear()
             rxwin.border(0)
-            rxwin.addstr(0, hmiddle // 2 - len(" RX ") // 2, " RX ", curses.color_pair(2))
+            rxwin.addstr(0, args.txrx_width // 2 - len(" RX ") // 2, " RX ", curses.color_pair(2))
             rxwin.refresh()
             rx_messages.clear()
 
@@ -205,7 +207,7 @@ async def main() -> None:
                 write_rx()
 
         def set_command(command: str) -> None:
-            cmd_padded = (command + "█")[: hmiddle - 3].ljust(hmiddle - 3)
+            cmd_padded = (command + "█")[: cmd_width - 3].ljust(cmd_width - 3)
             stdscr.addstr(args.height - 2, 2, cmd_padded)
 
         set_command("")
@@ -261,6 +263,9 @@ async def main() -> None:
                     elif command == "version":
                         version_str = await motor.get_system_version(motor_id)
                         await add_rx(f"Version: {version_str}")
+                    elif command == "model":
+                        model_str = await motor.motor_model(motor_id)
+                        await add_rx(f"Model: {model_str}")
                     elif command.startswith("r "):
                         subcommand = command[2:].strip()
                         if subcommand == "a":
