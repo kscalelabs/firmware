@@ -8,7 +8,7 @@
 
 ## Notes
 
-### Raspberry Pi 4 (New)
+### Raspberry Pi 4
 
 Set up the CAN bus:
 
@@ -17,4 +17,10 @@ sudo ip link set can0 up type can bitrate 1000000
 sudo ip link set can1 up type can bitrate 1000000
 sudo ifconfig can0 txqueuelen 65536
 sudo ifconfig can1 txqueuelen 65536
+```
+
+Run the console for interfacing with motors:
+
+```bash
+python -m firmware.scripts.single_motor
 ```

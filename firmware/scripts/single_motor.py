@@ -12,7 +12,7 @@ from tap import Tap
 from firmware.motors.can.callback import CanWithCallback
 from firmware.motors.can.dry_run import CanDryRun
 from firmware.motors.can.ip import CanIP
-from firmware.motors.motor import MotionModeArgs, Motors
+from firmware.motors.motor import Motors
 
 
 class ArgumentParser(Tap):
