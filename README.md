@@ -8,6 +8,11 @@
 
 ## Notes
 
+### Install
+```bash
+pip install -e .
+```
+
 ### Raspberry Pi 4
 
 Set up the CAN bus:
