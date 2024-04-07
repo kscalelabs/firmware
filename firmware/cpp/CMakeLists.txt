@@ -42,4 +42,5 @@ macro(build_extension)
 endmacro()
 
 # Subprojects.
+add_subdirectory(can)
 add_subdirectory(imu)
