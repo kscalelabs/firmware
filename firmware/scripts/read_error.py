@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+"""Reads error status from a motor."""
 
 import asyncio
 

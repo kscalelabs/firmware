@@ -1,8 +1,8 @@
 """Defines a wrapper CAN interface which supports callback."""
 
+from types import TracebackType
 from typing import Awaitable, Callable, Self
 
-from types import TracebackType
 from firmware.motors.can.base import CanBase
 
 

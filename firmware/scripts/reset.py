@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# Tick all motors back and forth by 2 degrees.
+"""Resets all the motors."""
 
 import asyncio
 
