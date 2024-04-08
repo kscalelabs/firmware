@@ -124,22 +124,12 @@ uint8_t MCP_CAN::mcp2515_setCANCTRL_Mode(const uint8_t newmode) {
 }
 
 uint8_t MCP_CAN::mcp2515_requestNewMode(const uint8_t newmode) {
-  uint8_t startTime = millis();
-
-  // Spam new mode request and wait for the operation  to complete
-  while (1) {
-    // Request new mode
-    // This is inside the loop as sometimes requesting the new mode once doesn't
-    // work (usually when attempting to sleep)
-    mcp2515_modifyRegister(MCP_CANCTRL, MODE_MASK, newmode);
-
-    uint8_t statReg = mcp2515_readRegister(MCP_CANSTAT);
-    if ((statReg & MODE_MASK) == newmode) // We're now in the new mode
-      return MCP2515_OK;
-    else if ((uint8_t)(millis() - startTime) >
-             200) // Wait no more than 200ms for the operation to complete
-      return MCP2515_FAIL;
-  }
+  mcp2515_modifyRegister(MCP_CANCTRL, MODE_MASK, newmode);
+  uint8_t statReg = mcp2515_readRegister(MCP_CANSTAT);
+  if ((statReg & MODE_MASK) == newmode)
+    return MCP2515_OK;
+  else
+    return MCP2515_FAIL;
 }
 
 uint8_t MCP_CAN::mcp2515_configRate(const uint8_t canSpeed,
@@ -452,30 +442,21 @@ uint8_t MCP_CAN::mcp2515_init(const uint8_t canIDMode, const uint8_t canSpeed,
 
   res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Configuration Mode Failure..."));
-#endif
+    DEBUG_PRINT("Entering Configuration Mode Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Entering Configuration Mode Successful!"));
-#endif
+  DEBUG_PRINT("Entering Configuration Mode Successful!");
 
   // Set Baudrate
   if (mcp2515_configRate(canSpeed, canClock)) {
-#if DEBUG_MODE
-    Serial.println(F("Setting Baudrate Failure..."));
-#endif
+    DEBUG_PRINT("Setting Baudrate Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Setting Baudrate Successful!"));
-#endif
+  DEBUG_PRINT("Setting Baudrate Successful!");
 
   if (res == MCP2515_OK) {
 
     mcp2515_initCANBuffers();
-
     mcp2515_setRegister(MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
 
     // Sets BF pins as GPO
@@ -513,18 +494,14 @@ uint8_t MCP_CAN::mcp2515_init(const uint8_t canIDMode, const uint8_t canSpeed,
       break;
 
     default:
-#if DEBUG_MODE
-      Serial.println(F("`Setting ID Mode Failure..."));
-#endif
+      DEBUG_PRINT("`Setting ID Mode Failure...");
       return MCP2515_FAIL;
       break;
     }
 
     res = mcp2515_setCANCTRL_Mode(mcpMode);
     if (res) {
-#if DEBUG_MODE
-      Serial.println(F("Returning to Previous Mode Failure..."));
-#endif
+      DEBUG_PRINT("Returning to Previous Mode Failure...");
       return res;
     }
   }
@@ -680,14 +657,10 @@ uint8_t MCP_CAN::begin(uint8_t idmodeset, uint8_t speedset, uint8_t clockset) {
 
 uint8_t MCP_CAN::init_Mask(uint8_t num, uint8_t ext, uint32_t ulData) {
   uint8_t res = MCP2515_OK;
-#if DEBUG_MODE
-  Serial.println(F("Starting to Set Mask!"));
-#endif
+  DEBUG_PRINT("Starting to Set Mask!");
   res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Configuration Mode Failure..."));
-#endif
+    DEBUG_PRINT("Entering Configuration Mode Failure...");
     return res;
   }
 
@@ -701,29 +674,21 @@ uint8_t MCP_CAN::init_Mask(uint8_t num, uint8_t ext, uint32_t ulData) {
 
   res = mcp2515_setCANCTRL_Mode(mcpMode);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Previous Mode Failure..."));
-    Serial.println(F("Setting Mask Failure..."));
-#endif
+    DEBUG_PRINT("Entering Previous Mode Failure...");
+    DEBUG_PRINT("Setting Mask Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Setting Mask Successful!"));
-#endif
+  DEBUG_PRINT("Setting Mask Successful!");
   return res;
 }
 
 uint8_t MCP_CAN::init_Mask(uint8_t num, uint32_t ulData) {
   uint8_t res = MCP2515_OK;
   uint8_t ext = 0;
-#if DEBUG_MODE
-  Serial.println(F("Starting to Set Mask!"));
-#endif
+  DEBUG_PRINT("Starting to Set Mask!");
   res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Configuration Mode Failure..."));
-#endif
+    DEBUG_PRINT("Entering Configuration Mode Failure...");
     return res;
   }
 
@@ -740,28 +705,20 @@ uint8_t MCP_CAN::init_Mask(uint8_t num, uint32_t ulData) {
 
   res = mcp2515_setCANCTRL_Mode(mcpMode);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Previous Mode Failure..."));
-    Serial.println(F("Setting Mask Failure..."));
-#endif
+    DEBUG_PRINT("Entering Previous Mode Failure...");
+    DEBUG_PRINT("Setting Mask Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Setting Mask Successful!"));
-#endif
+  DEBUG_PRINT("Setting Mask Successful!");
   return res;
 }
 
 uint8_t MCP_CAN::init_Filt(uint8_t num, uint8_t ext, uint32_t ulData) {
   uint8_t res = MCP2515_OK;
-#if DEBUG_MODE
-  Serial.println(F("Starting to Set Filter!"));
-#endif
+  DEBUG_PRINT("Starting to Set Filter!");
   res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Enter Configuration Mode Failure..."));
-#endif
+    DEBUG_PRINT("Enter Configuration Mode Failure...");
     return res;
   }
 
@@ -796,15 +753,11 @@ uint8_t MCP_CAN::init_Filt(uint8_t num, uint8_t ext, uint32_t ulData) {
 
   res = mcp2515_setCANCTRL_Mode(mcpMode);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Previous Mode Failure..."));
-    Serial.println(F("Setting Filter Failure..."));
-#endif
+    DEBUG_PRINT("Entering Previous Mode Failure...");
+    DEBUG_PRINT("Setting Filter Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Setting Filter Successful!"));
-#endif
+  DEBUG_PRINT("Setting Filter Successful!");
 
   return res;
 }
@@ -813,14 +766,10 @@ uint8_t MCP_CAN::init_Filt(uint8_t num, uint32_t ulData) {
   uint8_t res = MCP2515_OK;
   uint8_t ext = 0;
 
-#if DEBUG_MODE
-  Serial.println(F("Starting to Set Filter!"));
-#endif
+  DEBUG_PRINT("Starting to Set Filter!");
   res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Enter Configuration Mode Failure..."));
-#endif
+    DEBUG_PRINT("Enter Configuration Mode Failure...");
     return res;
   }
 
@@ -858,15 +807,11 @@ uint8_t MCP_CAN::init_Filt(uint8_t num, uint32_t ulData) {
 
   res = mcp2515_setCANCTRL_Mode(mcpMode);
   if (res > 0) {
-#if DEBUG_MODE
-    Serial.println(F("Entering Previous Mode Failure..."));
-    Serial.println(F("Setting Filter Failure..."));
-#endif
+    DEBUG_PRINT("Entering Previous Mode Failure...");
+    DEBUG_PRINT("Setting Filter Failure...");
     return res;
   }
-#if DEBUG_MODE
-  Serial.println(F("Setting Filter Successful!"));
-#endif
+  DEBUG_PRINT("Setting Filter Successful!");
 
   return res;
 }

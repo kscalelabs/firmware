@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fcntl.h>
+#include <iostream>
 #include <linux/spi/spidev.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl_bind.h>
@@ -19,6 +20,17 @@ using namespace pybind11::literals;
 
 #define MAX_CHAR_IN_MESSAGE 8
 
+#if DEBUG_MODE
+#define DEBUG_PRINT(fmt, args...) fprintf(stderr, fmt, ##args)
+#else
+#define DEBUG_PRINT(fmt, args...)
+#endif
+
+void errmsg(const char *msg) {
+  perror(msg);
+  exit(EXIT_FAILURE);
+}
+
 class MCP_CAN {
 private:
   uint8_t m_nExtFlg;                   // Identifier Type
@@ -31,10 +43,6 @@ private:
   uint8_t mcpMode;   // Mode to return to after configurations are performed.
   int spi_fd;
 
-  /*********************************************************************************************************
-   *  mcp2515 driver function
-   *********************************************************************************************************/
-  // private:
 private:
   void mcp2515_reset(void); // Soft Reset MCP2515
 
