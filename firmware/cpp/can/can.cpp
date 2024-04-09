@@ -63,5 +63,9 @@ using namespace pybind11::literals;
 PYBIND11_MODULE(can, m) {
   m.doc() = "CAN module for interfacing with MCP2515 CAN controller";
 
-  py::class_<MCP_CAN>(m, "MCP_CAN").def(py::init<const char *>(), "device"_a);
+  py::class_<MCP_CAN>(m, "MCP_CAN")
+      .def(py::init<const char *>(), "device"_a)
+      .def("reset", &MCP_CAN::reset)
+      .def("read_register", &MCP_CAN::readRegister, "address"_a)
+      .def("set_register", &MCP_CAN::setRegister, "address"_a, "value"_a);
 }
