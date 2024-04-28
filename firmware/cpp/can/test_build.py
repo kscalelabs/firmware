@@ -1,8 +1,33 @@
 """Test script for the MCP2515 CAN Controller."""
 from build import can_controller
 
+def test_send_msg():
+    device_path = "/dev/spidev0.0"
+    spi_mode = 0
+    bits_per_word = 8
+    speed = 500000
 
-def main():
+    try:
+        can = can_controller.MCP_CAN(device_path, spi_mode, bits_per_word, speed)
+        print("Resetting MCP2515 CAN Controller...")
+        can.reset()
+        print("Reset complete.")
+
+        # Send a CAN message
+        message_id = 0x00
+        extended_frame = 0
+        message_length = 5
+        message_data = [0x01, 0x02, 0x03, 0x04, 0x05]
+        print(f"Sending message {message_data} to the CAN bus...")
+        can.sendMsgBuf(message_id, extended_frame, message_length, bytes(message_data))
+ 
+        print("Message sent successfully.")
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+
+    
+def test_register():
     device_path = "/dev/spidev0.0"
     spi_mode = 0
     bits_per_word = 8
@@ -17,7 +42,7 @@ def main():
         # Example of setting and reading a register
         reg_address = 0x2D
         reg_value = 0x55
-        can.set_register(reg_address, reg_value)
+        can.set_rugister(reg_address, reg_value)
         print(f"Set register {reg_address} to {reg_value}.")
 
         read_value = can.read_register(reg_address)
@@ -31,5 +56,6 @@ def main():
     except Exception as e:
         print(f"An error occurred: {e}")
 
+
 if __name__ == "__main__":
-    main()
+    test_send_msg()

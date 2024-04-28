@@ -228,47 +228,6 @@ uint8_t MCP_CAN::sendMsg()
     return CAN_OK;
 }
 
-// unsigned char stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7};
-// https://github.com/p1ne/arduino-can-bus-library/tree/master
-// CAN.sendMsgBuf(0x00, 0, 8, stmp); //send out the message 'stmp' to the bus and tell other devices this is a standard frame from 0x00.
-
-
-// int main2() {
-//     try {
-//         // Example device path - replace with the actual SPI device file
-//         std::string device = "/dev/spidev0.0";
-//         uint8_t spiMode = SPI_MODE_0;           // SPI mode 0
-//         uint8_t bitsPerWord = 8;                // 8-bit word size
-//         uint32_t speed = 500000;                // 500 kHz SPI speed
-
-//         // Create an instance of MCP_CAN
-//         MCP_CAN canController(device, spiMode, bitsPerWord, speed);
-
-//         // Example CAN message data
-//         uint8_t stmp[8] = {0, 1, 2, 3, 4, 5, 6, 7}; // Data to be sent
-//         uint32_t msgId = 0x00;                      // Message ID
-//         uint8_t msgLen = 8;                         // Length of the message data
-//         uint8_t isExtendedId = 0;                   // Standard ID
-
-//         // Send the CAN message
-//         std::cout << "Sending CAN message..." << std::endl;
-//         uint8_t sendResult = canController.sendMsgBuf(msgId, isExtendedId, msgLen, stmp);
-
-//         // Check if the message was sent successfully
-//         if (sendResult == MCP2515_OK) {
-//             std::cout << "Message sent successfully." << std::endl;
-//         } else {
-//             std::cerr << "Failed to send message. Error code: " << static_cast<int>(sendResult) << std::endl;
-//         }
-
-//     } catch (const std::runtime_error& e) {
-//         std::cerr << "Exception caught: " << e.what() << std::endl;
-//         return EXIT_FAILURE;
-//     }
-
-//     return EXIT_SUCCESS;
-// }
-
 int main() {
     try {
         // Example device path - replace with the actual SPI device file
@@ -315,30 +274,26 @@ namespace py = pybind11;
 
 using namespace pybind11::literals;
 
-
 PYBIND11_MODULE(can_controller, m) {
     m.doc() = "Pybind11 interface for the MCP_CAN CAN controller";
 
     py::class_<MCP_CAN>(m, "MCP_CAN")
         .def(py::init<const std::string &, uint8_t, uint8_t, uint32_t>(),
-             py::arg("device"), py::arg("spiMode") = SPI_MODE_0, py::arg("bitsPerWord") = 8, py::arg("speed") = 500000,
-             "Constructor that initializes the MCP_CAN controller with specified SPI settings.\n"
-             "\n"
-             "Parameters:\n"
-             "    device (str): Path to the SPI device (e.g., '/dev/spidev0.0').\n"
-             "    spiMode (int, optional): SPI mode (default is SPI_MODE_0).\n"
-             "    bitsPerWord (int, optional): Number of bits per word (default is 8).\n"
-             "    speed (int, optional): SPI bus speed in Hz (default is 500000).")
+             "device"_a, "spiMode"_a = SPI_MODE_0, "bitsPerWord"_a = 8, "speed"_a = 500000,
+             "Constructor that initializes the MCP_CAN controller with specified SPI settings.")
         .def("reset", &MCP_CAN::reset, "Resets the MCP_CAN controller.")
-        .def("read_register", &MCP_CAN::readRegister, py::arg("address"),
-             "Reads a register from the MCP_CAN controller.\n"
-             "\n"
-             "Parameters:\n"
-             "    address (int): Register address to read from.")
-        .def("set_register", &MCP_CAN::setRegister, py::arg("address"), py::arg("value"),
-             "Sets a register of the MCP_CAN controller.\n"
-             "\n"
-             "Parameters:\n"
-             "    address (int): Register address to write to.\n"
-             "    value (int): Value to write to the register.");
+        .def("sendMsgBuf", [](MCP_CAN &self, uint32_t id, uint8_t ext, uint8_t len, py::buffer buf) {
+            py::buffer_info info = buf.request();
+            if (info.ndim != 1) {
+                throw std::runtime_error("Buffer must be 1-dimensional");
+            }
+            if (info.size < len) {
+                throw std::runtime_error("Buffer size is smaller than the specified length");
+            }
+            return self.sendMsgBuf(id, ext, len, static_cast<uint8_t *>(info.ptr));
+        }, "id"_a, "ext"_a, "len"_a, "buf"_a, "Sends a message buffer over the CAN network.")
+        .def("set_register", &MCP_CAN::setRegister, "address"_a, "value"_a,
+             "Sets a register of the MCP_CAN controller.")
+        .def("read_register", &MCP_CAN::readRegister, "address"_a,
+             "Reads a register from the MCP_CAN controller.");
 }
