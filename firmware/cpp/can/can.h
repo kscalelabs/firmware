@@ -3,13 +3,14 @@
 #include <fcntl.h>
 #include <iostream>
 #include <linux/spi/spidev.h>
-#include <pybind11/pybind11.h>
-#include <pybind11/stl.h>
+#include <sys/ioctl.h>
+// #include <pybind11/pybind11.h>
+// #include <pybind11/stl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
+
 #include <unistd.h>
 
 #include "can_dfs.h"
@@ -57,4 +58,7 @@ public:
   uint8_t sendMsg();
   uint8_t sendMsgBuf(uint32_t id, uint8_t ext, uint8_t len, uint8_t *buf);
   void setRegisterS(uint8_t address, uint8_t values[], uint8_t n);
+  void write_mf(const uint8_t mcp_addr, const uint8_t ext, const uint32_t id);
+  void initCANBuffers(void);
+  uint8_t init(const uint8_t canIDMode);
 };
