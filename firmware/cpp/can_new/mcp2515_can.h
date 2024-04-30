@@ -44,46 +44,95 @@
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 */
-#ifndef _MCP2515_H_
-#define _MCP2515_H_
+#pragma once
 
-#include "mcp_can.h"
+#include <linux/spi/spidev.h>
+#include <inttypes.h>
+#include <stdint.h>
+
+#define CAN_OK              (0)
+#define CAN_FAILINIT        (1)
+#define CAN_FAILTX          (2)
+#define CAN_MSGAVAIL        (3)
+#define CAN_NOMSG           (4)
+#define CAN_CTRLERROR       (5)
+#define CAN_GETTXBFTIMEOUT  (6)
+#define CAN_SENDMSGTIMEOUT  (7)
+#define CAN_FAIL            (0xff)
+
 #include "mcp2515_can_dfs.h"
 
 #define MAX_CHAR_IN_MESSAGE 8
 
-class mcp2515_can : public MCP_CAN
-{
+// clock
+typedef enum {
+    MCP_NO_MHz,
+    /* apply to MCP2515 */
+    MCP_16MHz,
+    MCP_12MHz,
+    MCP_8MHz,
+    // /* apply to MCP2518FD */
+    // MCP2518FD_40MHz = MCP_16MHz /* To compatible MCP2515 shield */,
+    // MCP2518FD_20MHz,
+    // MCP2518FD_10MHz,
+} MCP_CLOCK_T;
+
+typedef enum {
+    CAN_NOBPS,
+    CAN_5KBPS,
+    CAN_10KBPS,
+    CAN_20KBPS,
+    CAN_25KBPS,
+    CAN_31K25BPS,
+    CAN_33KBPS  ,
+    CAN_40KBPS  ,
+    CAN_50KBPS  ,
+    CAN_80KBPS  ,
+    CAN_83K3BPS ,
+    CAN_95KBPS  ,
+    CAN_95K2BPS ,
+    CAN_100KBPS ,
+    CAN_125KBPS ,
+    CAN_200KBPS ,
+    CAN_250KBPS ,
+    CAN_500KBPS ,
+    CAN_666KBPS ,
+    CAN_800KBPS ,
+    CAN_1000KBPS
+} MCP_BITTIME_SETUP;
+
+
+
+class mcp2515_can {
 public:
     // mcp2515_can(uint8_t _CS) : MCP_CAN(_CS), nReservedTx(0){};
     // pfb30
     mcp2515_can(const std::string &device, uint8_t spiMode = SPI_MODE_0,
-                uint8_t bitsPerWord = 8, uint32_t speed = 1000000) : MCP_CAN(device, spiMode, bitsPerWord, speed), nReservedTx(0){};
+                uint8_t bitsPerWord = 8, uint32_t speed = 1000000);
   // Helper function for transmitting and receiving data.
     void transfer(uint8_t *tx, uint8_t *rx, size_t len);
 
-public:
-    virtual void enableTxInterrupt(bool enable = true); // enable transmit interrupt
-    virtual void reserveTxBuffers(uint8_t nTxBuf = 0)
+    void enableTxInterrupt(bool enable = true); // enable transmit interrupt
+    void reserveTxBuffers(uint8_t nTxBuf = 0)
     {
         nReservedTx = (nTxBuf < MCP_N_TXBUFFERS ? nTxBuf : MCP_N_TXBUFFERS - 1);
     }
-    virtual uint8_t getLastTxBuffer()
+    uint8_t getLastTxBuffer()
     {
         return MCP_N_TXBUFFERS - 1; // read index of last tx buffer
     }
-    virtual uint8_t begin(uint32_t speedset, const uint8_t clockset = MCP_16MHz);                                                                                 // init can
-    virtual uint8_t init_Mask(uint8_t num, uint8_t ext, unsigned long ulData);                                                                                   // init Masks
-    virtual uint8_t init_Filt(uint8_t num, uint8_t ext, unsigned long ulData);                                                                                   // init filters
-    virtual void setSleepWakeup(uint8_t enable);                                                                                                           // Enable or disable the wake up interrupt (If disabled the MCP2515 will not be woken up by CAN bus activity, making it send only)
-    virtual uint8_t sleep();                                                                                                                               // Put the MCP2515 in sleep mode
-    virtual uint8_t wake();                                                                                                                                // Wake MCP2515 manually from sleep
-    virtual uint8_t setMode(uint8_t opMode);                                                                                                                  // Set operational mode
-    virtual uint8_t getMode();                                                                                                                             // Get operational mode
-    virtual uint8_t checkError(uint8_t* err_ptr = NULL);                                                                                                   // if something error
+    uint8_t begin(void); //uint32_t speedset, const uint8_t clockset = MCP_16MHz);                                                                                 // init can
+    uint8_t init_Mask(uint8_t num, uint8_t ext, unsigned long ulData);                                                                                   // init Masks
+    uint8_t init_Filt(uint8_t num, uint8_t ext, unsigned long ulData);                                                                                   // init filters
+    void setSleepWakeup(uint8_t enable);                                                                                                           // Enable or disable the wake up interrupt (If disabled the MCP2515 will not be woken up by CAN bus activity, making it send only)
+    uint8_t sleep();                                                                                                                               // Put the MCP2515 in sleep mode
+    uint8_t wake();                                                                                                                                // Wake MCP2515 manually from sleep
+    uint8_t setMode(uint8_t opMode);                                                                                                                  // Set operational mode
+    uint8_t getMode();                                                                                                                             // Get operational mode
+    uint8_t checkError(uint8_t* err_ptr = NULL);                                                                                                   // if something error
 
-    virtual uint8_t checkReceive(void);                                                                                                                    // if something received
-    virtual uint8_t readMsgBufID(uint8_t status, volatile unsigned long *id, volatile uint8_t *ext, volatile uint8_t *rtr, volatile uint8_t *len, volatile uint8_t *buf); // read buf with object ID
+    uint8_t checkReceive(void);                                                                                                                    // if something received
+    uint8_t readMsgBufID(uint8_t status, volatile unsigned long *id, volatile uint8_t *ext, volatile uint8_t *rtr, volatile uint8_t *len, volatile uint8_t *buf); // read buf with object ID
     /* wrapper */
     uint8_t readMsgBufID(unsigned long *ID, uint8_t *len, uint8_t *buf) {
         return readMsgBufID(readRxTxStatus(), ID, &ext_flg, &rtr, len, buf);
@@ -92,20 +141,20 @@ public:
         return readMsgBufID(readRxTxStatus(), &can_id, &ext_flg, &rtr, len, buf);
     }
 
-    virtual uint8_t trySendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, uint8_t iTxBuf = 0xff);                                 // as sendMsgBuf, but does not have any wait for free buffer
-    virtual uint8_t sendMsgBuf(uint8_t status, unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, volatile const uint8_t *buf);                                  // send message buf by using parsed buffer status
-    virtual uint8_t sendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, bool wait_sent = true);                                 // send buf
-    using MCP_CAN::sendMsgBuf; // make other overloads visible
+    uint8_t trySendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, uint8_t iTxBuf = 0xff);                                 // as sendMsgBuf, but does not have any wait for free buffer
+    // uint8_t sendMsgBuf(uint8_t status, unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, volatile const uint8_t *buf);                                  // send message buf by using parsed buffer status
+    uint8_t sendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t *buf, bool wait_sent = true);                                 // send buf
+    // using MCP_CAN::sendMsgBuf; // make other overloads visible
 
-    virtual void clearBufferTransmitIfFlags(uint8_t flags = 0);                                                                                            // Clear transmit flags according to status
-    virtual uint8_t readRxTxStatus(void);                                                                                                                  // read has something send or received
-    virtual uint8_t checkClearRxStatus(uint8_t *status);                                                                                                      // read and clear and return first found rx status bit
-    virtual uint8_t checkClearTxStatus(uint8_t *status, uint8_t iTxBuf = 0xff);                                                                                  // read and clear and return first found or buffer specified tx status bit
-    virtual bool mcpPinMode(const uint8_t pin, const uint8_t mode);                                                                                           // switch supported pins between HiZ, interrupt, output or input
-    virtual bool mcpDigitalWrite(const uint8_t pin, const uint8_t mode);                                                                                      // write HIGH or LOW to RX0BF/RX1BF
-    virtual uint8_t mcpDigitalRead(const uint8_t pin);
+    void clearBufferTransmitIfFlags(uint8_t flags = 0);                                                                                            // Clear transmit flags according to status
+    uint8_t readRxTxStatus(void);                                                                                                                  // read has something send or received
+    uint8_t checkClearRxStatus(uint8_t *status);                                                                                                      // read and clear and return first found rx status bit
+    uint8_t checkClearTxStatus(uint8_t *status, uint8_t iTxBuf = 0xff);                                                                                  // read and clear and return first found or buffer specified tx status bit
+    bool mcpPinMode(const uint8_t pin, const uint8_t mode);                                                                                           // switch supported pins between HiZ, interrupt, output or input
+    bool mcpDigitalWrite(const uint8_t pin, const uint8_t mode);                                                                                      // write HIGH or LOW to RX0BF/RX1BF
+    uint8_t mcpDigitalRead(const uint8_t pin);
 
-private:
+    void singleByteTransfer(uint8_t value);
     void mcp2515_reset(void); // reset mcp2515
 
     uint8_t mcp2515_readRegister(const uint8_t address); // read mcp2515's register
@@ -130,7 +179,7 @@ private:
     uint8_t mcp2515_setCANCTRL_Mode(const uint8_t newmode);               // set mode
     uint8_t mcp2515_requestNewMode(const uint8_t newmode);                // Set mode
     uint8_t mcp2515_configRate(const uint8_t canSpeed, const uint8_t clock); // set baudrate
-    uint8_t mcp2515_init(const uint8_t canSpeed, const uint8_t clock);       // mcp2515init
+    uint8_t mcp2515_init(void); //const uint8_t canSpeed, const uint8_t clock);       // mcp2515init
 
     void mcp2515_write_id(const uint8_t mcp_addr, // write can id
                           const uint8_t ext,
@@ -156,17 +205,23 @@ private:
 private:
     uint8_t nReservedTx; // Count of tx buffers for reserved send
 
-          
     int spi_fd; // File descriptor for the SPI device.
 
     // SPI parameters.
     uint8_t spiMode;
     uint8_t bitsPerWord;
     uint32_t speed;
+    uint8_t ext_flg; // identifier xxxID
+    // // either extended (the 29 LSB) or standard (the 11 LSB)
+    unsigned long can_id; // can id
+    uint8_t rtr;             // is remote frame
+    // uint8_t SPICS;
+    // // SPIClass *pSPI;
+    uint8_t mcpMode;     // Current controller mode
 
 };
 
-#endif
+
 /*********************************************************************************************************
     END FILE
 *********************************************************************************************************/

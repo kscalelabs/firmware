@@ -10,11 +10,11 @@
 #define DEBUG_EN 0
 #include "mcp2515_can.h"
 
-#define spi_readwrite      pSPI->transfer
-#define spi_read()         spi_readwrite(0x00)
-#define spi_write(spi_val) spi_readwrite(spi_val)
-#define SPI_BEGIN()        pSPI->beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0))
-#define SPI_END()          pSPI->endTransaction()
+// #define spi_readwrite      pSPI->transfer
+// #define spi_read()         spi_readwrite(0x00)
+// #define spi_write(spi_val) spi_readwrite(spi_val)
+// #define SPI_BEGIN()        pSPI->beginTransaction(SPISettings(4000000, MSBFIRST, SPI_MODE0))
+// #define SPI_END()          pSPI->endTransaction()
 
 #include <ctime>
 
@@ -120,23 +120,24 @@ uint8_t txStatusPendingFlag(uint8_t i) {
 }
 
 
-// mcp2515_can::mcp2515_can(
-//   const std::string &device, uint8_t spiMode,
-//   uint8_t bitsPerWord, uint32_t speed
-// ): spiMode(spiMode), bitsPerWord(bitsPerWord), speed(speed) {
-//   // begin starts here:
-//   spi_fd = open(device.c_str(), O_RDWR);
-//   if (spi_fd < 0)
-//     throw std::runtime_error("Can't open device: " + std::string(device));
-//   // Configure SPI.
-//   if (ioctl(spi_fd, SPI_IOC_WR_MODE, &spiMode) < 0)
-//     throw std::runtime_error("Can't set SPI mode");
-//   if (ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bitsPerWord) < 0)
-//     throw std::runtime_error("Can't set bits per word");
-//   if (ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0)
-//     throw std::runtime_error("Can't set speed");
+mcp2515_can::mcp2515_can(
+  const std::string &device, uint8_t spiMode,
+  uint8_t bitsPerWord, uint32_t speed
+): spiMode(spiMode), bitsPerWord(bitsPerWord), speed(speed) {
+  // begin starts here:
+  spi_fd = open(device.c_str(), O_RDWR);
+  if (spi_fd < 0)
+    throw std::runtime_error("Can't open device: " + std::string(device));
+  // Configure SPI.
+  if (ioctl(spi_fd, SPI_IOC_WR_MODE, &spiMode) < 0)
+    throw std::runtime_error("Can't set SPI mode");
+  if (ioctl(spi_fd, SPI_IOC_WR_BITS_PER_WORD, &bitsPerWord) < 0)
+    throw std::runtime_error("Can't set bits per word");
+  if (ioctl(spi_fd, SPI_IOC_WR_MAX_SPEED_HZ, &speed) < 0)
+    throw std::runtime_error("Can't set speed");
 
-// }
+}
+
 
 void mcp2515_can::transfer(uint8_t *tx, uint8_t *rx, size_t len) {
   struct spi_ioc_transfer tr = {
@@ -176,10 +177,13 @@ void mcp2515_can::mcp2515_reset(void) {
   uint8_t tx[] = {MCP_RESET};
   uint8_t rx[sizeof(tx)];
   transfer(tx, rx, sizeof(tx));
-  usleep(500000); // 500 ms delay
+  usleep(100000); // 500 ms delay
   // If the MCP2515 was in sleep mode when the reset command was
   // issued then we need to wait a while for it to reset properly
 }
+
+
+
 
 
 // /*********************************************************************************************************
@@ -204,6 +208,15 @@ void mcp2515_can::mcp2515_reset(void) {
 //     return ret;
 // }
 
+uint8_t mcp2515_can::mcp2515_readRegister(uint8_t address) {
+  uint8_t tx[] = {MCP_READ, address};
+  uint8_t rx[sizeof(tx)];
+  transfer(tx, rx, sizeof(tx));
+  // pfb30 - check that
+  return rx[0];
+}
+
+
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_readRegisterS
 // ** Descriptions:            read registerS
@@ -225,6 +238,8 @@ void mcp2515_can::mcp2515_reset(void) {
 //     SPI_END();
 //     #endif
 // }
+// void mcp2515_can::mcp2515_readRegisterS(const uint8_t address, uint8_t values[], const uint8_t n) {
+
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_setRegister
@@ -243,6 +258,11 @@ void mcp2515_can::mcp2515_reset(void) {
 //     SPI_END();
 //     #endif
 // }
+void mcp2515_can::mcp2515_setRegister(uint8_t address, uint8_t value) {
+  uint8_t tx[] = {MCP_WRITE, address, value};
+  uint8_t rx[sizeof(tx)];
+  transfer(tx, rx, sizeof(tx));
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_setRegisterS
@@ -266,6 +286,24 @@ void mcp2515_can::mcp2515_reset(void) {
 //     #endif
 // }
 
+void mcp2515_can::mcp2515_setRegisterS(const uint8_t address, const uint8_t values[], const uint8_t n)
+{
+  uint8_t i;
+  uint8_t tx[n + 2];
+
+  // Fill the transmission buffer
+  tx[0] = MCP_WRITE; // Command byte to write
+  tx[1] = address;   // Starting address for the write operation
+  // Copy the values into the transmission buffer starting from the third byte
+  for (uint8_t i = 0; i < n; ++i) {
+      tx[i + 2] = values[i];
+  }
+  uint8_t rx[sizeof(tx)];
+  transfer(tx, rx, sizeof(tx));
+}
+
+
+
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_modifyRegister
 // ** Descriptions:            set bit of one register
@@ -285,25 +323,39 @@ void mcp2515_can::mcp2515_reset(void) {
 //     #endif
 // }
 
+void mcp2515_can::mcp2515_modifyRegister(uint8_t address, uint8_t mask, uint8_t data){
+  uint8_t tx[] = {MCP_BITMOD, address, mask, data};
+  uint8_t rx[sizeof(tx)];
+  transfer(tx, rx, sizeof(tx));
+}
+
+
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_readStatus
 // ** Descriptions:            read mcp2515's Status
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::mcp2515_readStatus(void) {
-//     uint8_t i;
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_BEGIN();
-//     #endif
-//     MCP2515_SELECT();
-//     spi_readwrite(MCP_READ_STATUS);
-//     i = spi_read();
-//     MCP2515_UNSELECT();
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_END();
-//     #endif
+uint8_t mcp2515_can::mcp2515_readStatus(void) {
+    // uint8_t i;
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_BEGIN();
+    // #endif
+    // MCP2515_SELECT();
+    // spi_readwrite(MCP_READ_STATUS);
+    // i = spi_read();
+    // MCP2515_UNSELECT();
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_END();
+    // #endif
+    uint8_t tx[] = {MCP_READ_STATUS};
+    uint8_t rx[sizeof(tx)];
+    transfer(tx, rx, sizeof(tx));
+    // print status
+    for (int i = 0; i < sizeof(tx); i++) {
+        std::cout << "Status: "   << std::hex << (int)rx[i] << std::endl;
+    }
+    return rx[0];
+}
 
-//     return i;
-// }
 
 // /*********************************************************************************************************
 // ** Function name:           setSleepWakeup
@@ -342,89 +394,88 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Function name:           setMode
 // ** Descriptions:            Sets control mode
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::setMode(const uint8_t opMode) {
-//     if (opMode !=
-//             MODE_SLEEP) { // if going to sleep, the value stored in opMode is not changed so that we can return to it later
-//         mcpMode = opMode;
-//     }
-//     return mcp2515_setCANCTRL_Mode(opMode);
-// }
+uint8_t mcp2515_can::setMode(const uint8_t opMode) {
+    if (opMode !=
+            MODE_SLEEP) { // if going to sleep, the value stored in opMode is not changed so that we can return to it later
+        mcpMode = opMode;
+    }
+    return mcp2515_setCANCTRL_Mode(opMode);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           getMode
 // ** Descriptions:            Returns current control mode
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::getMode() {
-//     return mcp2515_readRegister(MCP_CANSTAT) & MODE_MASK;
-// }
+uint8_t mcp2515_can::getMode() {
+    return mcp2515_readRegister(MCP_CANSTAT) & MODE_MASK;
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_setCANCTRL_Mode
 // ** Descriptions:            set control mode
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::mcp2515_setCANCTRL_Mode(const uint8_t newmode) {
-//     // If the chip is asleep and we want to change mode then a manual wake needs to be done
-//     // This is done by setting the wake up interrupt flag
-//     // This undocumented trick was found at https://github.com/mkleemann/can/blob/master/can_sleep_mcp2515.c
-//     if ((getMode()) == MODE_SLEEP && newmode != MODE_SLEEP) {
-//         // Make sure wake interrupt is enabled
-//         uint8_t wakeIntEnabled = (mcp2515_readRegister(MCP_CANINTE) & MCP_WAKIF);
-//         if (!wakeIntEnabled) {
-//             mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, MCP_WAKIF);
-//         }
+uint8_t mcp2515_can::mcp2515_setCANCTRL_Mode(const uint8_t newmode) {
+    // If the chip is asleep and we want to change mode then a manual wake needs to be done
+    // This is done by setting the wake up interrupt flag
+    // This undocumented trick was found at https://github.com/mkleemann/can/blob/master/can_sleep_mcp2515.c
+    if ((getMode()) == MODE_SLEEP && newmode != MODE_SLEEP) {
+        // Make sure wake interrupt is enabled
+        uint8_t wakeIntEnabled = (mcp2515_readRegister(MCP_CANINTE) & MCP_WAKIF);
+        if (!wakeIntEnabled) {
+            mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, MCP_WAKIF);
+        }
 
-//         // Set wake flag (this does the actual waking up)
-//         mcp2515_modifyRegister(MCP_CANINTF, MCP_WAKIF, MCP_WAKIF);
+        // Set wake flag (this does the actual waking up)
+        mcp2515_modifyRegister(MCP_CANINTF, MCP_WAKIF, MCP_WAKIF);
 
-//         // Wait for the chip to exit SLEEP and enter LISTENONLY mode.
+        // Wait for the chip to exit SLEEP and enter LISTENONLY mode.
 
-//         // If the chip is not connected to a CAN bus (or the bus has no other powered nodes) it will sometimes trigger the wake interrupt as soon
-//         // as it's put to sleep, but it will stay in SLEEP mode instead of automatically switching to LISTENONLY mode.
-//         // In this situation the mode needs to be manually set to LISTENONLY.
+        // If the chip is not connected to a CAN bus (or the bus has no other powered nodes) it will sometimes trigger the wake interrupt as soon
+        // as it's put to sleep, but it will stay in SLEEP mode instead of automatically switching to LISTENONLY mode.
+        // In this situation the mode needs to be manually set to LISTENONLY.
 
-//         if (mcp2515_requestNewMode(MODE_LISTENONLY) != MCP2515_OK) {
-//             return MCP2515_FAIL;
-//         }
+        if (mcp2515_requestNewMode(MODE_LISTENONLY) != MCP2515_OK) {
+            return MCP2515_FAIL;
+        }
 
-//         // Turn wake interrupt back off if it was originally off
-//         if (!wakeIntEnabled) {
-//             mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, 0);
-//         }
-//     }
+        // Turn wake interrupt back off if it was originally off
+        if (!wakeIntEnabled) {
+            mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, 0);
+        }
+    }
 
-//     // Clear wake flag
-//     mcp2515_modifyRegister(MCP_CANINTF, MCP_WAKIF, 0);
+    // Clear wake flag
+    mcp2515_modifyRegister(MCP_CANINTF, MCP_WAKIF, 0);
 
-//     return mcp2515_requestNewMode(newmode);
-// }
+    return mcp2515_requestNewMode(newmode);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_requestNewMode
 // ** Descriptions:            Set control mode
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::mcp2515_requestNewMode(const uint8_t newmode) {
-//     // unsigned long startTime = millis();
-//     auto startTime = std::chrono::steady_clock::now();
+uint8_t mcp2515_can::mcp2515_requestNewMode(const uint8_t newmode) {
+    // unsigned long startTime = millis();
+    auto startTime = std::chrono::steady_clock::now();
 
+    // Spam new mode request and wait for the operation  to complete
+    while (1) {
+        // Request new mode
+        // This is inside the loop as sometimes requesting the new mode once doesn't work (usually when attempting to sleep)
+        mcp2515_modifyRegister(MCP_CANCTRL, MODE_MASK, newmode);
 
-//     // Spam new mode request and wait for the operation  to complete
-//     while (1) {
-//         // Request new mode
-//         // This is inside the loop as sometimes requesting the new mode once doesn't work (usually when attempting to sleep)
-//         mcp2515_modifyRegister(MCP_CANCTRL, MODE_MASK, newmode);
-
-//         uint8_t statReg = mcp2515_readRegister(MCP_CANSTAT);
-//         if ((statReg & MODE_MASK) == newmode) { // We're now in the new mode
-//             return MCP2515_OK;
-//         // } else if ((millis() - startTime) > 200) { // Wait no more than 200ms for the operation to complete
-//         //     return MCP2515_FAIL;
-//         // }
-//         } else if (std::chrono::duration_cast<std::chrono::milliseconds>(
-//                 std::chrono::steady_clock::now() - startTime).count() > 200) {
-//                 return MCP2515_FAIL;
-//         }
-//     }
-// }
+        uint8_t statReg = mcp2515_readRegister(MCP_CANSTAT);
+        if ((statReg & MODE_MASK) == newmode) { // We're now in the new mode
+            return MCP2515_OK;
+        // } else if ((millis() - startTime) > 200) { // Wait no more than 200ms for the operation to complete
+        //     return MCP2515_FAIL;
+        // }
+        } else if (std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now() - startTime).count() > 200) {
+                return MCP2515_FAIL;
+        }
+    }
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_configRate
@@ -776,145 +827,140 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Function name:           mcp2515_initCANBuffers
 // ** Descriptions:            init canbuffers
 // *********************************************************************************************************/
-// void mcp2515_can::mcp2515_initCANBuffers(void) {
-//     uint8_t i, a1, a2, a3;
+void mcp2515_can::mcp2515_initCANBuffers(void) {
+    uint8_t i, a1, a2, a3;
 
-//     a1 = MCP_TXB0CTRL;
-//     a2 = MCP_TXB1CTRL;
-//     a3 = MCP_TXB2CTRL;
-//     for (i = 0; i < 14; i++) {                       // in-buffer loop
-//         mcp2515_setRegister(a1, 0);
-//         mcp2515_setRegister(a2, 0);
-//         mcp2515_setRegister(a3, 0);
-//         a1++;
-//         a2++;
-//         a3++;
-//     }
-//     mcp2515_setRegister(MCP_RXB0CTRL, 0);
-//     mcp2515_setRegister(MCP_RXB1CTRL, 0);
-// }
+    a1 = MCP_TXB0CTRL;
+    a2 = MCP_TXB1CTRL;
+    a3 = MCP_TXB2CTRL;
+    for (i = 0; i < 14; i++) {                       // in-buffer loop
+        mcp2515_setRegister(a1, 0);
+        mcp2515_setRegister(a2, 0);
+        mcp2515_setRegister(a3, 0);
+        a1++;
+        a2++;
+        a3++;
+    }
+    mcp2515_setRegister(MCP_RXB0CTRL, 0);
+    mcp2515_setRegister(MCP_RXB1CTRL, 0);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_init
 // ** Descriptions:            init the device
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::mcp2515_init(const uint8_t canSpeed, const uint8_t clock) {
+uint8_t mcp2515_can::mcp2515_init(){ //const uint8_t canSpeed, const uint8_t clock) {
+    uint8_t res;
 
-//     uint8_t res;
+    mcp2515_reset();
 
-//     mcp2515_reset();
+    res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
+    // if (res > 0) {
+    //     #if DEBUG_EN
+    //     SERIAL_PORT_MONITOR.println(F("Enter setting mode fail"));
+    //     #else
+    //     usleep(10000); // 10ms delay
+    //     #endif
+    //     return res;
+    // }
+    // #if DEBUG_EN
+    // SERIAL_PORT_MONITOR.println(F("Enter setting mode success "));
+    // #else
+    // usleep(10000); // 10ms delay
+    // #endif
 
-//     res = mcp2515_setCANCTRL_Mode(MODE_CONFIG);
-//     if (res > 0) {
-//         #if DEBUG_EN
-//         SERIAL_PORT_MONITOR.println(F("Enter setting mode fail"));
-//         #else
-//         usleep(10000); // 10ms delay
-//         #endif
-//         return res;
-//     }
-//     #if DEBUG_EN
-//     SERIAL_PORT_MONITOR.println(F("Enter setting mode success "));
-//     #else
-//     usleep(10000); // 10ms delay
-//     #endif
+    // set boadrate
+    // if (mcp2515_configRate(canSpeed, clock)) {
+    //     #if DEBUG_EN
+    //     SERIAL_PORT_MONITOR.println(F("set rate fall!!"));
+    //     #else
+    //     usleep(10000); // 10ms delay
+    //     #endif
+    //     return res;
+    // }
+    // #if DEBUG_EN
+    // SERIAL_PORT_MONITOR.println(F("set rate success!!"));
+    // #else
+    // usleep(10000); // 10ms delay
+    // #endif
 
-//     // set boadrate
-//     if (mcp2515_configRate(canSpeed, clock)) {
-//         #if DEBUG_EN
-//         SERIAL_PORT_MONITOR.println(F("set rate fall!!"));
-//         #else
-//         usleep(10000); // 10ms delay
-//         #endif
-//         return res;
-//     }
-//     #if DEBUG_EN
-//     SERIAL_PORT_MONITOR.println(F("set rate success!!"));
-//     #else
-//     usleep(10000); // 10ms delay
-//     #endif
+    // init canbuffers
+    mcp2515_initCANBuffers();
 
-//     if (res == MCP2515_OK) {
+    // interrupt mode
+    mcp2515_setRegister(MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
 
-//         // init canbuffers
-//         mcp2515_initCANBuffers();
+    // #if (DEBUG_RXANY==1)
+    // // enable both receive-buffers to receive any message and enable rollover
+    // mcp2515_modifyRegister(MCP_RXB0CTRL,
+    //                         MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
+    //                         MCP_RXB_RX_ANY | MCP_RXB_BUKT_MASK);
+    // mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
+    //                         MCP_RXB_RX_ANY);
+    // #else
+    // enable both receive-buffers to receive messages with std. and ext. identifiers and enable rollover
+    mcp2515_modifyRegister(MCP_RXB0CTRL,
+                            MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
+                            MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
+    mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
+                            MCP_RXB_RX_STDEXT);
+    // #endif
+    // enter normal mode
+    res = setMode(MODE_NORMAL);
+    // if (res) {
+    //     #if DEBUG_EN
+    //     SERIAL_PORT_MONITOR.println(F("Enter Normal Mode Fail!!"));
+    //     #else
+    //     usleep(10000); // 10ms delay
+    //     #endif
+    //     return res;
+    // }
 
-//         // interrupt mode
-//         mcp2515_setRegister(MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
+    // #if DEBUG_EN
+    // SERIAL_PORT_MONITOR.println(F("Enter Normal Mode Success!!"));
+    // #else
+    // usleep(10000); // 10ms delay
+    // #endif
 
-//         #if (DEBUG_RXANY==1)
-//         // enable both receive-buffers to receive any message and enable rollover
-//         mcp2515_modifyRegister(MCP_RXB0CTRL,
-//                                MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
-//                                MCP_RXB_RX_ANY | MCP_RXB_BUKT_MASK);
-//         mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
-//                                MCP_RXB_RX_ANY);
-//         #else
-//         // enable both receive-buffers to receive messages with std. and ext. identifiers and enable rollover
-//         mcp2515_modifyRegister(MCP_RXB0CTRL,
-//                                MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
-//                                MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
-//         mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
-//                                MCP_RXB_RX_STDEXT);
-//         #endif
-//         // enter normal mode
-//         res = setMode(MODE_NORMAL);
-//         if (res) {
-//             #if DEBUG_EN
-//             SERIAL_PORT_MONITOR.println(F("Enter Normal Mode Fail!!"));
-//             #else
-//             usleep(10000); // 10ms delay
-//             #endif
-//             return res;
-//         }
+    return res;
 
-
-//         #if DEBUG_EN
-//         SERIAL_PORT_MONITOR.println(F("Enter Normal Mode Success!!"));
-//         #else
-//         usleep(10000); // 10ms delay
-//         #endif
-
-//     }
-//     return res;
-
-// }
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_id_to_buf
 // ** Descriptions:            configure tbufdata[4] from id and ext
 // *********************************************************************************************************/
-// void mcp2515_id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* tbufdata) {
-//     uint16_t canid;
+void mcp2515_id_to_buf(const uint8_t ext, const unsigned long id, uint8_t* tbufdata) {
+    uint16_t canid;
 
-//     canid = (uint16_t)(id & 0x0FFFF);
+    canid = (uint16_t)(id & 0x0FFFF);
 
-//     if (ext == 1) {
-//         tbufdata[MCP_EID0] = (uint8_t)(canid & 0xFF);
-//         tbufdata[MCP_EID8] = (uint8_t)(canid >> 8);
-//         canid = (uint16_t)(id >> 16);
-//         tbufdata[MCP_SIDL] = (uint8_t)(canid & 0x03);
-//         tbufdata[MCP_SIDL] += (uint8_t)((canid & 0x1C) << 3);
-//         tbufdata[MCP_SIDL] |= MCP_TXB_EXIDE_M;
-//         tbufdata[MCP_SIDH] = (uint8_t)(canid >> 5);
-//     } else {
-//         tbufdata[MCP_SIDH] = (uint8_t)(canid >> 3);
-//         tbufdata[MCP_SIDL] = (uint8_t)((canid & 0x07) << 5);
-//         tbufdata[MCP_EID0] = 0;
-//         tbufdata[MCP_EID8] = 0;
-//     }
-// }
+    if (ext == 1) {
+        tbufdata[MCP_EID0] = (uint8_t)(canid & 0xFF);
+        tbufdata[MCP_EID8] = (uint8_t)(canid >> 8);
+        canid = (uint16_t)(id >> 16);
+        tbufdata[MCP_SIDL] = (uint8_t)(canid & 0x03);
+        tbufdata[MCP_SIDL] += (uint8_t)((canid & 0x1C) << 3);
+        tbufdata[MCP_SIDL] |= MCP_TXB_EXIDE_M;
+        tbufdata[MCP_SIDH] = (uint8_t)(canid >> 5);
+    } else {
+        tbufdata[MCP_SIDH] = (uint8_t)(canid >> 3);
+        tbufdata[MCP_SIDL] = (uint8_t)((canid & 0x07) << 5);
+        tbufdata[MCP_EID0] = 0;
+        tbufdata[MCP_EID8] = 0;
+    }
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_write_id
 // ** Descriptions:            write can id
 // *********************************************************************************************************/
-// void mcp2515_can::mcp2515_write_id(const uint8_t mcp_addr, const uint8_t ext, const unsigned long id) {
-//     uint8_t tbufdata[4];
+void mcp2515_can::mcp2515_write_id(const uint8_t mcp_addr, const uint8_t ext, const unsigned long id) {
+    uint8_t tbufdata[4];
 
-//     mcp2515_id_to_buf(ext, id, tbufdata);
-//     mcp2515_setRegisterS(mcp_addr, tbufdata, 4);
-// }
+    mcp2515_id_to_buf(ext, id, tbufdata);
+    mcp2515_setRegisterS(mcp_addr, tbufdata, 4);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_read_id
@@ -944,37 +990,49 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Descriptions:            write msg
 // **                          Note! There is no check for right address!
 // *********************************************************************************************************/
-// void mcp2515_can::mcp2515_write_canMsg(const uint8_t buffer_sidh_addr, unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len,
-//                                    volatile const uint8_t* buf) {
-//     uint8_t load_addr = txSidhToTxLoad(buffer_sidh_addr);
 
-//     uint8_t tbufdata[4];
-//     uint8_t dlc = len | (rtrBit ? MCP_RTR_MASK : 0) ;
-//     uint8_t i;
+void mcp2515_can::singleByteTransfer(uint8_t value) {
+    uint8_t tx[] = {value};
+    uint8_t rx[sizeof(tx)];
+    transfer(tx, rx, sizeof(tx));
+}
 
-//     mcp2515_id_to_buf(ext, id, tbufdata);
+void mcp2515_can::mcp2515_write_canMsg(const uint8_t buffer_sidh_addr, unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len,
+                                   volatile const uint8_t* buf) {
+    uint8_t load_addr = txSidhToTxLoad(buffer_sidh_addr);
 
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_BEGIN();
-//     #endif
-//     MCP2515_SELECT();
-//     spi_readwrite(load_addr);
-//     for (i = 0; i < 4; i++) {
-//         spi_write(tbufdata[i]);
-//     }
-//     spi_write(dlc);
-//     for (i = 0; i < len && i < CAN_MAX_CHAR_IN_MESSAGE; i++) {
-//         spi_write(buf[i]);
-//     }
+    uint8_t tbufdata[4];
+    uint8_t dlc = len | (rtrBit ? MCP_RTR_MASK : 0) ;
+    uint8_t i;
 
-//     MCP2515_UNSELECT();
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_END();
-//     #endif
+    mcp2515_id_to_buf(ext, id, tbufdata);
 
-//     mcp2515_start_transmit(buffer_sidh_addr);
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_BEGIN();
+    // #endif
+    // MCP2515_SELECT();
+    
+    // spi_readwrite(load_addr);
+    singleByteTransfer(load_addr);
 
-// }
+    for (i = 0; i < 4; i++) {
+        // spi_write(tbufdata[i]);
+        singleByteTransfer(tbufdata[i]);
+    }
+    // spi_write(dlc);
+    singleByteTransfer(dlc);
+    for (i = 0; i < len && i < CAN_MAX_CHAR_IN_MESSAGE; i++) {
+        // spi_write(buf[i]);
+        singleByteTransfer(buf[i]);
+    }
+
+    // MCP2515_UNSELECT();
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_END();
+    // #endif
+
+    mcp2515_start_transmit(buffer_sidh_addr);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_read_canMsg
@@ -1016,17 +1074,20 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Function name:           mcp2515_start_transmit
 // ** Descriptions:            Start message transmit on mcp2515
 // *********************************************************************************************************/
-// void mcp2515_can::mcp2515_start_transmit(const uint8_t mcp_addr) {            // start transmit
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_BEGIN();
-//     #endif
-//     MCP2515_SELECT();
-//     spi_readwrite(txSidhToRTS(mcp_addr));
-//     MCP2515_UNSELECT();
-//     #ifdef SPI_HAS_TRANSACTION
-//     SPI_END();
-//     #endif
-// }
+void mcp2515_can::mcp2515_start_transmit(const uint8_t mcp_addr) {            // start transmit
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_BEGIN();
+    // #endif
+    // MCP2515_SELECT();
+    // spi_readwrite(txSidhToRTS(mcp_addr));
+    // MCP2515_UNSELECT();
+    // #ifdef SPI_HAS_TRANSACTION
+    // SPI_END();
+    // #endif
+    uint8_t tx[] = {txSidhToRTS(mcp_addr)};
+    uint8_t rx[sizeof(tx)];
+    transfer(tx, rx, sizeof(tx));
+}
 
 // /*********************************************************************************************************
 // ** Function name:           mcp2515_isTXBufFree
@@ -1050,37 +1111,38 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Function name:           mcp2515_getNextFreeTXBuf
 // ** Descriptions:            finds next free tx buffer for sending. Return MCP_ALLTXBUSY, if there is none.
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::mcp2515_getNextFreeTXBuf(uint8_t* txbuf_n) {               // get Next free txbuf
-//     uint8_t status = mcp2515_readStatus() & MCP_STAT_TX_PENDING_MASK;
-//     uint8_t i;
+uint8_t mcp2515_can::mcp2515_getNextFreeTXBuf(uint8_t* txbuf_n) {               // get Next free txbuf
+    uint8_t status = mcp2515_readStatus() & MCP_STAT_TX_PENDING_MASK;
+    uint8_t i;
 
-//     *txbuf_n = 0x00;
+    if (status == MCP_STAT_TX_PENDING_MASK) { 
+        return MCP_ALLTXBUSY;    // All buffers are pending
+    }
+    std::cout << "status next one: " << int(status) << std::endl; 
+    *txbuf_n = 0x00;
+    // check all 3 TX-Buffers except reserved
+    for (i = 0; i < MCP_N_TXBUFFERS - nReservedTx; i++) {
+        std::cout << "status next one: " << i << status << std::endl;
+        if ((status & txStatusPendingFlag(i)) == 0) {
+            *txbuf_n = txCtrlReg(i) + 1;                                   // return SIDH-address of Buffer
+            mcp2515_modifyRegister(MCP_CANINTF, txIfFlag(i), 0);
+            return MCP2515_OK;                                                 // ! function exit
+        }
+    }
 
-//     if (status == MCP_STAT_TX_PENDING_MASK) {
-//         return MCP_ALLTXBUSY;    // All buffers are pending
-//     }
-
-//     // check all 3 TX-Buffers except reserved
-//     for (i = 0; i < MCP_N_TXBUFFERS - nReservedTx; i++) {
-//         if ((status & txStatusPendingFlag(i)) == 0) {
-//             *txbuf_n = txCtrlReg(i) + 1;                                   // return SIDH-address of Buffer
-//             mcp2515_modifyRegister(MCP_CANINTF, txIfFlag(i), 0);
-//             return MCP2515_OK;                                                 // ! function exit
-//         }
-//     }
-
-//     return MCP_ALLTXBUSY;
-// }
+    std::cout << "all busy next one: "<< std::endl;
+    return MCP_ALLTXBUSY;
+}
 // /*********************************************************************************************************
 // ** Function name:           begin
 // ** Descriptions:            init can and set speed
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::begin(uint32_t speedset, const uint8_t clockset) {
-//     pSPI->begin();
-//     uint8_t res = mcp2515_init((uint8_t)speedset, clockset);
+uint8_t mcp2515_can::begin(void) {
+    // pSPI->begin();
+    uint8_t res = mcp2515_init(); //(uint8_t)speedset, clockset);
 
-//     return ((res == MCP2515_OK) ? CAN_OK : CAN_FAILINIT);
-// }
+    return ((res == MCP2515_OK) ? CAN_OK : CAN_FAILINIT);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           enableTxInterrupt
@@ -1257,55 +1319,53 @@ void mcp2515_can::mcp2515_reset(void) {
 // ** Function name:           sendMsg
 // ** Descriptions:            send message
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::sendMsg(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t* buf, bool wait_sent) {
-//     uint8_t res, res1, txbuf_n;
-//     uint16_t uiTimeOut = 0;
+uint8_t mcp2515_can::sendMsg(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t* buf, bool wait_sent) {
+    uint8_t res, res1, txbuf_n;
+    uint16_t uiTimeOut = 0;
 
-//     can_id = id;
-//     ext_flg = ext;
-//     rtr = rtrBit;
+    can_id = id;
+    ext_flg = ext;
+    rtr = rtrBit;
 
-//     do {
-//         if (uiTimeOut > 0) {
-//             delayMicroseconds(10);
+    do {
+        if (uiTimeOut > 0) {
+            delayMicroseconds(10);
+        }
+        res = mcp2515_getNextFreeTXBuf(&txbuf_n);                       // info = addr.
+        uiTimeOut++;
+    } while (res == MCP_ALLTXBUSY && (uiTimeOut < TIMEOUTVALUE));
+    if (uiTimeOut == TIMEOUTVALUE) {
+        return CAN_GETTXBFTIMEOUT;                                      // get tx buff time out
+    }
+    mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf);
 
-//         }
-//         res = mcp2515_getNextFreeTXBuf(&txbuf_n);                       // info = addr.
-//         uiTimeOut++;
-//     } while (res == MCP_ALLTXBUSY && (uiTimeOut < TIMEOUTVALUE));
+    if (wait_sent) {
+        uiTimeOut = 0;
+        do {
+            if (uiTimeOut > 0) {
+                delayMicroseconds(10);
+            }
+            uiTimeOut++;
+            res1 = mcp2515_readRegister(txbuf_n - 1);  // read send buff ctrl reg
+            res1 = res1 & 0x08;
+        } while (res1 && (uiTimeOut < TIMEOUTVALUE));
 
-//     if (uiTimeOut == TIMEOUTVALUE) {
-//         return CAN_GETTXBFTIMEOUT;                                      // get tx buff time out
-//     }
-//     mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf);
+        if (uiTimeOut == TIMEOUTVALUE) {                                     // send msg timeout
+            return CAN_SENDMSGTIMEOUT;
+        }
+    }
 
-//     if (wait_sent) {
-//         uiTimeOut = 0;
-//         do {
-//             if (uiTimeOut > 0) {
-//                 delayMicroseconds(10);
-//             }
-//             uiTimeOut++;
-//             res1 = mcp2515_readRegister(txbuf_n - 1);  // read send buff ctrl reg
-//             res1 = res1 & 0x08;
-//         } while (res1 && (uiTimeOut < TIMEOUTVALUE));
+    return CAN_OK;
 
-//         if (uiTimeOut == TIMEOUTVALUE) {                                     // send msg timeout
-//             return CAN_SENDMSGTIMEOUT;
-//         }
-//     }
-
-//     return CAN_OK;
-
-// }
+}
 
 // /*********************************************************************************************************
 // ** Function name:           sendMsgBuf
 // ** Descriptions:            send buf
 // *********************************************************************************************************/
-// uint8_t mcp2515_can::sendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t* buf, bool wait_sent) {
-//     return sendMsg(id, ext, rtrBit, len, buf, wait_sent);
-// }
+uint8_t mcp2515_can::sendMsgBuf(unsigned long id, uint8_t ext, uint8_t rtrBit, uint8_t len, const uint8_t* buf, bool wait_sent) {
+    return sendMsg(id, ext, rtrBit, len, buf, wait_sent);
+}
 
 // /*********************************************************************************************************
 // ** Function name:           readMsgBufID
@@ -1677,9 +1737,58 @@ uint8_t mcp2515_can::mcpDigitalRead(const uint8_t pin) {
 }
 
 */
+
+
 int main() {
+    // try {
+    // Initialize the MCP2515 CAN controller
+    std::string device = "/dev/spidev0.0";  // Specify the SPI device
+    uint8_t spiMode = SPI_MODE_0;           // SPI mode
+    uint8_t bitsPerWord = 8;                // Bits per word
+    uint32_t speed = 500000;               // SPI speed in Hz
+
+    mcp2515_can canController(device, spiMode, bitsPerWord, speed);
+
+    // Test the MCP2515 reset functionality
+    std::cout << "Resetting MCP2515 CAN controller..." << std::endl;
+    canController.mcp2515_reset();  // Call the reset function of MCP2515
+    std::cout << "Reset complete." << std::endl;
+    canController.begin();
+    std::cout << "Init complete." << std::endl;
+
+    uint8_t id = 0x00;
+    uint8_t message_length = 8;
+    uint8_t extended_frame = 0;
+    uint8_t rtr_default = 0;
+    // change position
+    // uint8_t message_data[] = {0x142, 0xa8, 0x00, 0x68, 0x01, 0xa8, 0xfd, 0xff, 0xff};
+    // uint8_t message_data[] = {0x42, 0x1, 0xa8, 0x00, 0x68, 0x01, 0xa8, 0xfd, 0xff, 0xff};
+    // get status
+    uint8_t message_data[] = {0x9C, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+    // // send data:  id = 0x00, standrad frame, data len = 8, stmp: data buf
+
+    // #define CAN_OK              (0)
+    // #define CAN_FAILINIT        (1)
+    // #define CAN_FAILTX          (2)
+    // #define CAN_MSGAVAIL        (3)
+    // #define CAN_NOMSG           (4)
+    // #define CAN_CTRLERROR       (5)
+    // #define CAN_GETTXBFTIMEOUT  (6)
+    // #define CAN_SENDMSGTIMEOUT  (7)
+    // #define CAN_FAIL            (0xff)
+
+    uint8_t ret_msg = canController.sendMsgBuf(
+        id, extended_frame, rtr_default, message_length, 
+        message_data
+    );
+
+    std::cout << "Final return message:" << int(ret_msg) << std::endl;
+
     return 0;
 }
+
+
 
 /*********************************************************************************************************
     END FILE
