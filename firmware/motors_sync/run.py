@@ -1,9 +1,14 @@
 """Simple async script to tick all motors back and forth by n degrees."""
-import can
+
 import time
 
+import can
 
 DEFAULT_MAX_DPS = 360.0
+
+
+class InvalidMotorIDError(Exception):
+    pass
 
 
 def send_id(id: int) -> int:
@@ -43,7 +48,15 @@ def recv_id(id: int) -> int:
 class TestCanBus:
     """A class to interface with motors over a CAN bus."""
 
-    def __init__(self, channel='can0', bustype='socketcan', motor_idxs=[1], timeout=1., delta=2, seq_timeout=0.05):
+    def __init__(
+        self,
+        channel: str = "can0",
+        bustype: str = "socketcan",
+        motor_idxs: list = [1],
+        timeout: float = 1.0,
+        delta: float = 2.0,
+        seq_timeout: float = 0.05,
+    ) -> None:
         """Initializes the TestCanBus class.
 
         Args:
