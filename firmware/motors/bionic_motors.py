@@ -17,9 +17,15 @@ def push_fp32_bits(value: int, data: float) -> int:
     value = push_bits(value, data_bits, 32)
     return value
 
-def split_into_bytes(command: int, little_endian: bool = True) -> List[int]:
-    bytes_list = [(command >> (8 * i)) & 0xFF for i in range(8)]
-    return bytes_list[::-1] if little_endian else bytes_list # already in little endian
+def split_into_bytes(command: int, length: int = 8, 
+                     little_endian: bool = True) -> List[int]:
+    bytes_list = []
+    for i in range(length):
+        bytes_list.append(command & 0xFF)
+        command = command >> 8
+    if little_endian:
+        bytes_list = bytes_list[::-1]
+    return bytes_list
 
 #######################################
 # Movement commands
@@ -79,7 +85,7 @@ def set_speed_control(
     command = push_bits(command, message_return, 2)
     command = push_fp32_bits(command, speed)
     command = push_bits(command, int(current * 10), 16)
-    return split_into_bytes(command)
+    return split_into_bytes(command, 7)
 
 def set_current_torque_control(
     motor_id: int, # NOTE: you need to specify the motor id as the CAN identifier
@@ -105,7 +111,7 @@ def set_current_torque_control(
     command = push_bits(command, control_status, 3)
     command = push_bits(command, message_return, 2)
     command = push_bits(command, (int)(value * 10), 16) # TODO, needs testing for int16
-    return split_into_bytes(command)
+    return split_into_bytes(command, 3)
 
 def set_zero_position(motor_id: int) -> List[int]:
     """Gets the command to set the zero position of a motor. Expect 4 bytes
@@ -122,8 +128,9 @@ def set_zero_position(motor_id: int) -> List[int]:
     command = push_bits(command, upper, 8)
     command = push_bits(command, lower, 8)
     command = push_bits(command, 0, 8)
-    command = push_bits(command, 0, 8)
-    return split_into_bytes(command)
+    command = push_bits(command, 3, 8)
+    print(hex(command))
+    return split_into_bytes(command, 4)
     
 
 #######################################
@@ -147,7 +154,7 @@ def get_motor_pos(motor_id: int):
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
     command = push_bits(command, 0x1, 8)
-    return split_into_bytes(command)
+    return split_into_bytes(command, 4)
 
 def get_motor_speed(motor_id: int): 
     """
@@ -166,7 +173,7 @@ def get_motor_speed(motor_id: int):
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
     command = push_bits(command, 0x2, 8)
-    return split_into_bytes(command)
+    return split_into_bytes(command, 4)
 
 def get_motor_current(motor_id: int): 
     """
@@ -185,7 +192,7 @@ def get_motor_current(motor_id: int):
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
     command = push_bits(command, 0x3, 8)
-    return split_into_bytes(command)
+    return split_into_bytes(command, 4)
 
 def get_motor_power(motor_id: int): 
     """
@@ -204,7 +211,7 @@ def get_motor_power(motor_id: int):
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
     command = push_bits(command, 0x4, 8)
-    return split_into_bytes(command)
+    return split_into_bytes(command, 4)
 
 
 #######################################
@@ -213,6 +220,7 @@ def get_motor_power(motor_id: int):
 
 if __name__ == "__main__":
     # python -m firmware.motors.bionic_motor
-    print(set_position_control(1, 0.0))
-    print(set_position_control(1, 90.0))
+    # print(set_position_control(1, 0.0))
+    # print(set_position_control(1, 90.0))
+    print(set_zero_position(1))
 
