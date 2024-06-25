@@ -4,6 +4,8 @@ import time
 
 import can
 
+from ..motors.bionic_motors import set_position_control, set_zero_position
+
 DEFAULT_MAX_DPS = 360.0
 
 
@@ -25,7 +27,7 @@ def send_id(id: int) -> int:
     """
     if not (1 <= id <= 32):
         raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
-    return 0x140 + id
+    return id
 
 
 def recv_id(id: int) -> int:
@@ -42,7 +44,7 @@ def recv_id(id: int) -> int:
     """
     if not (1 <= id <= 32):
         raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
-    return 0x240 + id
+    return id
 
 
 class TestCanBus:
@@ -75,7 +77,7 @@ class TestCanBus:
         self.delta = delta
         self.seq_timeout = seq_timeout
 
-    def _send(self, id: int, data: bytes) -> None:
+    def _send(self, id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
 
         Args:
@@ -83,7 +85,7 @@ class TestCanBus:
             data: The data to send.
         """
         can_id = send_id(id)
-        assert len(data) == 8, "Data length must be 8 bytes"
+        assert len(data) == length, "Data length must be 8 bytes"
         print(hex(can_id))
         message = can.Message(
             arbitration_id=can_id,
@@ -100,12 +102,7 @@ class TestCanBus:
             location: The target location in degrees.
             max_dps: The maximum velocity in degrees per second.
         """
-        data = [
-            0xA8,
-            0x00,
-            *round(max_dps).to_bytes(2, "little"),
-            *round(location * 100).to_bytes(4, "little", signed=True),
-        ]
+        data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
         self._send(id, bytes(data))
 
     def send_positions(self) -> None:
@@ -139,10 +136,17 @@ class TestCanBus:
 
         print(f"Received {len(messages)} messages in {self.timeout} seconds")
         return messages
+    
+    def zero_motors(self) -> None:
+        """Zeros all motors."""
+        for idx in self.motor_idxs:
+            data = set_zero_position(idx)
+            self._send(idx, bytes(data))
 
     def policy_loop(self) -> None:
         """Continuously sends positions to motors and processes received messages."""
         with self.write_bus:
+            self.zero_motors() # zero all motors
             while True:
                 self.send_positions()
                 # self.receive_messages()
