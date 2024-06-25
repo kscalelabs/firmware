@@ -25,8 +25,8 @@ def send_id(id: int) -> int:
     Returns:
         The CAN send ID.
     """
-    if not (1 <= id <= 32):
-        raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
+    # if not (1 <= id <= 32):
+    #    raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
     return id
 
 
@@ -42,8 +42,8 @@ def recv_id(id: int) -> int:
     Returns:
         The CAN receive ID.
     """
-    if not (1 <= id <= 32):
-        raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
+    # if not (1 <= id <= 32):
+    #    raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
     return id
 
 
@@ -55,9 +55,9 @@ class TestCanBus:
         channel: str = "can0",
         bustype: str = "socketcan",
         motor_idxs: list = [1],
-        timeout: float = 1.0,
+        timeout: float = 0.2, # SET
         delta: float = 2.0,
-        seq_timeout: float = 0.05,
+        seq_timeout: float = 0.01, # SET
     ) -> None:
         """Initializes the TestCanBus class.
 
@@ -141,7 +141,7 @@ class TestCanBus:
         """Zeros all motors."""
         for idx in self.motor_idxs:
             data = set_zero_position(idx)
-            self._send(idx, bytes(data))
+            self._send(0x7FF, bytes(data), 4)
 
     def policy_loop(self) -> None:
         """Continuously sends positions to motors and processes received messages."""
@@ -161,7 +161,7 @@ class TestCanBus:
 
 
 if __name__ == "__main__":
-    motor_idxs = [1, 2]
-    delta = 3
+    motor_idxs = [1, 2, 3, 4, 5, 6]
+    delta = 1
     test = TestCanBus(motor_idxs=motor_idxs, delta=delta)
     test.policy_loop()
