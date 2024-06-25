@@ -61,6 +61,24 @@ def set_position_control(
     return split_into_bytes(command)
 
 
+def force_position_hybrid_control(
+    KP: int,
+    KD: int,
+    Pos: int,
+    Spd: int,
+    Feedfwd: int) -> List[int]:
+    
+    command = 0
+    command = push_bits(command, 0x00, 3)
+    command = push_bits(command, KP, 12)
+    command = push_bits(command, KD, 9)
+    command = push_bits(command, Pos, 16)
+    command = push_bits(command, Spd, 12)
+    command = push_bits(command, Feedfwd, 12)
+
+    return split_into_bytes(command)
+
+
 def set_speed_control(
     motor_id: int, # NOTE: you need to specify the motor id as the CAN identifier
     speed: float,
