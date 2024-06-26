@@ -5,7 +5,7 @@ from typing import List
 
 import can
 
-from ..motors.bionic_motors import set_position_control, set_zero_position
+from ..motors.bionic_motors import force_position_hybrid_control, set_position_control, set_zero_position
 
 DEFAULT_MAX_DPS = 360.0
 
@@ -58,7 +58,7 @@ class TestCanBus:
         channel: str = "can0",
         bustype: str = "socketcan",
         motor_idxs: list = [1],
-        timeout: float = 0.01, # SET LOWER to avoid stuttering
+        timeout: float = 2, # SET LOWER to avoid stuttering
         delta: float = 2.0,
         seq_timeout: float = 0.005, # SET set lower to test faster can messages
         hold_time: float = 2, # SET
@@ -91,7 +91,7 @@ class TestCanBus:
         """
         can_id = send_id(id)
         assert len(data) == length, "Data length must be 8 bytes"
-        print(hex(can_id))
+        print(hex(can_id), hex(int.from_bytes(data, "big")))
         message = can.Message(
             arbitration_id=can_id,
             data=data,
@@ -107,17 +107,18 @@ class TestCanBus:
             location: The target location in degrees.
             max_dps: The maximum velocity in degrees per second.
         """
-        data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
+        # data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
+        data = force_position_hybrid_control(15, 0.5, location, 0, 5)
         self._send(id, bytes(data))
     
     def hold_positions(self, positions: List[float]) -> None:
         """Holds the given position for the specified hold time."""
         assert len(positions) == len(self.motor_idxs), "Number of positions must match number of motors"
         end_time = time.time() + self.hold_time
-        while time.time() < end_time:
-            for idx, pos in zip(self.motor_idxs, positions):
-                time.sleep(self.seq_timeout)
-                self.set_relative_position(idx, pos)    
+        # while time.time() < end_time:
+        for idx, pos in zip(self.motor_idxs, positions):
+            time.sleep(self.seq_timeout)
+            self.set_relative_position(idx, pos)    
     
     def send_positions(self) -> None:
         """Sends the target positions to all motors and waits for the timeout period."""
@@ -136,7 +137,7 @@ class TestCanBus:
         Reads messages from the buffer within a given timeout.
 
         Returns:
-            A list of received CAN messages.
+            A list of received  messages.
         """
         received_count = 0
         messages = []
@@ -163,8 +164,9 @@ class TestCanBus:
         with self.write_bus:
             self.zero_motors() # zero all motors
             while True:
-                self.hold_positions([60, 0, 0, 0, 0, 0])
-                self.hold_positions([0, 0, 0, 0, 0, 0])
+                # self.hold_positions([90, 0, 0, 0, 0, 0])
+                # self.hold_positions([45, 0, 0, 0, 0, 0])
+                self.hold_positions([90])
                 # self.send_positions()
                 # self.receive_messages()
 
@@ -178,7 +180,7 @@ class TestCanBus:
 
 
 if __name__ == "__main__":
-    motor_idxs = [1, 2, 3, 4, 5, 6]
-    delta = 1
+    motor_idxs = [6]
+    delta = 90
     test = TestCanBus(motor_idxs=motor_idxs, delta=delta)
     test.policy_loop()

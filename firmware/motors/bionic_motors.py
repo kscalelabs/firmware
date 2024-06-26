@@ -63,10 +63,10 @@ def set_position_control(
 
 
 def force_position_hybrid_control(
-    kp: int,
-    kd: int,
+    kp: float,
+    kd: float,
     position: float,
-    speed: int,
+    speed: float,
     torque_ff: int) -> List[int]:
     """Gets the command to set the position of a motor using PD control. Expect 8 bytes
     
@@ -91,7 +91,7 @@ def force_position_hybrid_control(
     command = push_bits(command, int(degrees_to_int(position)), 16)
     command = push_bits(command, int(rpm_to_int(speed)), 12)
     command = push_bits(command, int(torque_to_int(torque_ff)), 12)
-
+    print(hex(command))
     return split_into_bytes(command)
 
 
