@@ -1,6 +1,7 @@
 """Simple async script to tick all motors back and forth by n degrees."""
 
 import time
+from typing import List
 
 import can
 
@@ -14,7 +15,8 @@ class InvalidMotorIDError(Exception):
 
 
 def send_id(id: int) -> int:
-    """Returns the CAN send ID for the given motor ID.
+    """ [ DEPRECATED ]
+    Returns the CAN send ID for the given motor ID.
 
     Args:
         id: The motor ID (from 1 to 32, inclusive).
@@ -31,7 +33,8 @@ def send_id(id: int) -> int:
 
 
 def recv_id(id: int) -> int:
-    """Returns the CAN receive ID for the given motor ID.
+    """ [ DEPRECATED ]
+    Returns the CAN receive ID for the given motor ID.
 
     Args:
         id: The motor ID (from 1 to 32, inclusive).
@@ -58,6 +61,7 @@ class TestCanBus:
         timeout: float = 0.2, # SET
         delta: float = 2.0,
         seq_timeout: float = 0.01, # SET
+        hold_time: float = 2, # SET
     ) -> None:
         """Initializes the TestCanBus class.
 
@@ -76,6 +80,7 @@ class TestCanBus:
         self.timeout = timeout
         self.delta = delta
         self.seq_timeout = seq_timeout
+        self.hold_time = hold_time
 
     def _send(self, id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
@@ -104,7 +109,16 @@ class TestCanBus:
         """
         data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
         self._send(id, bytes(data))
-
+    
+    def hold_positions(self, positions: List[float]) -> None:
+        """Holds the given position for the specified hold time."""
+        assert len(positions) == len(self.motor_idxs), "Number of positions must match number of motors"
+        end_time = time.time() + self.hold_time
+        while time.time() < end_time:
+            for idx, pos in zip(self.motor_idxs, positions):
+                time.sleep(self.seq_timeout)
+                self.set_relative_position(idx, pos)    
+    
     def send_positions(self) -> None:
         """Sends the target positions to all motors and waits for the timeout period."""
         self.delta = -self.delta
@@ -118,7 +132,8 @@ class TestCanBus:
         print("Send all positions")
 
     def receive_messages(self) -> list:
-        """Reads messages from the buffer within a given timeout.
+        """ TODO: Needs to be implemented
+        Reads messages from the buffer within a given timeout.
 
         Returns:
             A list of received CAN messages.
@@ -148,11 +163,13 @@ class TestCanBus:
         with self.write_bus:
             self.zero_motors() # zero all motors
             while True:
-                self.send_positions()
+                self.hold_positions([60, 0, 0, 0, 0, 0])
+                self.hold_positions([0, 0, 0, 0, 0, 0])
+                # self.send_positions()
                 # self.receive_messages()
 
                 # TODO:
-                self._post_process_messages()
+                # self._post_process_messages()
 
     def _post_process_messages(self) -> None:
         """Processes received messages (placeholder for actual logic)."""
