@@ -1,5 +1,6 @@
 """Defines firmware commands for the bionic MyActuator motors."""
 
+import math
 import struct
 from typing import List, Literal
 
@@ -62,19 +63,34 @@ def set_position_control(
 
 
 def force_position_hybrid_control(
-    KP: int,
-    KD: int,
-    Pos: int,
-    Spd: int,
-    Feedfwd: int) -> List[int]:
+    kp: int,
+    kd: int,
+    position: float,
+    speed: int,
+    torque_ff: int) -> List[int]:
+    """Gets the command to set the position of a motor using PD control. Expect 8 bytes
+    
+    Args:
+        kp: The proportional gain. No load default is 15
+        kd: The derivative gain. No load default is 0.5
+        position: The position to set the motor to, in degrees.
+        speed: The speed to set the motor to, in rpm. 
+        torque_ff: The feedforward torque in Nm.
+        
+    Returns:
+        The command to set the position of a motor using PD control.
+    """
+    degrees_to_int = lambda degrees : max(0, min(65536, int(((math.radians(degrees) + 12.5) / 25.0) * 65536)))
+    rpm_to_int = lambda rpm: max(0, min(4095, int(((rpm + 18.0) / 36.0) * 4095)))
+    torque_to_int = lambda torque: max(0, min(4095, int(((torque + 150) / 300) * 4095)))
     
     command = 0
-    command = push_bits(command, 0x00, 3)
-    command = push_bits(command, KP, 12)
-    command = push_bits(command, KD, 9)
-    command = push_bits(command, Pos, 16)
-    command = push_bits(command, Spd, 12)
-    command = push_bits(command, Feedfwd, 12)
+    command = push_bits(command, 0, 3)
+    command = push_bits(command, int(kp * 4095 / 500), 12)
+    command = push_bits(command, int(kd * 511 / 5), 9)
+    command = push_bits(command, int(degrees_to_int(position)), 16)
+    command = push_bits(command, int(rpm_to_int(speed)), 12)
+    command = push_bits(command, int(torque_to_int(torque_ff)), 12)
 
     return split_into_bytes(command)
 
@@ -240,5 +256,5 @@ if __name__ == "__main__":
     # python -m firmware.motors.bionic_motor
     # print(set_position_control(1, 0.0))
     # print(set_position_control(1, 90.0))
-    print(set_zero_position(1))
+    print(force_position_hybrid_control(15, 0.5, 90.0, 0, 0))
 

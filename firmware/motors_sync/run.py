@@ -58,9 +58,9 @@ class TestCanBus:
         channel: str = "can0",
         bustype: str = "socketcan",
         motor_idxs: list = [1],
-        timeout: float = 0.2, # SET
+        timeout: float = 0.01, # SET LOWER to avoid stuttering
         delta: float = 2.0,
-        seq_timeout: float = 0.01, # SET
+        seq_timeout: float = 0.005, # SET set lower to test faster can messages
         hold_time: float = 2, # SET
     ) -> None:
         """Initializes the TestCanBus class.
