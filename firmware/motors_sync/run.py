@@ -108,7 +108,7 @@ class TestCanBus:
             max_dps: The maximum velocity in degrees per second.
         """
         # data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
-        data = force_position_hybrid_control(15, 0.5, location, 0, 5)
+        data = force_position_hybrid_control(100, 4, location, 0, 0)
         self._send(id, bytes(data))
     
     def hold_positions(self, positions: List[float]) -> None:
@@ -163,10 +163,22 @@ class TestCanBus:
         """Continuously sends positions to motors and processes received messages."""
         with self.write_bus:
             self.zero_motors() # zero all motors
+            positions = [0, 0, 0, 0, 0, 0] # running positions
+            increments = [1.4, 0, 0.8, -1, 0, 0] # per tick increment size
+            max_thresholds = [90, 0, 20, -70, 0, 0] # max angle for arm raise
+            min_angle = [20, 0, 0, 0, 0, 0] # angle before next motor can move
             while True:
-                # self.hold_positions([90, 0, 0, 0, 0, 0])
+                print([int(pos) for pos in positions])
+                if positions[0] < min_angle[0]:
+                    positions[0] += increments[0]
+                else:
+                    positions = [pos + incr if abs(pos) < abs(thr) else pos for pos, incr, thr in zip(positions, increments, max_thresholds)]          
+                self.hold_positions([int(pos) for pos in positions])       
+                # print(int(pos))
+                # self.hold_positions([0, 0, 0, 0, 0, int(pos)])
+                # motor 1: 90 (1.4), motor 2: 0, motor 3: 20 (0.8), motor4: -70 (1), motor 5: 0, motor 6: 40 (0.8) (Broken hold 50 deg .8, lower kp later) 
                 # self.hold_positions([45, 0, 0, 0, 0, 0])
-                self.hold_positions([90])
+                # self.hold_positions([0, 0, 0, 0, 0, 0])
                 # self.send_positions()
                 # self.receive_messages()
 
@@ -180,7 +192,7 @@ class TestCanBus:
 
 
 if __name__ == "__main__":
-    motor_idxs = [6]
+    motor_idxs = [1, 2, 3, 4, 5, 6]
     delta = 90
     test = TestCanBus(motor_idxs=motor_idxs, delta=delta)
     test.policy_loop()
