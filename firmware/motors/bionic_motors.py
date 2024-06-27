@@ -1,260 +1,141 @@
-"""Defines firmware commands for the bionic MyActuator motors."""
+"""Defines a class that dictates how to communicate with the motors."""
 
+from dataclasses import dataclass
+import time
+import can
 import math
 import struct
 from typing import List, Literal
 
-#######################################
-# Bitwise helpers
-#######################################
+from .bionic_motors_commands import (
+    force_position_hybrid_control, 
+    set_zero_position,
+    get_motor_pos # ... add more later
+)
 
-def push_bits(value: int, data: int, num_bits: int) -> int:
-    value <<= num_bits
-    value |= data & ((1 << num_bits) - 1)
-    return value
+from .bionic_motors_responses import (
+    valid_message,
+    read_result,
+    getMsgType
+)
 
-def push_fp32_bits(value: int, data: float) -> int:
-    data_bits = struct.unpack("I", struct.pack("f", data))[0]
-    value = push_bits(value, data_bits, 32)
-    return value
-
-def split_into_bytes(command: int, length: int = 8, 
-                     little_endian: bool = True) -> List[int]:
-    bytes_list = []
-    for i in range(length):
-        bytes_list.append(command & 0xFF)
-        command = command >> 8
-    if little_endian:
-        bytes_list = bytes_list[::-1]
-    return bytes_list
-
-#######################################
-# Movement commands
-#######################################
-
-
-def set_position_control(
-    motor_id: int, # NOTE: you need to specify the motor id as the CAN identifier
-    position: float,
-    motor_mode: int = 1,
-    max_speed: float = 60.0,
-    max_current: float = 5.0,
-    message_return: Literal[0, 1, 2, 3] = 0,
-) -> List[int]:
-    """Gets the command to set the position of a motor. Expect 8 bytes
-
-    Args:
-        motor_mode: 0x1 for servo position control.
-        position: The position to set the motor to.
-        max_speed: The maximum speed of the motor, in rotations per minute.
-        max_current: The maximum current of the motor, in amps.
-        message_return: The message return status.
-
-    Returns:
-        The command to set the position of a motor.
-    """
-    command = 0
-    command = push_bits(command, motor_mode, 3)
-    command = push_fp32_bits(command, position)
-    command = push_bits(command, int(max_speed * 10), 15)
-    command = push_bits(command, int(max_current * 10), 12)
-    command = push_bits(command, message_return, 2)
-    return split_into_bytes(command)
-
-
-def force_position_hybrid_control(
-    kp: float,
-    kd: float,
-    position: float,
-    speed: float,
-    torque_ff: int) -> List[int]:
-    """Gets the command to set the position of a motor using PD control. Expect 8 bytes
+@dataclass
+class ControlParams:
+    kp: float
+    kd: float
     
-    Args:
-        kp: The proportional gain. No load default is 15
-        kd: The derivative gain. No load default is 0.5
-        position: The position to set the motor to, in degrees.
-        speed: The speed to set the motor to, in rpm. 
-        torque_ff: The feedforward torque in Nm.
+@dataclass
+class CANInterface:
+    bus: can.interface.Bus
+    channel: can.BufferedReader
+    bustype: can.Notifier
+
+class BionicMotor:
+    """A class to interface with a motor over a CAN bus."""
+
+    def __init__(
+        self,
+        motor_id: int,
+        control_params: ControlParams,
+        can_bus: CANInterface
+    ):
+        """
+        Args:
+            motor_id: The ID of the motor.
+            control_params: The control parameters for the motor.
+            can_bus: The CAN bus interface
+        """
+        self.motor_id = motor_id
+        self.control_params = control_params
+        self.can_bus = can_bus
+        self.can_messages = []
+
+    
+    def send(self, can_id: int, data: bytes, length: int = 8) -> None:
+        """Sends a CAN message to a motor.
+
+        Args:
+            id: The motor ID.
+            data: The data to send.
+        """
+        assert len(data) == length, f"Data length must be {length} bytes"
+        print("CAN Command: ", hex(can_id), hex(int.from_bytes(data, "big")))
+        message = can.Message(
+            arbitration_id=can_id,
+            data=data,
+            is_extended_id=False,
+        )
+        self.can_bus.bus.send(message)
         
-    Returns:
-        The command to set the position of a motor using PD control.
-    """
-    degrees_to_int = lambda degrees : max(0, min(65536, int(((math.radians(degrees) + 12.5) / 25.0) * 65536)))
-    rpm_to_int = lambda rpm: max(0, min(4095, int(((rpm + 18.0) / 36.0) * 4095)))
-    torque_to_int = lambda torque: max(0, min(4095, int(((torque + 150) / 300) * 4095)))
-    
-    command = 0
-    command = push_bits(command, 0, 3)
-    command = push_bits(command, int(kp * 4095 / 500), 12)
-    command = push_bits(command, int(kd * 511 / 5), 9)
-    command = push_bits(command, int(degrees_to_int(position)), 16)
-    command = push_bits(command, int(rpm_to_int(speed)), 12)
-    command = push_bits(command, int(torque_to_int(torque_ff)), 12)
-    print(hex(command))
-    return split_into_bytes(command)
+    def read(self, timeout: float = 0.25) -> None:
+        """Generic read can bus method that reads messages from the can bus
+        
+        Args:
+            timeout: how long to read messages for in seconds      
+        """
+        start_time = time.time()
+        while time.time() - start_time < timeout:
+            message = self.can_bus.channel.get_message(timeout=timeout)
+            if message is not None:
+                if valid_message(message.data):
+                    message_id = message.arbitration_id
+                    message_data = read_result(message.data)
+                    self.can_messages.append((message_id, message_data))
+                    print("CAN Message: ", message_id, message_data)
+                else:
+                    print("Invalid message")  
+        
+    def _send(self, id: int, data: bytes, length: int = 8) -> None:
+        """Sends a CAN message to a motor.
+
+        Args:
+            id: The motor ID.
+            data: The data to send.
+        """
+        can_id = id
+        assert len(data) == length, f"Data length must be {length} bytes"
+        print("CAN Command: ", hex(can_id), hex(int.from_bytes(data, "big")))
+        message = can.Message(
+            arbitration_id=can_id,
+            data=data,
+            is_extended_id=False,
+        )
+        self.can_bus.bus.send(message)
+
+    def set_position(self, position: float, speed: float, torque: int) -> None:
+        """Sets the position of the motor using force position hybrid control
+
+        Args:
+            position: The position to set the motor to (in degrees)
+            speed: The speed to set the motor to (in rpm)
+            torque: The torque to set the motor to (in Nm)
+        """
+        command = force_position_hybrid_control(self.control_params.kp, self.control_params.kd, position, speed, torque)
+        self._send(self.motor_id, bytes(command))
+
+    def set_zero_position(self) -> None:
+        """Sets the zero position of the motor."""
+        command = set_zero_position(self.motor_id)
+        self._send(self.motor_id, bytes(command))
+
+    def get_position(self, wait_time: float = 0.25):
+        command = get_motor_pos()
+        self._send(self.motor_id, bytes(command))
+        cur_time = time.time()
+        time.sleep(wait_time)
+        
+        for i in self.can_messages:
+            if i[0] == self.motor_id:
+                if valid_message and getMsgType(i[1]) == 0x05:
+                    return read_result(i[1])
 
 
-def set_speed_control(
-    motor_id: int, # NOTE: you need to specify the motor id as the CAN identifier
-    speed: float,
-    motor_mode: int = 2,
-    current: float = 5.0,
-    message_return: Literal[0, 1, 2, 3] = 0,
-) -> List[int]:
-    """Gets the command to set the speed of a motor. Expect 7 bytes
-
-    Args:
-        motor_mode: 0x2 for speed control.
-        speed: The speed to set the motor to, in rotations per minute.
-        current: The current of the motor, in amps. 0 to 65536 corresponds to 0 to 6553.6 A.
-        message_return: The message return status.
-
-    Returns:
-        The command to set the speed of a motor.
-    """
-    command = 0
-    command = push_bits(command, motor_mode, 3)
-    command = push_bits(command, 0, 3)
-    command = push_bits(command, message_return, 2)
-    command = push_fp32_bits(command, speed)
-    command = push_bits(command, int(current * 10), 16)
-    return split_into_bytes(command, 7)
-
-def set_current_torque_control(
-    motor_id: int, # NOTE: you need to specify the motor id as the CAN identifier
-    value: int,
-    control_status: Literal[0, 1, 2, 3, 4, 5, 6, 7] = 0,
-    motor_mode: int = 3,
-    message_return: Literal[0, 1, 2, 3] = 0,
-) -> List[int]:
-    """Gets the command to set the current OR torque of a motor. Expect 3 bytes
-
-    Args:
-        motor_mode: 0x3 for current control.
-        value: The current (A) or torque (N*m) to set the motor to, x10. (int16, not uint16)
-        message_return: The message return status.
-        control_status: 0x0 for current control, 0x1 for torque control.
-                        See page 18-19 of X12-150 manual for more options.
-
-    Returns:
-        The command to set the current of a motor.
-    """
-    command = 0
-    command = push_bits(command, motor_mode, 3)
-    command = push_bits(command, control_status, 3)
-    command = push_bits(command, message_return, 2)
-    command = push_bits(command, (int)(value * 10), 16) # TODO, needs testing for int16
-    return split_into_bytes(command, 3)
-
-def set_zero_position(motor_id: int) -> List[int]:
-    """Gets the command to set the zero position of a motor. Expect 4 bytes
-
-    Args:
-        motor_id: The ID of the motor.
-
-    Returns:
-        The command to set the zero position of a motor.
-    """
-    upper = motor_id >> 8
-    lower = motor_id & 0xFF
-    command = 0
-    command = push_bits(command, upper, 8)
-    command = push_bits(command, lower, 8)
-    command = push_bits(command, 0, 8)
-    command = push_bits(command, 3, 8)
-    print(hex(command))
-    return split_into_bytes(command, 4)
-    
-
-#######################################
-# Motor information commands
-#######################################
-
-def get_motor_pos(motor_id: int): 
-    """
-    Gets the motor Position of a respective motor
-    Args: 
-        motor_id: The ID of the motor.
-
-    Returns: 
-        The respective motor position
-    """    
-    upper = motor_id >> 8
-    lower = motor_id & 0xFF
-    command = 0
-    command = push_bits(command, upper, 8)
-    command = push_bits(command, lower, 8)
-    command = push_bits(command, 0x7, 3)
-    command = push_bits(command, 0x0, 5)
-    command = push_bits(command, 0x1, 8)
-    return split_into_bytes(command, 4)
-
-def get_motor_speed(motor_id: int): 
-    """
-    Gets the motor Position of a respective motor
-    Args: 
-        motor_id: The ID of the motor.
-
-    Returns: 
-        The respective motor speed.
-    """ 
-    upper = motor_id >> 8
-    lower = motor_id & 0xFF
-    command = 0
-    command = push_bits(command, upper, 8)
-    command = push_bits(command, lower, 8)
-    command = push_bits(command, 0x7, 3)
-    command = push_bits(command, 0x0, 5)
-    command = push_bits(command, 0x2, 8)
-    return split_into_bytes(command, 4)
-
-def get_motor_current(motor_id: int): 
-    """
-    Gets the motor Position of a respective motor
-    Args: 
-        motor_id: The ID of the motor.
-
-    Returns: 
-        The respective motor current draw
-    """
-    upper = motor_id >> 8
-    lower = motor_id & 0xFF
-    command = 0
-    command = push_bits(command, upper, 8)
-    command = push_bits(command, lower, 8)
-    command = push_bits(command, 0x7, 3)
-    command = push_bits(command, 0x0, 5)
-    command = push_bits(command, 0x3, 8)
-    return split_into_bytes(command, 4)
-
-def get_motor_power(motor_id: int): 
-    """
-    Gets power consumption of a respective motor
-    Args: 
-        motor_id: The ID of the motor.
-
-    Returns: 
-        The respective motor power consumption
-    """
-    upper = motor_id >> 8
-    lower = motor_id & 0xFF
-    command = 0
-    command = push_bits(command, upper, 8)
-    command = push_bits(command, lower, 8)
-    command = push_bits(command, 0x7, 3)
-    command = push_bits(command, 0x0, 5)
-    command = push_bits(command, 0x4, 8)
-    return split_into_bytes(command, 4)
 
 
-#######################################
-# Motor feedback control commands
-#######################################
+    def __str__(self) -> str:
+        return f"BionicMotor({self.motor_id})"
 
-if __name__ == "__main__":
-    # python -m firmware.motors.bionic_motor
-    # print(set_position_control(1, 0.0))
-    # print(set_position_control(1, 90.0))
-    print(force_position_hybrid_control(15, 0.5, 90.0, 0, 0))
+
+
+
 
