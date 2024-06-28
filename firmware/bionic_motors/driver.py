@@ -1,15 +1,19 @@
-from .bionic_motors import BionicMotor
-from .bionic_motors_model import Arm, Body, Leg
-from .bionic_motors_utils import *
+"""Example driver code on instantiating new motors and driving them."""
+
+from .motors import BionicMotor
+from .model import Arm, Body, Leg
+from .utils import *
 
 import time
 
 #### Example code to drive the model
 
+
+# Create a model
 TestModel = Body(
     left_arm = Arm(
         rotator_cuff = BionicMotor(1, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        shoulder = BionicMotor(2, MATT_STOMPY_STRENGTH.ARM_PARAMS, CAN_BUS),
+        shoulder = BionicMotor(2, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
         bicep = BionicMotor(3, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
         elbow = BionicMotor(4, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
         wrist = BionicMotor(5, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
@@ -22,6 +26,7 @@ TestModel = Body(
 )
 
 
+# NOTE: you should only zero motors once
 # for each part in the arm, zero the position
 for part in TestModel.left_arm.motors:
     part.set_zero_position()
@@ -41,5 +46,4 @@ while True:
         positions = [pos + incr if abs(pos) < abs(thr) else pos for pos, incr, thr in zip(positions, increments, max_thresholds)]
     for idx, part in enumerate(TestModel.left_arm.motors):
         part.set_position(int(positions[idx]), 0, 0)
-        part.get_position(0.005)
-
+        part.update_position(0.005)

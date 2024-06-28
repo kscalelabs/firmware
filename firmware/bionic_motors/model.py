@@ -1,9 +1,7 @@
 """Defines the motor model but with bionic motors instead."""
 
 from dataclasses import dataclass
-from .bionic_motors import BionicMotor
-
-# TODO: get colloquial names from CAD
+from .motors import BionicMotor
 
 # TODO: Head
 

@@ -7,16 +7,15 @@ import math
 import struct
 from typing import List, Literal
 
-from .bionic_motors_commands import (
+from .commands import (
     force_position_hybrid_control, 
     set_zero_position,
     get_motor_pos # ... add more later
 )
 
-from .bionic_motors_responses import (
+from .responses import (
     valid_message,
     read_result,
-    getMsgType
 )
 
 @dataclass
@@ -29,6 +28,11 @@ class CANInterface:
     bus: can.interface.Bus
     channel: can.BufferedReader
     bustype: can.Notifier
+    
+@dataclass
+class CanMessage:
+    id: int
+    data: str
 
 class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
@@ -82,7 +86,7 @@ class BionicMotor:
                 if valid_message(message.data):
                     message_id = message.arbitration_id
                     message_data = read_result(message.data)
-                    self.can_messages.append((message_id, message_data))
+                    self.can_messages.append(CanMessage(id=message_id, data=message_data))
                     print("CAN Message: ", message_id, message_data)
                 else:
                     print("Invalid message")  
@@ -120,14 +124,22 @@ class BionicMotor:
         command = set_zero_position(self.motor_id)
         self._send(self.motor_id, bytes(command), 4)
 
-    def get_position(self, wait_time: float = 0.25) -> str:
+    def update_position(self, wait_time: float = 0.15) -> str:
+        """
+        Updates the value of the motor's position attribute
+        NOTE: Do NOT use this to access the motor's position value.
+        Just use <motor>.position instead.
+        
+        Args:
+            wait_time: how long to wait for a response from the motor
+        """
         command = get_motor_pos()
         self._send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
 
-        for i in self.can_messages:
-            if i[0] == self.motor_id and "Message Type 5" in i[1][0]: # TODO: needs to go
-                self.position = i[1][3] # TODO: needs to go
+        for message in self.can_messages:
+            if message.id == self.motor_id and message.data["Message Type"] == 5:
+                self.position = message.data["Data"]
                 return "Valid"
             else:
                 return "Invalid"

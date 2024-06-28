@@ -5,7 +5,7 @@ from typing import List
 
 import can
 
-from ..motors.bionic_motors_commands import force_position_hybrid_control, set_position_control, set_zero_position
+from ..bionic_motors.commands import force_position_hybrid_control, set_position_control, set_zero_position
 
 DEFAULT_MAX_DPS = 360.0
 

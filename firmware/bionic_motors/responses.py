@@ -3,7 +3,6 @@ import struct
 
 msgType = 0
 
-
 """ TODO: Need to add conversions for each message frame into
 actual readable units"""
 
@@ -44,16 +43,25 @@ ConfigStatusMap = {
 }
 
 
-
-
 def getMsgType(msg: bytes):
     for i in range(1,6):
         if msg[0] >> 5 == i:
             return i
-
+    return -1
 
 
 def MsgType1(msg: bytes):
+    """
+    Message Type 1
+    
+    Interprets the message type 1 and returns a list of the results
+    
+    Args:
+        msg: bytes: The message to interpret
+        
+    Returns:
+        dictionary of the message results
+    """
     getPosition = lambda data: data * (25.0 / 65536.0) - 12.5
     getSpeed = lambda data: data * (36.0 / 4095.0) - 18.0
     getCurrent = lambda data: data * (140.0 / 4095) - 70.0
@@ -67,15 +75,15 @@ def MsgType1(msg: bytes):
     motor_temp = ((msg[6]) - 50) / 2
     motor_MOS_temp = ((msg[7]) - 50) / 2
 
-    return ["Message Type 1",
-            "Error: "  + ErrorMap[error], 
-            "Motor Position " + str(getPosition(motor_pos)), 
-            "Motor Speed " + str(getSpeed(motor_speed)),
-            "Motor Current " + str(getCurrent(motor_current)),
-            "Motor Temperature " + str(getTemp(motor_temp)),
-            "Motor MOS Temperature " + str(getMosTemp(motor_MOS_temp))]
-
-
+    return {
+        "Message Type" : 1,
+        "Error" : ErrorMap[error], 
+        "Position" : getPosition(motor_pos), 
+        "Speed" : getSpeed(motor_speed),
+        "Current" : getCurrent(motor_current),
+        "Temperature" : getTemp(motor_temp),
+        "MOS" : getMosTemp(motor_MOS_temp)
+    }
 
 def MsgType2(msg: bytes):
     """
@@ -87,7 +95,7 @@ def MsgType2(msg: bytes):
         msg: bytes: The message to interpret
 
     Returns:
-        list: A list of the results of the message
+        dictionary of the message results
     
     """
 
@@ -100,11 +108,14 @@ def MsgType2(msg: bytes):
     motor_current = int.from_bytes(msg[5:7])
     motor_temp = msg[7]
 
-    return ["Message Type 2",
-            "Error: "  + ErrorMap[error], 
-            "Motor Position " + str(getPosition(motor_pos)), 
-            "Motor Current " + str(getCurrent(motor_current)),
-            "Motor Temperature " + str(getTemp(motor_temp))]
+    return {
+        "Message Type" : 2,
+        "Error" : ErrorMap[error], 
+        "Position" : getPosition(motor_pos), 
+        "Current" : getCurrent(motor_current),
+        "Temperature" : getTemp(motor_temp)
+    }
+
 
 
 
@@ -118,7 +129,7 @@ def MsgType3(msg: bytes) :
         msg: bytes: The message to interpret
 
     Returns:
-        list: A list of the results of the message
+        dictionary of the message results
     """
     getSpeed = lambda data: data
     getCurrent = lambda data: data / 10.0
@@ -129,12 +140,13 @@ def MsgType3(msg: bytes) :
     motor_current = int.from_bytes(msg[5:7])
     motor_temp = msg[7]
 
-    return ["Message Type 3",
-            "Error: "  + ErrorMap[error], 
-            "Motor Position " + str(getSpeed(motor_speed)), 
-            "Motor Speed " + str(getSpeed(motor_speed)),
-            "Motor Current " + str(getCurrent(motor_current)),
-            "Motor Temperature " + str(getTemp(motor_temp))]
+    return {
+        "Message Type" : 3,
+        "Error" : ErrorMap[error], 
+        "Speed" : getSpeed(motor_speed),
+        "Current" : getCurrent(motor_current),
+        "Temperature" : getTemp(motor_temp)
+    }
 
 
 
@@ -148,20 +160,19 @@ def MsgType4(msg: bytes):
         msg: bytes: The message to interpret
 
     Returns:
-        list: A list of the results of the message
+        dictionary of the message results
     
     """
     error = msg[0] & 0x1F
     configuration_code = msg[1]
     configuration_status = msg[2]
 
-    return ["Message Type 4",
-            "Error: "  + ErrorMap[error], 
-            "Configuration Code " + ConfigMap[configuration_code],
-            "Configuration Status " + ConfigStatusMap[configuration_status]
-            ]
-
-
+    return {
+        "Message Type": 4,
+        "Error": ErrorMap[error], 
+        "Configuration Code": ConfigMap[configuration_code], 
+        "Configuration Status": ConfigStatusMap[configuration_status]
+    }
 
 
 def MsgType5(msg: bytes):
@@ -171,7 +182,7 @@ def MsgType5(msg: bytes):
         msg: bytes: The message to interpret
 
     Returns:
-        list: A list of the results of the message
+        dictionary of the message results
     
     """
     error = msg[0] & 0x1F
@@ -179,12 +190,12 @@ def MsgType5(msg: bytes):
     data = bytes(msg[2:])
     data = struct.unpack('!f',data)[0]
 
-    return ["Message Type 5",
-            "Error: "  + ErrorMap[error], 
-            QueryMap[query_code],
-            data
-            ] 
-
+    return {
+        "Message Type": 5,
+        "Error": ErrorMap[error], 
+        "Query Code": QueryMap[query_code],
+        "Data": data
+    }
 
 MsgMap = {
     1: MsgType1,
@@ -215,16 +226,13 @@ def read_result(msg: bytes):
         msg: bytes: The message to interpret
         
     Returns:
-        list: A list of the results of the message
+        dictionary of the message results
     
     """
     msgType = getMsgType(msg)
     if valid_message(msg):
         return MsgMap[msgType](msg)
-    else:
-        return None
-
-
+    return None
 
 if __name__ == "__main__":
     vector = [0xA0, 0x01, 0x39, 0xF7, 0x24, 0x7D]

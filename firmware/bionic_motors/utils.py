@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 import can
 
-from .bionic_motors import CANInterface, ControlParams
+from .motors import CANInterface, ControlParams
 
 @dataclass
 class ViolenceStrength:
