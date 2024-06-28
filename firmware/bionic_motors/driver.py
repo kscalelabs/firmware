@@ -55,3 +55,4 @@ while True:
     for idx, part in enumerate(TestModel.left_arm.motors):
         part.set_position(int(positions[idx]), 0, 0)
         part.update_position(0.005)
+        print("Updated part position", part.position)
