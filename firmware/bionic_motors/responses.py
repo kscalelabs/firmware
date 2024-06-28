@@ -1,14 +1,12 @@
 """Takes in responses from the Q&A return type and interprets them"""
 import struct
 
-msgType = 0
-
 """ TODO: Need to add conversions for each message frame into
 actual readable units"""
 
 # Defintions 
 
-ErrorMap = {
+ERROR_MAP = {
     0: "No Errors",
     1: "Motor Overheating",
     2: "Motor Overcurrent",
@@ -19,7 +17,7 @@ ErrorMap = {
 }
 
 
-QueryMap = {
+QUERY_MAP = {
     0: "Reserved",
     1: "Angle",
     2: "Speed",
@@ -30,27 +28,27 @@ QueryMap = {
 }
 
 
-ConfigMap = {
+CONFIG_MAP = {
     0: "Reserved",
     1: "Configuring System Acceleration",
     2: "Configuring Flux Observation Gain",
     3: "Configuring Damping Coefficient"
 }
 
-ConfigStatusMap = {
+CONFIG_STATUS_MAP = {
     0: "Failure",
     1: "Success"
 }
 
 
-def getMsgType(msg: bytes):
+def get_message_type(msg: bytes):
     for i in range(1,6):
         if msg[0] >> 5 == i:
             return i
     return -1
 
 
-def MsgType1(msg: bytes):
+def position_speed_message(msg: bytes):
     """
     Message Type 1
     
@@ -62,30 +60,30 @@ def MsgType1(msg: bytes):
     Returns:
         dictionary of the message results
     """
-    getPosition = lambda data: data * (25.0 / 65536.0) - 12.5
-    getSpeed = lambda data: data * (36.0 / 4095.0) - 18.0
-    getCurrent = lambda data: data * (140.0 / 4095) - 70.0
-    getTemp = lambda data: (data - 50.0) / 2.0
-    getMosTemp = lambda data: (data - 50.0) / 2.0
+    get_position = lambda data: data * (25.0 / 65536.0) - 12.5
+    get_speed = lambda data: data * (36.0 / 4095.0) - 18.0
+    get_current = lambda data: data * (140.0 / 4095) - 70.0
+    get_temp = lambda data: (data - 50.0) / 2.0
+    get_mos_temp = lambda data: (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_pos = int.from_bytes(msg[1:3], "big")
     motor_speed = int.from_bytes(msg[3:5], 'big') >> 4
     motor_current = (int.from_bytes(msg[4:6], 'big') & 0xFFF)
     motor_temp = ((msg[6]) - 50) / 2
-    motor_MOS_temp = ((msg[7]) - 50) / 2
+    motor_mos_temp = ((msg[7]) - 50) / 2
 
     return {
         "Message Type" : 1,
-        "Error" : ErrorMap[error], 
-        "Position" : getPosition(motor_pos), 
-        "Speed" : getSpeed(motor_speed),
-        "Current" : getCurrent(motor_current),
-        "Temperature" : getTemp(motor_temp),
-        "MOS" : getMosTemp(motor_MOS_temp)
+        "Error" : ERROR_MAP[error], 
+        "Position" : get_position(motor_pos), 
+        "Speed" : get_speed(motor_speed),
+        "Current" : get_current(motor_current),
+        "Temperature" : get_temp(motor_temp),
+        "MOS" : get_mos_temp(motor_mos_temp)
     }
 
-def MsgType2(msg: bytes):
+def position_message(msg: bytes):
     """
     Message Type 2
 
@@ -99,9 +97,9 @@ def MsgType2(msg: bytes):
     
     """
 
-    getPosition = lambda data: data
-    getCurrent = lambda data: data / 10.0
-    getTemp = lambda data: (data - 50.0) / 2.0
+    get_position = lambda data: data
+    get_current = lambda data: data / 10.0
+    get_temp = lambda data: (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_pos = struct.unpack('!f', msg[1:5])[0]
@@ -110,16 +108,16 @@ def MsgType2(msg: bytes):
 
     return {
         "Message Type" : 2,
-        "Error" : ErrorMap[error], 
-        "Position" : getPosition(motor_pos), 
-        "Current" : getCurrent(motor_current),
-        "Temperature" : getTemp(motor_temp)
+        "Error" : ERROR_MAP[error], 
+        "Position" : get_position(motor_pos), 
+        "Current" : get_current(motor_current),
+        "Temperature" : get_temp(motor_temp)
     }
 
 
 
 
-def MsgType3(msg: bytes) :
+def speed_message(msg: bytes) :
     """
     Message Type 3  
     
@@ -131,9 +129,9 @@ def MsgType3(msg: bytes) :
     Returns:
         dictionary of the message results
     """
-    getSpeed = lambda data: data
-    getCurrent = lambda data: data / 10.0
-    getTemp = lambda data: (data - 50.0) / 2.0
+    get_speed = lambda data: data
+    get_current = lambda data: data / 10.0
+    get_temp = lambda data: (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_speed = struct.unpack('!f', msg[1:5])[0]
@@ -142,15 +140,15 @@ def MsgType3(msg: bytes) :
 
     return {
         "Message Type" : 3,
-        "Error" : ErrorMap[error], 
-        "Speed" : getSpeed(motor_speed),
-        "Current" : getCurrent(motor_current),
-        "Temperature" : getTemp(motor_temp)
+        "Error" : ERROR_MAP[error], 
+        "Speed" : get_speed(motor_speed),
+        "Current" : get_current(motor_current),
+        "Temperature" : get_temp(motor_temp)
     }
 
 
 
-def MsgType4(msg: bytes):
+def configuration_message(msg: bytes):
     """
     Message Type 4 
 
@@ -169,13 +167,13 @@ def MsgType4(msg: bytes):
 
     return {
         "Message Type": 4,
-        "Error": ErrorMap[error], 
-        "Configuration Code": ConfigMap[configuration_code], 
-        "Configuration Status": ConfigStatusMap[configuration_status]
+        "Error": ERROR_MAP[error], 
+        "Configuration Code": CONFIG_MAP[configuration_code], 
+        "Configuration Status": CONFIG_STATUS_MAP[configuration_status]
     }
 
 
-def MsgType5(msg: bytes):
+def custom_message(msg: bytes):
     """Message Type 5
     Interprets the message type 5 and returns a list of the results
     Args:   
@@ -192,17 +190,17 @@ def MsgType5(msg: bytes):
 
     return {
         "Message Type": 5,
-        "Error": ErrorMap[error], 
-        "Query Code": QueryMap[query_code],
+        "Error": ERROR_MAP[error], 
+        "Query Code": QUERY_MAP[query_code],
         "Data": data
     }
 
-MsgMap = {
-    1: MsgType1,
-    2: MsgType2,
-    3: MsgType3,
-    4: MsgType4,
-    5: MsgType5
+MESSAGE_MAP = {
+    1: position_speed_message,
+    2: position_message,
+    3: speed_message,
+    4: configuration_message,
+    5: custom_message
 }
 
 
@@ -216,7 +214,7 @@ def valid_message(msg: bytes):
         bool: True if the message is valid, False otherwise
     
     """
-    return getMsgType(msg) in MsgMap
+    return get_message_type(msg) in MESSAGE_MAP
 
 
 def read_result(msg: bytes):
@@ -229,9 +227,9 @@ def read_result(msg: bytes):
         dictionary of the message results
     
     """
-    msgType = getMsgType(msg)
+    message_type = get_message_type(msg)
     if valid_message(msg):
-        return MsgMap[msgType](msg)
+        return MESSAGE_MAP[message_type](msg)
     return None
 
 if __name__ == "__main__":

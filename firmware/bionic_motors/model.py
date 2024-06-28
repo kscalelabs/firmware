@@ -1,7 +1,8 @@
 """Defines the motor model but with bionic motors instead."""
 
 from dataclasses import dataclass
-from .motors import BionicMotor
+
+from firmware.bionic_motors.motors import BionicMotor
 
 # TODO: Head
 

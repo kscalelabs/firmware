@@ -1,13 +1,21 @@
 """Example driver code on instantiating new motors and driving them."""
 
-from .motors import BionicMotor
-from .model import Arm, Body, Leg
-from .utils import *
-
 import time
+
+import can
+
+from firmware.bionic_motors.model import Arm, Body, Leg
+from firmware.bionic_motors.motors import BionicMotor
+from firmware.bionic_motors.utils import *
 
 #### Example code to drive the model
 
+# Initialize the CAN bus
+write_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+buffer_reader = can.BufferedReader()
+notifier = can.Notifier(write_bus, [buffer_reader])
+
+CAN_BUS = CANInterface(write_bus, buffer_reader, notifier)
 
 # Create a model
 TestModel = Body(

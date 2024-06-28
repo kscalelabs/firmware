@@ -5,50 +5,13 @@ from typing import List
 
 import can
 
-from ..bionic_motors.commands import force_position_hybrid_control, set_position_control, set_zero_position
+from firmware.bionic_motors.commands import force_position_hybrid_control, set_position_control, set_zero_position
 
 DEFAULT_MAX_DPS = 360.0
 
 
 class InvalidMotorIDError(Exception):
     pass
-
-
-def send_id(id: int) -> int:
-    """ [ DEPRECATED ]
-    Returns the CAN send ID for the given motor ID.
-
-    Args:
-        id: The motor ID (from 1 to 32, inclusive).
-
-    Raises:
-        InvalidMotorIDError: If the motor ID is out of range.
-
-    Returns:
-        The CAN send ID.
-    """
-    # if not (1 <= id <= 32):
-    #    raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
-    return id
-
-
-def recv_id(id: int) -> int:
-    """ [ DEPRECATED ]
-    Returns the CAN receive ID for the given motor ID.
-
-    Args:
-        id: The motor ID (from 1 to 32, inclusive).
-
-    Raises:
-        InvalidMotorIDError: If the motor ID is out of range.
-
-    Returns:
-        The CAN receive ID.
-    """
-    # if not (1 <= id <= 32):
-    #    raise InvalidMotorIDError(f"Motor ID {hex(id)} out of range")
-    return id
-
 
 class TestCanBus:
     """A class to interface with motors over a CAN bus."""

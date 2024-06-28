@@ -1,9 +1,9 @@
 """Example driver file on instantiating new motors and driving them."""
 
 from dataclasses import dataclass
-import can
 
-from .motors import CANInterface, ControlParams
+from firmware.bionic_motors.motors import CANInterface, ControlParams
+
 
 @dataclass
 class ViolenceStrength:
@@ -11,13 +11,6 @@ class ViolenceStrength:
     ARM_PARAMS: ControlParams
     GRIPPERS_PARAMS: ControlParams
     # TODO: add more as needed
-
-# CAN interface
-write_bus = can.interface.Bus(channel="can0", bustype="socketcan")
-buffer_reader = can.BufferedReader()
-notifier = can.Notifier(write_bus, [buffer_reader])
-
-CAN_BUS = CANInterface(write_bus, buffer_reader, notifier)
 
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(

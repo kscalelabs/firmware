@@ -1,22 +1,20 @@
 """Defines a class that dictates how to communicate with the motors."""
 
-from dataclasses import dataclass
-import time
-import can
 import math
 import struct
+import time
+from dataclasses import dataclass
 from typing import List, Literal
 
-from .commands import (
-    force_position_hybrid_control, 
-    set_zero_position,
-    get_motor_pos # ... add more later
-)
+import can
 
-from .responses import (
-    valid_message,
-    read_result,
+from firmware.bionic_motors.commands import (
+    force_position_hybrid_control,
+    get_motor_pos,
+    set_zero_position,
 )
+from firmware.bionic_motors.responses import read_result, valid_message
+
 
 @dataclass
 class ControlParams:
@@ -124,7 +122,7 @@ class BionicMotor:
         command = set_zero_position(self.motor_id)
         self._send(self.motor_id, bytes(command), 4)
 
-    def update_position(self, wait_time: float = 0.15) -> str:
+    def update_position(self, wait_time: float = 0.1) -> str:
         """
         Updates the value of the motor's position attribute
         NOTE: Do NOT use this to access the motor's position value.
