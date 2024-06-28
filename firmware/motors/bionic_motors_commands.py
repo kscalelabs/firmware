@@ -129,7 +129,6 @@ def set_zero_position(motor_id: int) -> List[int]:
     command = push_bits(command, lower, 8)
     command = push_bits(command, 0, 8)
     command = push_bits(command, 3, 8)
-    print(hex(command))
     return split_into_bytes(command, 4)
     
 
@@ -241,9 +240,6 @@ def debug(command: bytes):
 
 if __name__ == "__main__":
     # python -m firmware.motors.bionic_motor
-    # print(set_position_control(1, 0.0))
-    # print(set_position_control(1, 90.0))
-
     print(debug(set_zero_position(1)))
 
 

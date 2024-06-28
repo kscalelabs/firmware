@@ -49,6 +49,8 @@ class BionicMotor:
         self.control_params = control_params
         self.can_bus = can_bus
         self.can_messages = []
+        self.position = 0 # don't care here, but NOTE should not always be 0 at the start
+        self.get_position()
 
     
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
@@ -116,24 +118,22 @@ class BionicMotor:
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
         command = set_zero_position(self.motor_id)
-        self._send(self.motor_id, bytes(command))
+        self._send(self.motor_id, bytes(command), 4)
 
-    def get_position(self, wait_time: float = 0.25):
+    def get_position(self, wait_time: float = 0.25) -> str:
         command = get_motor_pos()
-        self._send(self.motor_id, bytes(command))
-        cur_time = time.time()
-        time.sleep(wait_time)
-        
+        self._send(self.motor_id, bytes(command), 2)
+        self.read(wait_time)
+
         for i in self.can_messages:
-            if i[0] == self.motor_id:
-                if valid_message and getMsgType(i[1]) == 0x05:
-                    return read_result(i[1])
-
-
-
+            if i[0] == self.motor_id and "Message Type 5" in i[1][0]: # TODO: needs to go
+                self.position = i[1][3] # TODO: needs to go
+                return "Valid"
+            else:
+                return "Invalid"
 
     def __str__(self) -> str:
-        return f"BionicMotor({self.motor_id})"
+        return f"BionicMotor ({self.motor_id})"
 
 
 

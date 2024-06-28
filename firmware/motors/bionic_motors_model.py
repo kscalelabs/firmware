@@ -9,30 +9,30 @@ from .bionic_motors import BionicMotor
 
 @dataclass
 class Arm:
+    rotator_cuff: BionicMotor
     shoulder: BionicMotor
     bicep: BionicMotor
     elbow: BionicMotor
-    tricep: BionicMotor
     wrist: BionicMotor
     gripper: BionicMotor
 
     @property
     def motor_ids(self) -> list[int]:
         return [
+            self.rotator_cuff.motor_id,
             self.shoulder.motor_id,
             self.bicep.motor_id,
             self.elbow.motor_id,
-            self.tricep.motor_id,
             self.wrist.motor_id,
             self.gripper.motor_id,
         ]
     @property
     def motors(self) -> list[BionicMotor]:
         return [
+            self.rotator_cuff,
             self.shoulder,
             self.bicep,
             self.elbow,
-            self.tricep,
             self.wrist,
             self.gripper,
         ]
@@ -60,10 +60,10 @@ class Leg:
 class Body:
     # head: Head
     left_arm: Arm
-    right_arm: Arm
-    waist: BionicMotor
-    left_leg: Leg
-    right_leg: Leg
+    # right_arm: Arm
+    # waist: BionicMotor
+    # left_leg: Leg
+    # right_leg: Leg
 
     @property
     def motor_ids(self) -> list[int]:

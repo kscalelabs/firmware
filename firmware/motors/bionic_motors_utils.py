@@ -26,8 +26,8 @@ NORMAL_STRENGTH = ViolenceStrength(
     # TODO: add more as needed
 )
 
-MAD_STOMPY_STRENGTH = ViolenceStrength(
-    ARM_PARAMS = ControlParams(kp=15, kd=0.5),
+MATT_STOMPY_STRENGTH = ViolenceStrength(
+    ARM_PARAMS = ControlParams(kp=200, kd=4),
     GRIPPERS_PARAMS = ControlParams(kp=10, kd=2),
     # TODO: Change Params
 )
