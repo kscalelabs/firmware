@@ -12,6 +12,8 @@ from firmware.bionic_motors.commands import (
 )
 from firmware.bionic_motors.responses import read_result, valid_message
 
+SPECIAL_IDENTIFIER = 0x7FF
+
 
 @dataclass
 class ControlParams:
@@ -67,11 +69,12 @@ class BionicMotor:
         )
         self.can_bus.bus.send(message)
 
-    def read(self, timeout: float = 0.25) -> None:
+    def read(self, timeout: float = 0.25, readDataOnly: bool = True) -> None:
         """Generic read can bus method that reads messages from the can bus.
 
         Args:
             timeout: how long to read messages for in seconds
+            readDataOnly: whether to read only data that has been queried. This ensures only messages of type 5 come through if true and all messages come through if false.
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -80,8 +83,13 @@ class BionicMotor:
                 if valid_message(message.data):
                     message_id = message.arbitration_id
                     message_data = read_result(message.data)
-                    self.can_messages.append(CanMessage(id=message_id, data=message_data))
-                    print("CAN Message: ", message_id, message_data)
+                    if readDataOnly:
+                        if message_data["Message Type"] == 5:
+                            self.can_messages.append(CanMessage(id=message_id, data=message_data))
+                            print("CAN Message: ", message_id, message_data)
+                    else:
+                        self.can_messages.append(CanMessage(id=message_id, data=message_data))
+                        print("CAN Message: ", message_id, message_data)
                 else:
                     print("Invalid message")
 
@@ -117,7 +125,7 @@ class BionicMotor:
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
         command = set_zero_position(self.motor_id)
-        self._send(self.motor_id, bytes(command), 4)
+        self._send(SPECIAL_IDENTIFIER, bytes(command), 4)
 
     def update_position(self, wait_time: float = 0.1) -> str:
         """Updates the value of the motor's position attribute.
@@ -136,6 +144,7 @@ class BionicMotor:
         for message in self.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 self.position = message.data["Data"]
+                self.can_messages = [] #Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
