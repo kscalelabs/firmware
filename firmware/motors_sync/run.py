@@ -13,6 +13,7 @@ DEFAULT_MAX_DPS = 360.0
 class InvalidMotorIDError(Exception):
     pass
 
+
 class TestCanBus:
     """A class to interface with motors over a CAN bus."""
 
@@ -21,10 +22,10 @@ class TestCanBus:
         channel: str = "can0",
         bustype: str = "socketcan",
         motor_idxs: list = [1],
-        timeout: float = 2, # SET LOWER to avoid stuttering
+        timeout: float = 2,  # SET LOWER to avoid stuttering
         delta: float = 2.0,
-        seq_timeout: float = 0.005, # SET set lower to test faster can messages
-        hold_time: float = 2, # SET
+        seq_timeout: float = 0.005,  # SET set lower to test faster can messages
+        hold_time: float = 2,  # SET
     ) -> None:
         """Initializes the TestCanBus class.
 
@@ -73,7 +74,7 @@ class TestCanBus:
         # data = set_position_control(id, location, max_speed=max_dps/6) # takes max RPM instead
         data = force_position_hybrid_control(100, 4, location, 0, 0)
         self._send(id, bytes(data))
-    
+
     def hold_positions(self, positions: List[float]) -> None:
         """Holds the given position for the specified hold time."""
         assert len(positions) == len(self.motor_idxs), "Number of positions must match number of motors"
@@ -81,8 +82,8 @@ class TestCanBus:
         # while time.time() < end_time:
         for idx, pos in zip(self.motor_idxs, positions):
             time.sleep(self.seq_timeout)
-            self.set_relative_position(idx, pos)    
-    
+            self.set_relative_position(idx, pos)
+
     def send_positions(self) -> None:
         """Sends the target positions to all motors and waits for the timeout period."""
         self.delta = -self.delta
@@ -96,7 +97,7 @@ class TestCanBus:
         print("Send all positions")
 
     def receive_messages(self) -> list:
-        """ TODO: Needs to be implemented
+        """TODO: Needs to be implemented
         Reads messages from the buffer within a given timeout.
 
         Returns:
@@ -115,7 +116,7 @@ class TestCanBus:
 
         print(f"Received {len(messages)} messages in {self.timeout} seconds")
         return messages
-    
+
     def zero_motors(self) -> None:
         """Zeros all motors."""
         for idx in self.motor_idxs:
@@ -125,21 +126,24 @@ class TestCanBus:
     def policy_loop(self) -> None:
         """Continuously sends positions to motors and processes received messages."""
         with self.write_bus:
-            self.zero_motors() # zero all motors
-            positions = [0, 0, 0, 0, 0, 0] # running positions
-            increments = [1.4, 0, 0.8, -1, 0, 0] # per tick increment size
-            max_thresholds = [90, 0, 20, -70, 0, 0] # max angle for arm raise
-            min_angle = [20, 0, 0, 0, 0, 0] # angle before next motor can move
+            self.zero_motors()  # zero all motors
+            positions = [0, 0, 0, 0, 0, 0]  # running positions
+            increments = [1.4, 0, 0.8, -1, 0, 0]  # per tick increment size
+            max_thresholds = [90, 0, 20, -70, 0, 0]  # max angle for arm raise
+            min_angle = [20, 0, 0, 0, 0, 0]  # angle before next motor can move
             while True:
                 print([int(pos) for pos in positions])
                 if positions[0] < min_angle[0]:
                     positions[0] += increments[0]
                 else:
-                    positions = [pos + incr if abs(pos) < abs(thr) else pos for pos, incr, thr in zip(positions, increments, max_thresholds)]          
-                self.hold_positions([int(pos) for pos in positions])       
+                    positions = [
+                        pos + incr if abs(pos) < abs(thr) else pos
+                        for pos, incr, thr in zip(positions, increments, max_thresholds)
+                    ]
+                self.hold_positions([int(pos) for pos in positions])
                 # print(int(pos))
                 # self.hold_positions([0, 0, 0, 0, 0, int(pos)])
-                # motor 1: 90 (1.4), motor 2: 0, motor 3: 20 (0.8), motor4: -70 (1), motor 5: 0, motor 6: 40 (0.8) (Broken hold 50 deg .8, lower kp later) 
+                # motor 1: 90 (1.4), motor 2: 0, motor 3: 20 (0.8), motor4: -70 (1), motor 5: 0, motor 6: 40 (0.8) (Broken hold 50 deg .8, lower kp later)
                 # self.hold_positions([45, 0, 0, 0, 0, 0])
                 # self.hold_positions([0, 0, 0, 0, 0, 0])
                 # self.send_positions()
