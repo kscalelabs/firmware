@@ -1,11 +1,10 @@
 """Example driver code on instantiating new motors and driving them."""
 
-
 import can
 
 from firmware.bionic_motors.model import Arm, Body
 from firmware.bionic_motors.motors import BionicMotor
-from firmware.bionic_motors.utils import *
+from firmware.bionic_motors.utils import NORMAL_STRENGTH, CANInterface
 
 # Example code to drive the model
 

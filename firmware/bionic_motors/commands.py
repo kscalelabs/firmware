@@ -147,8 +147,9 @@ def set_zero_position(motor_id: int) -> List[int]:
 #######################################
 
 
-def get_motor_pos():
-    """Gets the motor Position of a respective motor
+def get_motor_pos() -> List[int]:
+    """Gets the motor Position of a respective motor.
+
     Args:
         motor_id: The ID of the motor.
 
@@ -162,8 +163,9 @@ def get_motor_pos():
     return split_into_bytes(command, 2)
 
 
-def get_motor_speed(motor_id: int):
-    """Gets the motor Position of a respective motor
+def get_motor_speed(motor_id: int) -> List[int]:
+    """Gets the motor Position of a respective motor.
+
     Args:
         motor_id: The ID of the motor.
 
@@ -177,8 +179,9 @@ def get_motor_speed(motor_id: int):
     return split_into_bytes(command, 2)
 
 
-def get_motor_current():
-    """Gets the motor Position of a respective motor
+def get_motor_current() -> List[int]:
+    """Gets the motor Position of a respective motor.
+
     Args:
         motor_id: The ID of the motor.
 
@@ -192,8 +195,9 @@ def get_motor_current():
     return split_into_bytes(command, 2)
 
 
-def get_motor_power():
-    """Gets power consumption of a respective motor
+def get_motor_power() -> List[int]:
+    """Gets power consumption of a respective motor.
+
     Args:
         motor_id: The ID of the motor.
 
@@ -226,13 +230,13 @@ def force_position_hybrid_control(kp: float, kd: float, position: float, speed: 
         The command to set the position of a motor using PD control.
     """
 
-    def degrees_to_int(degrees):
+    def degrees_to_int(degrees: float) -> int:
         return max(0, min(65536, int(((math.radians(degrees) + 12.5) / 25.0) * 65536)))
 
-    def rpm_to_int(rpm):
+    def rpm_to_int(rpm: float) -> int:
         return max(0, min(4095, int(((rpm + 18.0) / 36.0) * 4095)))
 
-    def torque_to_int(torque):
+    def torque_to_int(torque: float) -> int:
         return max(0, min(4095, int(((torque + 150) / 300) * 4095)))
 
     command = 0
@@ -245,7 +249,7 @@ def force_position_hybrid_control(kp: float, kd: float, position: float, speed: 
     return split_into_bytes(command)
 
 
-def debug(command: bytes):
+def debug(command: bytes) -> List[str]:
     return [hex(i) for i in command]
 
 

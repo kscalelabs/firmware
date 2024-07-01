@@ -36,7 +36,9 @@ class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
 
     def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface) -> None:
-        """Args:
+        """Initializes the motor.
+
+        Args:
         motor_id: The ID of the motor.
         control_params: The control parameters for the motor.
         can_bus: The CAN bus interface.
@@ -52,8 +54,9 @@ class BionicMotor:
         """Sends a CAN message to a motor.
 
         Args:
-            id: The motor ID.
+            can_id: The motor ID.
             data: The data to send.
+            length: The length of the data.
         """
         assert len(data) == length, f"Data length must be {length} bytes"
         print("CAN Command: ", hex(can_id), hex(int.from_bytes(data, "big")))
@@ -88,6 +91,7 @@ class BionicMotor:
         Args:
             id: The motor ID.
             data: The data to send.
+            length: The length of the data.
         """
         can_id = id
         assert len(data) == length, f"Data length must be {length} bytes"
@@ -116,8 +120,10 @@ class BionicMotor:
         self._send(self.motor_id, bytes(command), 4)
 
     def update_position(self, wait_time: float = 0.1) -> str:
-        """Updates the value of the motor's position attribute
+        """Updates the value of the motor's position attribute.
+
         NOTE: Do NOT use this to access the motor's position value.
+
         Just use <motor>.position instead.
 
         Args:

@@ -28,7 +28,7 @@ CONFIG_MAP = {
 CONFIG_STATUS_MAP = {0: "Failure", 1: "Success"}
 
 
-def get_message_type(msg: bytes):
+def get_message_type(msg: bytes) -> int:
     """Returns the message type of the message."""
     for i in range(1, 6):
         if msg[0] >> 5 == i:
@@ -36,7 +36,7 @@ def get_message_type(msg: bytes):
     return -1
 
 
-def position_speed_message(msg: bytes):
+def position_speed_message(msg: bytes) -> dict:
     """Message Type 1.
 
     Interprets the message type 1 and returns a list of the results
@@ -48,19 +48,19 @@ def position_speed_message(msg: bytes):
         dictionary of the message results
     """
 
-    def get_position(data):
+    def get_position(data: int) -> float:
         return data * (25.0 / 65536.0) - 12.5
 
-    def get_speed(data):
+    def get_speed(data: int) -> float:
         return data * (36.0 / 4095.0) - 18.0
 
-    def get_current(data):
+    def get_current(data: int) -> float:
         return data * (140.0 / 4095) - 70.0
 
-    def get_temp(data):
+    def get_temp(data: int) -> float:
         return (data - 50.0) / 2.0
 
-    def get_mos_temp(data):
+    def get_mos_temp(data: int) -> float:
         return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
@@ -81,7 +81,7 @@ def position_speed_message(msg: bytes):
     }
 
 
-def position_message(msg: bytes):
+def position_message(msg: bytes) -> dict:
     """Message Type 2.
 
     Interprets the message type 2 and returns a list of the results
@@ -94,13 +94,13 @@ def position_message(msg: bytes):
 
     """
 
-    def get_position(data):
+    def get_position(data: int) -> float:
         return data
 
-    def get_current(data):
+    def get_current(data: int) -> float:
         return data / 10.0
 
-    def get_temp(data):
+    def get_temp(data: int) -> float:
         return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
@@ -117,7 +117,7 @@ def position_message(msg: bytes):
     }
 
 
-def speed_message(msg: bytes):
+def speed_message(msg: bytes) -> dict:
     """Message Type 3.
 
     Interprets the message type 3 and returns a list of the results
@@ -129,13 +129,13 @@ def speed_message(msg: bytes):
         dictionary of the message results
     """
 
-    def get_speed(data):
+    def get_speed(data: int) -> float:
         return data
 
-    def get_current(data):
+    def get_current(data: int) -> float:
         return data / 10.0
 
-    def get_temp(data):
+    def get_temp(data: int) -> float:
         return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
@@ -152,7 +152,7 @@ def speed_message(msg: bytes):
     }
 
 
-def configuration_message(msg: bytes):
+def configuration_message(msg: bytes) -> dict:
     """Message Type 4.
 
     Interprets the message type 4 and returns a list of the results
@@ -176,8 +176,9 @@ def configuration_message(msg: bytes):
     }
 
 
-def custom_message(msg: bytes):
-    """Message Type 5
+def custom_message(msg: bytes) -> dict:
+    """Message Type 5.
+
     Interprets the message type 5 and returns a list of the results
     Args:
         msg: bytes: The message to interpret.
@@ -203,7 +204,7 @@ MESSAGE_MAP = {
 }
 
 
-def valid_message(msg: bytes):
+def valid_message(msg: bytes) -> bool:
     """Checks if the message is valid by checking the message type.
 
     Args:
@@ -216,7 +217,7 @@ def valid_message(msg: bytes):
     return get_message_type(msg) in MESSAGE_MAP
 
 
-def read_result(msg: bytes):
+def read_result(msg: bytes) -> dict:
     """Reads the result of the message and returns a list of the results regardless of Message Type.
 
     Args:

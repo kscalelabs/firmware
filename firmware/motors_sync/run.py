@@ -5,7 +5,7 @@ from typing import List
 
 import can
 
-from firmware.bionic_motors.commands import force_position_hybrid_control, set_position_control, set_zero_position
+from firmware.bionic_motors.commands import force_position_hybrid_control, set_zero_position
 
 DEFAULT_MAX_DPS = 360.0
 
@@ -36,6 +36,7 @@ class TestCanBus:
             timeout: Timeout for receiving messages.
             delta: The position delta to move the motors.
             seq_timeout: Delay between sending commands to different motors.
+            hold_time: Time to hold the position.
         """
         self.write_bus = can.interface.Bus(channel=channel, bustype=bustype)
         self.motor_idxs = motor_idxs
@@ -52,8 +53,9 @@ class TestCanBus:
         Args:
             id: The motor ID.
             data: The data to send.
+            length: The length of the data.
         """
-        can_id = send_id(id)
+        can_id = id
         assert len(data) == length, "Data length must be 8 bytes"
         print(hex(can_id), hex(int.from_bytes(data, "big")))
         message = can.Message(
@@ -78,7 +80,7 @@ class TestCanBus:
     def hold_positions(self, positions: List[float]) -> None:
         """Holds the given position for the specified hold time."""
         assert len(positions) == len(self.motor_idxs), "Number of positions must match number of motors"
-        end_time = time.time() + self.hold_time
+        time.time() + self.hold_time
         # while time.time() < end_time:
         for idx, pos in zip(self.motor_idxs, positions):
             time.sleep(self.seq_timeout)
@@ -97,7 +99,8 @@ class TestCanBus:
         print("Send all positions")
 
     def receive_messages(self) -> list:
-        """TODO: Needs to be implemented
+        """TODO: Needs to be implemented.
+
         Reads messages from the buffer within a given timeout.
 
         Returns:
@@ -141,13 +144,6 @@ class TestCanBus:
                         for pos, incr, thr in zip(positions, increments, max_thresholds)
                     ]
                 self.hold_positions([int(pos) for pos in positions])
-                # print(int(pos))
-                # self.hold_positions([0, 0, 0, 0, 0, int(pos)])
-                # motor 1: 90 (1.4), motor 2: 0, motor 3: 20 (0.8), motor4: -70 (1), motor 5: 0, motor 6: 40 (0.8) (Broken hold 50 deg .8, lower kp later)
-                # self.hold_positions([45, 0, 0, 0, 0, 0])
-                # self.hold_positions([0, 0, 0, 0, 0, 0])
-                # self.send_positions()
-                # self.receive_messages()
 
                 # TODO:
                 # self._post_process_messages()
