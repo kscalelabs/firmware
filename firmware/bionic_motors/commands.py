@@ -44,9 +44,10 @@ def set_position_control(
     max_current: float = 5.0,
     message_return: Literal[0, 1, 2, 3] = 0,
 ) -> List[int]:
-    """Gets the command to set the position of a motor. Expect 8 bytes
+    """Gets the command to set the position of a motor. Expect 8 bytes.
 
     Args:
+        motor_id: The ID of the motor.
         motor_mode: 0x1 for servo position control.
         position: The position to set the motor to.
         max_speed: The maximum speed of the motor, in rotations per minute.
@@ -56,6 +57,7 @@ def set_position_control(
     Returns:
         The command to set the position of a motor.
     """
+
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_fp32_bits(command, position)
@@ -75,6 +77,7 @@ def set_speed_control(
     """Gets the command to set the speed of a motor. Expect 7 bytes
 
     Args:
+        motor_id: The ID of the motor.
         motor_mode: 0x2 for speed control.
         speed: The speed to set the motor to, in rotations per minute.
         current: The current of the motor, in amps. 0 to 65536 corresponds to 0 to 6553.6 A.
@@ -83,6 +86,7 @@ def set_speed_control(
     Returns:
         The command to set the speed of a motor.
     """
+
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_bits(command, 0, 3)
@@ -102,6 +106,7 @@ def set_current_torque_control(
     """Gets the command to set the current OR torque of a motor. Expect 3 bytes
 
     Args:
+        motor_id: The ID of the motor.
         motor_mode: 0x3 for current control.
         value: The current (A) or torque (N*m) to set the motor to, x10. (int16, not uint16)
         message_return: The message return status.
@@ -111,6 +116,7 @@ def set_current_torque_control(
     Returns:
         The command to set the current of a motor.
     """
+
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_bits(command, control_status, 3)
@@ -128,6 +134,7 @@ def set_zero_position(motor_id: int) -> List[int]:
     Returns:
         The command to set the zero position of a motor.
     """
+
     upper = motor_id >> 8
     lower = motor_id & 0xFF
     command = 0
@@ -144,8 +151,7 @@ def set_zero_position(motor_id: int) -> List[int]:
 
 
 def get_motor_pos():
-    """
-    Gets the motor Position of a respective motor
+    """Gets the motor Position of a respective motor
     Args:
         motor_id: The ID of the motor.
 
@@ -246,5 +252,5 @@ def debug(command: bytes):
 
 
 if __name__ == "__main__":
-    # python -m firmware.motors.bionic_motor
+    # python - m firmware.motors.bionic_motor
     print(debug(set_zero_position(1)))

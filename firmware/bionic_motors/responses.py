@@ -2,7 +2,6 @@
 
 import struct
 
-
 # Defintions
 
 ERROR_MAP = {
