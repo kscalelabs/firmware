@@ -35,6 +35,8 @@ namespace_packages = false
 # For TorchScript stuff.
 disable_error_code = ["attr-defined"]
 
+exclude = ["firmware/bionic_motors/", "firmware/motors_sync/", "firmware/scripts"]
+
 [[tool.mypy.overrides]]
 
 module = [
