@@ -75,7 +75,7 @@ def position_speed_message(msg: bytes):
 
     return {
         "Message Type" : 1,
-        "Error" : ERROR_MAP[error], 
+        "Erroring" : ERROR_MAP[error], 
         "Position" : get_position(motor_pos), 
         "Speed" : get_speed(motor_speed),
         "Current" : get_current(motor_current),
@@ -108,7 +108,7 @@ def position_message(msg: bytes):
 
     return {
         "Message Type" : 2,
-        "Error" : ERROR_MAP[error], 
+        "Erroring": ERROR_MAP[error], 
         "Position" : get_position(motor_pos), 
         "Current" : get_current(motor_current),
         "Temperature" : get_temp(motor_temp)
@@ -140,7 +140,7 @@ def speed_message(msg: bytes) :
 
     return {
         "Message Type" : 3,
-        "Error" : ERROR_MAP[error], 
+        "Erroring" : ERROR_MAP[error], 
         "Speed" : get_speed(motor_speed),
         "Current" : get_current(motor_current),
         "Temperature" : get_temp(motor_temp)
@@ -167,7 +167,7 @@ def configuration_message(msg: bytes):
 
     return {
         "Message Type": 4,
-        "Error": ERROR_MAP[error], 
+        "Erroring": ERROR_MAP[error], 
         "Configuration Code": CONFIG_MAP[configuration_code], 
         "Configuration Status": CONFIG_STATUS_MAP[configuration_status]
     }
@@ -190,7 +190,7 @@ def custom_message(msg: bytes):
 
     return {
         "Message Type": 5,
-        "Error": ERROR_MAP[error], 
+        "Erroring": ERROR_MAP[error], 
         "Query Code": QUERY_MAP[query_code],
         "Data": data
     }
