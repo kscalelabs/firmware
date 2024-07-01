@@ -51,11 +51,21 @@ def position_speed_message(msg: bytes):
     Returns:
         dictionary of the message results
     """
-    get_position = lambda data: data * (25.0 / 65536.0) - 12.5
-    get_speed = lambda data: data * (36.0 / 4095.0) - 18.0
-    get_current = lambda data: data * (140.0 / 4095) - 70.0
-    get_temp = lambda data: (data - 50.0) / 2.0
-    get_mos_temp = lambda data: (data - 50.0) / 2.0
+
+    def get_position(data):
+        return data * (25.0 / 65536.0) - 12.5
+
+    def get_speed(data):
+        return data * (36.0 / 4095.0) - 18.0
+
+    def get_current(data):
+        return data * (140.0 / 4095) - 70.0
+
+    def get_temp(data):
+        return (data - 50.0) / 2.0
+
+    def get_mos_temp(data):
+        return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_pos = int.from_bytes(msg[1:3], "big")
@@ -89,9 +99,14 @@ def position_message(msg: bytes):
 
     """
 
-    get_position = lambda data: data
-    get_current = lambda data: data / 10.0
-    get_temp = lambda data: (data - 50.0) / 2.0
+    def get_position(data):
+        return data
+
+    def get_current(data):
+        return data / 10.0
+
+    def get_temp(data):
+        return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_pos = struct.unpack("!f", msg[1:5])[0]
@@ -119,9 +134,15 @@ def speed_message(msg: bytes):
     Returns:
         dictionary of the message results
     """
-    get_speed = lambda data: data
-    get_current = lambda data: data / 10.0
-    get_temp = lambda data: (data - 50.0) / 2.0
+
+    def get_speed(data):
+        return data
+
+    def get_current(data):
+        return data / 10.0
+
+    def get_temp(data):
+        return (data - 50.0) / 2.0
 
     error = msg[0] & 0x1F
     motor_speed = struct.unpack("!f", msg[1:5])[0]

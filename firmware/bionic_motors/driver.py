@@ -8,7 +8,7 @@ from firmware.bionic_motors.model import Arm, Body, Leg
 from firmware.bionic_motors.motors import BionicMotor
 from firmware.bionic_motors.utils import *
 
-#### Example code to drive the model
+# Example code to drive the model
 
 # Initialize the CAN bus
 write_bus = can.interface.Bus(channel="can0", bustype="socketcan")

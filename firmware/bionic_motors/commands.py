@@ -121,7 +121,8 @@ def set_current_torque_control(
     command = push_bits(command, motor_mode, 3)
     command = push_bits(command, control_status, 3)
     command = push_bits(command, message_return, 2)
-    command = push_bits(command, (int)(value * 10), 16)  # TODO, needs testing for int16
+    # TODO, needs testing for int16
+    command = push_bits(command, (int)(value * 10), 16)
     return split_into_bytes(command, 3)
 
 
@@ -233,9 +234,15 @@ def force_position_hybrid_control(kp: float, kd: float, position: float, speed: 
     Returns:
         The command to set the position of a motor using PD control.
     """
-    degrees_to_int = lambda degrees: max(0, min(65536, int(((math.radians(degrees) + 12.5) / 25.0) * 65536)))
-    rpm_to_int = lambda rpm: max(0, min(4095, int(((rpm + 18.0) / 36.0) * 4095)))
-    torque_to_int = lambda torque: max(0, min(4095, int(((torque + 150) / 300) * 4095)))
+
+    def degrees_to_int(degrees):
+        return max(0, min(65536, int(((math.radians(degrees) + 12.5) / 25.0) * 65536)))
+
+    def rpm_to_int(rpm):
+        return max(0, min(4095, int(((rpm + 18.0) / 36.0) * 4095)))
+
+    def torque_to_int(torque):
+        return max(0, min(4095, int(((torque + 150) / 300) * 4095)))
 
     command = 0
     command = push_bits(command, 0, 3)
