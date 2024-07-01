@@ -69,12 +69,12 @@ class BionicMotor:
         )
         self.can_bus.bus.send(message)
 
-    def read(self, timeout: float = 0.25, readDataOnly: bool = True) -> None:
+    def read(self, timeout: float = 0.25, read_data_only: bool = True) -> None:
         """Generic read can bus method that reads messages from the can bus.
 
         Args:
             timeout: how long to read messages for in seconds
-            readDataOnly: whether to read only data that has been queried. This ensures only messages of type 5 come through if true and all messages come through if false.
+            read_data_only: whether to read only data that has been queried. If true, only type 5 messages are read.
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -83,7 +83,7 @@ class BionicMotor:
                 if valid_message(message.data):
                     message_id = message.arbitration_id
                     message_data = read_result(message.data)
-                    if readDataOnly:
+                    if read_data_only:
                         if message_data["Message Type"] == 5:
                             self.can_messages.append(CanMessage(id=message_id, data=message_data))
                             print("CAN Message: ", message_id, message_data)
@@ -144,7 +144,7 @@ class BionicMotor:
         for message in self.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 self.position = message.data["Data"]
-                self.can_messages = [] #Flushes out any previous messages and ensures that the next message is fresh
+                self.can_messages = []  # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
