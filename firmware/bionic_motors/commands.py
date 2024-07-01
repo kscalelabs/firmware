@@ -57,7 +57,6 @@ def set_position_control(
     Returns:
         The command to set the position of a motor.
     """
-
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_fp32_bits(command, position)
@@ -74,7 +73,7 @@ def set_speed_control(
     current: float = 5.0,
     message_return: Literal[0, 1, 2, 3] = 0,
 ) -> List[int]:
-    """Gets the command to set the speed of a motor. Expect 7 bytes
+    """Gets the command to set the speed of a motor. Expect 7 bytes.
 
     Args:
         motor_id: The ID of the motor.
@@ -86,7 +85,6 @@ def set_speed_control(
     Returns:
         The command to set the speed of a motor.
     """
-
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_bits(command, 0, 3)
@@ -103,7 +101,7 @@ def set_current_torque_control(
     motor_mode: int = 3,
     message_return: Literal[0, 1, 2, 3] = 0,
 ) -> List[int]:
-    """Gets the command to set the current OR torque of a motor. Expect 3 bytes
+    """Gets the command to set the current OR torque of a motor. Expect 3 bytes.
 
     Args:
         motor_id: The ID of the motor.
@@ -116,7 +114,6 @@ def set_current_torque_control(
     Returns:
         The command to set the current of a motor.
     """
-
     command = 0
     command = push_bits(command, motor_mode, 3)
     command = push_bits(command, control_status, 3)
@@ -127,7 +124,7 @@ def set_current_torque_control(
 
 
 def set_zero_position(motor_id: int) -> List[int]:
-    """Gets the command to set the zero position of a motor. Expect 4 bytes
+    """Gets the command to set the zero position of a motor. Expect 4 bytes.
 
     Args:
         motor_id: The ID of the motor.
@@ -135,7 +132,6 @@ def set_zero_position(motor_id: int) -> List[int]:
     Returns:
         The command to set the zero position of a motor.
     """
-
     upper = motor_id >> 8
     lower = motor_id & 0xFF
     command = 0
@@ -159,7 +155,6 @@ def get_motor_pos():
     Returns:
         The respective motor position
     """
-
     command = 0
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
@@ -168,8 +163,7 @@ def get_motor_pos():
 
 
 def get_motor_speed(motor_id: int):
-    """
-    Gets the motor Position of a respective motor
+    """Gets the motor Position of a respective motor
     Args:
         motor_id: The ID of the motor.
 
@@ -184,8 +178,7 @@ def get_motor_speed(motor_id: int):
 
 
 def get_motor_current():
-    """
-    Gets the motor Position of a respective motor
+    """Gets the motor Position of a respective motor
     Args:
         motor_id: The ID of the motor.
 
@@ -200,15 +193,13 @@ def get_motor_current():
 
 
 def get_motor_power():
-    """
-    Gets power consumption of a respective motor
+    """Gets power consumption of a respective motor
     Args:
         motor_id: The ID of the motor.
 
     Returns:
         The respective motor power consumption
     """
-
     command = 0
     command = push_bits(command, 0x7, 3)
     command = push_bits(command, 0x0, 5)
@@ -222,7 +213,7 @@ def get_motor_power():
 
 
 def force_position_hybrid_control(kp: float, kd: float, position: float, speed: float, torque_ff: int) -> List[int]:
-    """Gets the command to set the position of a motor using PD control. Expect 8 bytes
+    """Gets the command to set the position of a motor using PD control. Expect 8 bytes.
 
     Args:
         kp: The proportional gain. No load default is 15

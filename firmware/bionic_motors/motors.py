@@ -1,10 +1,7 @@
 """Defines a class that dictates how to communicate with the motors."""
 
-import math
-import struct
 import time
 from dataclasses import dataclass
-from typing import List, Literal
 
 import can
 
@@ -38,12 +35,11 @@ class CanMessage:
 class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
 
-    def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface):
-        """
-        Args:
-            motor_id: The ID of the motor.
-            control_params: The control parameters for the motor.
-            can_bus: The CAN bus interface
+    def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface) -> None:
+        """Args:
+        motor_id: The ID of the motor.
+        control_params: The control parameters for the motor.
+        can_bus: The CAN bus interface.
         """
         self.motor_id = motor_id
         self.control_params = control_params
@@ -69,7 +65,7 @@ class BionicMotor:
         self.can_bus.bus.send(message)
 
     def read(self, timeout: float = 0.25) -> None:
-        """Generic read can bus method that reads messages from the can bus
+        """Generic read can bus method that reads messages from the can bus.
 
         Args:
             timeout: how long to read messages for in seconds
@@ -104,7 +100,7 @@ class BionicMotor:
         self.can_bus.bus.send(message)
 
     def set_position(self, position: float, speed: float, torque: int) -> None:
-        """Sets the position of the motor using force position hybrid control
+        """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to (in degrees)
@@ -120,8 +116,7 @@ class BionicMotor:
         self._send(self.motor_id, bytes(command), 4)
 
     def update_position(self, wait_time: float = 0.1) -> str:
-        """
-        Updates the value of the motor's position attribute
+        """Updates the value of the motor's position attribute
         NOTE: Do NOT use this to access the motor's position value.
         Just use <motor>.position instead.
 

@@ -54,8 +54,8 @@ library-name := firmware
 py-files := $(shell find ${library-name} -name '*.py' -not -path './venv/*')
 
 format:
-	@black $(py-files)
-	@ruff format $(py-files)
+	@black firmware
+	@ruff format firmware
 .PHONY: format
 
 format-cpp:
@@ -64,13 +64,13 @@ format-cpp:
 .PHONY: format-cpp
 
 static-checks:
-	@black --diff --check $(py-files)
-	@ruff check $(py-files)
-	@mypy --install-types --non-interactive $(py-files)
+	@black --diff --check firmware
+	@ruff check firmware
+	@mypy --install-types --non-interactive firmware
 .PHONY: lint
 
 mypy-daemon:
-	@dmypy run -- $(py-files)
+	@dmypy run -- firmware
 .PHONY: mypy-daemon
 
 # ------------------------ #

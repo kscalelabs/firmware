@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 
-from firmware.bionic_motors.motors import CANInterface, ControlParams
+from firmware.bionic_motors.motors import ControlParams
 
 
 @dataclass

@@ -1,4 +1,4 @@
-"""Takes in responses from the Q&A return type and interprets them"""
+"""Takes in responses from the Q&A return type and interprets them."""
 
 import struct
 
@@ -29,10 +29,7 @@ CONFIG_STATUS_MAP = {0: "Failure", 1: "Success"}
 
 
 def get_message_type(msg: bytes):
-    """
-    Returns the message type of the message
-
-    """
+    """Returns the message type of the message."""
     for i in range(1, 6):
         if msg[0] >> 5 == i:
             return i
@@ -40,8 +37,7 @@ def get_message_type(msg: bytes):
 
 
 def position_speed_message(msg: bytes):
-    """
-    Message Type 1
+    """Message Type 1.
 
     Interprets the message type 1 and returns a list of the results
 
@@ -86,8 +82,7 @@ def position_speed_message(msg: bytes):
 
 
 def position_message(msg: bytes):
-    """
-    Message Type 2
+    """Message Type 2.
 
     Interprets the message type 2 and returns a list of the results
 
@@ -123,8 +118,7 @@ def position_message(msg: bytes):
 
 
 def speed_message(msg: bytes):
-    """
-    Message Type 3
+    """Message Type 3.
 
     Interprets the message type 3 and returns a list of the results
 
@@ -159,8 +153,7 @@ def speed_message(msg: bytes):
 
 
 def configuration_message(msg: bytes):
-    """
-    Message Type 4
+    """Message Type 4.
 
     Interprets the message type 4 and returns a list of the results
 
@@ -187,7 +180,7 @@ def custom_message(msg: bytes):
     """Message Type 5
     Interprets the message type 5 and returns a list of the results
     Args:
-        msg: bytes: The message to interpret
+        msg: bytes: The message to interpret.
 
     Returns:
         dictionary of the message results
@@ -211,7 +204,7 @@ MESSAGE_MAP = {
 
 
 def valid_message(msg: bytes):
-    """Checks if the message is valid by checking the message type
+    """Checks if the message is valid by checking the message type.
 
     Args:
         msg: bytes: The message to check
@@ -224,7 +217,7 @@ def valid_message(msg: bytes):
 
 
 def read_result(msg: bytes):
-    """Reads the result of the message and returns a list of the results regardless of Message Type
+    """Reads the result of the message and returns a list of the results regardless of Message Type.
 
     Args:
         msg: bytes: The message to interpret
