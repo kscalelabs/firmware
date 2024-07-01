@@ -6,6 +6,7 @@ from firmware.bionic_motors.motors import BionicMotor
 
 # TODO: Head
 
+
 @dataclass
 class Arm:
     rotator_cuff: BionicMotor
@@ -25,6 +26,7 @@ class Arm:
             self.wrist.motor_id,
             self.gripper.motor_id,
         ]
+
     @property
     def motors(self) -> list[BionicMotor]:
         return [
@@ -36,6 +38,7 @@ class Arm:
             self.gripper,
         ]
 
+
 class Leg:
     pelvis: BionicMotor
     hip: BionicMotor
@@ -43,7 +46,7 @@ class Leg:
     knee: BionicMotor
     ankle: BionicMotor
     foot: BionicMotor
-    
+
     @property
     def motor_ids(self) -> list[int]:
         return [
@@ -54,6 +57,7 @@ class Leg:
             self.ankle.motor_id,
             self.foot.motor_id,
         ]
+
 
 @dataclass
 class Body:

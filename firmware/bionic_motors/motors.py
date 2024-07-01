@@ -20,27 +20,25 @@ from firmware.bionic_motors.responses import read_result, valid_message
 class ControlParams:
     kp: float
     kd: float
-    
+
+
 @dataclass
 class CANInterface:
     bus: can.interface.Bus
     channel: can.BufferedReader
     bustype: can.Notifier
-    
+
+
 @dataclass
 class CanMessage:
     id: int
     data: str
 
+
 class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
 
-    def __init__(
-        self,
-        motor_id: int,
-        control_params: ControlParams,
-        can_bus: CANInterface
-    ):
+    def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface):
         """
         Args:
             motor_id: The ID of the motor.
@@ -51,10 +49,9 @@ class BionicMotor:
         self.control_params = control_params
         self.can_bus = can_bus
         self.can_messages = []
-        self.position = 0 # don't care here, but NOTE should not always be 0 at the start
+        self.position = 0  # don't care here, but NOTE should not always be 0 at the start
         self.get_position()
 
-    
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
 
@@ -70,12 +67,12 @@ class BionicMotor:
             is_extended_id=False,
         )
         self.can_bus.bus.send(message)
-        
+
     def read(self, timeout: float = 0.25) -> None:
         """Generic read can bus method that reads messages from the can bus
-        
+
         Args:
-            timeout: how long to read messages for in seconds      
+            timeout: how long to read messages for in seconds
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
@@ -87,8 +84,8 @@ class BionicMotor:
                     self.can_messages.append(CanMessage(id=message_id, data=message_data))
                     print("CAN Message: ", message_id, message_data)
                 else:
-                    print("Invalid message")  
-        
+                    print("Invalid message")
+
     def _send(self, id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
 
@@ -127,7 +124,7 @@ class BionicMotor:
         Updates the value of the motor's position attribute
         NOTE: Do NOT use this to access the motor's position value.
         Just use <motor>.position instead.
-        
+
         Args:
             wait_time: how long to wait for a response from the motor
         """
@@ -144,8 +141,3 @@ class BionicMotor:
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
-
-
-
-
-

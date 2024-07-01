@@ -8,19 +8,21 @@ from firmware.bionic_motors.motors import CANInterface, ControlParams
 @dataclass
 class ViolenceStrength:
     """A class to dictate the strength of the violence."""
+
     ARM_PARAMS: ControlParams
     GRIPPERS_PARAMS: ControlParams
     # TODO: add more as needed
 
+
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(
-    ARM_PARAMS = ControlParams(kp=100, kd=3),
-    GRIPPERS_PARAMS = ControlParams(kp=10, kd=2),
+    ARM_PARAMS=ControlParams(kp=100, kd=3),
+    GRIPPERS_PARAMS=ControlParams(kp=10, kd=2),
     # TODO: add more as needed
 )
 
 MATT_STOMPY_STRENGTH = ViolenceStrength(
-    ARM_PARAMS = ControlParams(kp=200, kd=4),
-    GRIPPERS_PARAMS = ControlParams(kp=10, kd=2),
+    ARM_PARAMS=ControlParams(kp=200, kd=4),
+    GRIPPERS_PARAMS=ControlParams(kp=10, kd=2),
     # TODO: Change Params
 )
