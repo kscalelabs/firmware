@@ -13,8 +13,6 @@ from firmware.bionic_motors.commands import (
 from firmware.bionic_motors.responses import read_result, valid_message
 
 SPECIAL_IDENTIFIER = 0x7FF
-
-
 @dataclass
 class ControlParams:
     kp: float
@@ -37,6 +35,8 @@ class CanMessage:
 class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
 
+    can_messages = []
+
     def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface) -> None:
         """Initializes the motor.
 
@@ -48,9 +48,8 @@ class BionicMotor:
         self.motor_id = motor_id
         self.control_params = control_params
         self.can_bus = can_bus
-        self.can_messages = []
         self.position = 0  # don't care here, but NOTE should not always be 0 at the start
-        self.get_position()
+        self.update_position(), CANInterface
 
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
@@ -61,7 +60,6 @@ class BionicMotor:
             length: The length of the data.
         """
         assert len(data) == length, f"Data length must be {length} bytes"
-        print("CAN Command: ", hex(can_id), hex(int.from_bytes(data, "big")))
         message = can.Message(
             arbitration_id=can_id,
             data=data,
@@ -85,11 +83,9 @@ class BionicMotor:
                     message_data = read_result(message.data)
                     if read_data_only:
                         if message_data["Message Type"] == 5:
-                            self.can_messages.append(CanMessage(id=message_id, data=message_data))
-                            print("CAN Message: ", message_id, message_data)
+                            BionicMotor.can_messages.append(CanMessage(id=message_id, data=message_data))
                     else:
-                        self.can_messages.append(CanMessage(id=message_id, data=message_data))
-                        print("CAN Message: ", message_id, message_data)
+                        BionicMotor.can_messages.append(CanMessage(id=message_id, data=message_data))
                 else:
                     print("Invalid message")
 
@@ -103,7 +99,6 @@ class BionicMotor:
         """
         can_id = id
         assert len(data) == length, f"Data length must be {length} bytes"
-        print("CAN Command: ", hex(can_id), hex(int.from_bytes(data, "big")))
         message = can.Message(
             arbitration_id=can_id,
             data=data,
@@ -141,10 +136,10 @@ class BionicMotor:
         self._send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
 
-        for message in self.can_messages:
+        for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 self.position = message.data["Data"]
-                self.can_messages = []  # Flushes out any previous messages and ensures that the next message is fresh
+                BionicMotor.can_messages.remove(message)  # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
