@@ -13,6 +13,8 @@ from firmware.bionic_motors.commands import (
 from firmware.bionic_motors.responses import read_result, valid_message
 
 SPECIAL_IDENTIFIER = 0x7FF
+
+
 @dataclass
 class ControlParams:
     kp: float
@@ -139,7 +141,9 @@ class BionicMotor:
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 self.position = message.data["Data"]
-                BionicMotor.can_messages.remove(message)  # Flushes out any previous messages and ensures that the next message is fresh
+                BionicMotor.can_messages.remove(
+                    message
+                )  # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
