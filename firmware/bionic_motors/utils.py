@@ -13,11 +13,17 @@ class ViolenceStrength:
     GRIPPERS_PARAMS: ControlParams
     # TODO: add more as needed
 
-
+WEAK_STRENGTH = ViolenceStrength(
+    ARM_PARAMS=ControlParams(kp=10, kd=3),
+    GRIPPERS_PARAMS=ControlParams(kp=50, kd=2),
+    # TODO: add more as needed
+)
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(
-    ARM_PARAMS=ControlParams(kp=100, kd=3),
-    GRIPPERS_PARAMS=ControlParams(kp=10, kd=2),
+    ARM_PARAMS=ControlParams(kp=12, kd=5),
+    # ARM_PARAMS=ControlParams(kp=100, kd=3),
+
+    GRIPPERS_PARAMS=ControlParams(kp=50, kd=2),
     # TODO: add more as needed
 )
 

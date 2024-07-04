@@ -62,7 +62,7 @@ def set_position_control(
     command = push_fp32_bits(command, position)
     command = push_bits(command, int(max_speed * 10), 15)
     command = push_bits(command, int(max_current * 10), 12)
-    command = push_bits(command, message_return, 2)
+    command = push_bits(command, message_return, 0)
     return split_into_bytes(command)
 
 

@@ -51,7 +51,7 @@ class BionicMotor:
         self.control_params = control_params
         self.can_bus = can_bus
         self.position = 0  # don't care here, but NOTE should not always be 0 at the start
-        self.update_position(), CANInterface
+        self.update_position()
 
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
@@ -150,3 +150,5 @@ class BionicMotor:
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
+    
+    
