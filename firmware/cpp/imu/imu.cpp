@@ -124,6 +124,22 @@ vector_2d_t<float> IMU::getAccAngle() {
   return {pitch, roll};
 }
 
+vector_3d_t<float> IMU::getAngles(){
+  vector_2d_t<float> accAngle = getAccAngle();
+  vector_3d_t<int16_t> mag = readMag();
+
+  float pitch = accAngle.x
+  float roll = accAngle.y;
+
+  // Calculate yaw using magnetometer data
+  float mag_x = mag.x * cos(pitch) + mag.z * sin(pitch);
+  float mag_y = mag.x * sin(roll) * sin(pitch) + mag.y * cos(roll) - mag.z * sin(roll) * cos(pitch);
+
+  float yaw = atan2(-mag_y, mag_x) * RAD_TO_DEG;
+
+  return {yaw, pitch, roll};
+}
+
 vector_3d_t<float> IMU::getGyrRate() {
   vector_3d_t<int16_t> gyr = readGyr();
 
@@ -135,10 +151,10 @@ vector_3d_t<float> IMU::getGyrRate() {
 }
 
 dof_6_t IMU::get6DOF(){
-  vector_2d_t<float> accAngle = getAccAngle();
+  vector_3d_t<float> angles = getAngles();
   vector_3d_t<float> gyrRate = getGyrRate();
 
-  return {0, accAngle.x, accAngle.y, gyrRate.x, gyrRate.y, gyrRate.z};
+  return {angles.x, angles.y, angles.z, gyrRate.x, gyrRate.y, gyrRate.z};
 }
 
 std::string IMU::versionString() {
