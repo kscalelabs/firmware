@@ -53,6 +53,17 @@ public:
   T a, b, c, d;
 };
 
+template <typename T> class vector_6d_t {
+public:
+  vector_6d_t() : y(0), p(0), r(0), x(0), y2(0), z(0) {}
+  vector_6d_t(T y, T p, T r, T x, T y2, T z)
+      : y(y), p(p), r(r), x(x), y2(y2), z(z) {}
+
+  std::string toString();
+
+  T y, p, r, x, y2, z;
+};
+
 class angles_t {
 public:
   angles_t(float yaw, float pitch, float roll)

@@ -21,6 +21,13 @@ template <typename T> std::string vector_4d_t<T>::toString() {
   return ss.str();
 }
 
+template <typename T> std::string vector_6d_t<T>::toString() {
+  std::ostringstream ss;
+  ss << "Vector6D<y=" << y << ", p=" << p << ", r=" << r << ", x=" << x
+     << ", y2=" << y2 << ", z=" << z << ">";
+  return ss.str();
+}
+
 std::string angles_t::toString() {
   std::ostringstream ss;
   ss << "Angles<yaw=" << yaw << ", pitch=" << pitch << ", roll=" << roll << ">";
@@ -125,6 +132,13 @@ vector_3d_t<float> IMU::getGyrRate() {
         rollRate = (float)(gyr.z * GYR_GAIN);
 
   return {pitchRate, yawRate, rollRate};
+}
+
+vector_6d_t<float> IMU::get6DOF(){
+  vector_2d_t<float> accAngle = getAccAngle();
+  vector_3d_t<float> gyrRate = getGyrRate();
+
+  return {0, accAngle.x, accAngle.y, gyrRate.x, gyrRate.y, gyrRate.z};
 }
 
 std::string IMU::versionString() {
@@ -414,6 +428,16 @@ PYBIND11_MODULE(imu, m) {
       .def_readonly("z", &vector_3d_t<int16_t>::z)
       .def("__str__", &vector_3d_t<int16_t>::toString);
 
+  py::class_<vector_6d_t<float>>(m, "Vector6D")
+      .def(py::init<float, float, float, float, float, float>(), "y"_a, "p"_a, "r"_a, "x"_a, "y2"_a, "z"_a)
+      .def_readonly("y", &vector_6d_t<float>::y)
+      .def_readonly("p", &vector_6d_t<float>::p)
+      .def_readonly("r", &vector_6d_t<float>::r)
+      .def_readonly("x", &vector_6d_t<float>::x)
+      .def_readonly("y2", &vector_6d_t<float>::y2)
+      .def_readonly("z", &vector_6d_t<float>::z)
+      .def("__str__", &vector_6d_t<float>::toString);
+
   py::class_<angles_t>(m, "Angles")
       .def(py::init<float, float, float>(), "yaw"_a, "pitch"_a, "roll"_a)
       .def_readonly("yaw", &angles_t::yaw)
@@ -428,6 +452,7 @@ PYBIND11_MODULE(imu, m) {
       .def("raw_gyr", &IMU::readGyr)
       .def("acc_angle", &IMU::getAccAngle)
       .def("gyr_rate", &IMU::getGyrRate)
+      .def("get_6DOF", &IMU::get6DOF)
       .def_property_readonly("version", &IMU::versionString)
       .def("__str__", &IMU::toString);
 
