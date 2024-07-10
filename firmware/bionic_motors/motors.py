@@ -9,6 +9,7 @@ from firmware.bionic_motors.commands import (
     force_position_hybrid_control,
     get_motor_pos,
     set_zero_position,
+    get_id_xiaomi
 )
 from firmware.bionic_motors.responses import read_result, valid_message
 
@@ -51,7 +52,7 @@ class BionicMotor:
         self.control_params = control_params
         self.can_bus = can_bus
         self.position = 0  # don't care here, but NOTE should not always be 0 at the start
-        self.update_position(), CANInterface
+        self.update_position()
 
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
@@ -124,7 +125,7 @@ class BionicMotor:
         command = set_zero_position(self.motor_id)
         self._send(SPECIAL_IDENTIFIER, bytes(command), 4)
 
-    def update_position(self, wait_time: float = 0.1) -> str:
+    def update_position(self, wait_time: float = 0.1, read_only: bool = False) -> str:
         """Updates the value of the motor's position attribute.
 
         NOTE: Do NOT use this to access the motor's position value.
@@ -140,13 +141,23 @@ class BionicMotor:
 
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
-                self.position = message.data["Data"]
                 BionicMotor.can_messages.remove(
                     message
-                )  # Flushes out any previous messages and ensures that the next message is fresh
+                )
+                if read_only:
+                    return message.data["Data"]
+                else:
+                    self.position = message.data["Data"]
+                  # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
+            
+    # def get_id_xiaomi(id: int):
+    #     identifier = get_id_xiaomi(id)
+    #     data = bytes(0)
+        
+
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
