@@ -18,7 +18,7 @@ def main() -> None:
 
     while True:
         angle = kf.step()
-        print(imu.acc_angle() if args.raw else angle)
+        print(imu.acc_angle() if args.raw else angle + imu.gyr_rate())
 
 
 if __name__ == "__main__":
