@@ -13,6 +13,23 @@
 pip install -e .
 ```
 
+### Install for Jetson
+#### Install Conda
+```bash
+wget https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-aarch64.sh
+chmod +x Miniforge3-Linux-aarch64.sh
+./Miniforge3-Linux-aarch64.sh
+source ~/.bashrc
+```
+
+#### Create Conda environment and install package
+```bash
+conda create --name firmware python=3.11
+conda activate firmware
+make install-dev
+```
+
+
 ### Raspberry Pi 4
 
 Set up the CAN bus (this might already be happening in a `systemctl` service):
