@@ -248,24 +248,10 @@ def force_position_hybrid_control(kp: float, kd: float, position: float, speed: 
     command = push_bits(command, int(torque_to_int(torque_ff)), 12)
     return split_into_bytes(command)
 
-
-def set_position_xiaomi(id: int, position: int):
-    command = 0
-    command = push_bits(command, )
-
-def get_id_xiaomi():
-    command = 0
-    identifier = 0
-    identifier = push_bits(identifier, 0, 5)
-    identifier = push_bits(identifier, 1, 16)
-    identifier = push_bits(identifier, 0xFE, 8)
-    command = push_bits(command, 0, 64)
-    return split_into_bytes(identifier, 4)
-
 def debug(command: bytes) -> List[str]:
     return [hex(i) for i in command]
 
 
 if __name__ == "__main__":
     # python - m firmware.motors.bionic_motor
-    print(debug(get_id_xiaomi()))
+    print(debug(set_zero_position(1)))

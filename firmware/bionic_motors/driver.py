@@ -51,10 +51,10 @@ positions = [0, 0, 0, 0, 0, 0]  # running positions
 increments = [-0.7, 0.2, 0.3, -0.5, 0, 0]  # per tick increment size
 max_thresholds = [-90, 0, 30, 0, 0, 0]  # max angle for arm raise
 min_angle = [15, 0, 0, 0, 0, 0]  # angle before next motor can move
-# # positions = [0, 0, 0, 0, 0, 0] # running positions
-# # increments = [0, 1, 0, 0, 0, 0] # per tick increment size
-# # max_thresholds = [0, 90, 0, 0, 0, 0] # max angle for arm raise
-# # min_angle = [0, 0, 0, 0, 0, 0] # angle before next motor can move
+# positions = [0, 0, 0, 0, 0, 0] # running positions
+# increments = [0, 1, 0, 0, 0, 0] # per tick increment size
+# max_thresholds = [0, 90, 0, 0, 0, 0] # max angle for arm raise
+# min_angle = [0, 0, 0, 0, 0, 0] # angle before next motor can move
 while True:
     prev_state = state
     state = abs((abs(positions[2]) - max_thresholds[2])) < min_threshold

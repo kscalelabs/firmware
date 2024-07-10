@@ -8,8 +8,7 @@ import can
 from firmware.bionic_motors.commands import (
     force_position_hybrid_control,
     get_motor_pos,
-    set_zero_position,
-    get_id_xiaomi
+    set_zero_position
 )
 from firmware.bionic_motors.responses import read_result, valid_message
 
@@ -152,12 +151,6 @@ class BionicMotor:
                 return "Valid"
             else:
                 return "Invalid"
-            
-    # def get_id_xiaomi(id: int):
-    #     identifier = get_id_xiaomi(id)
-    #     data = bytes(0)
-        
-
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
