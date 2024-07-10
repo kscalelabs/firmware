@@ -124,11 +124,27 @@ vector_2d_t<float> IMU::getAccAngle() {
   return {pitch, roll};
 }
 
+float IMU::getMagYaw(){
+
+  vector_2d_t<float> accAngle = getAccAngle();
+  vector_3d_t<int16_t> mag = readMag();
+
+  float pitch = accAngle.x;
+  float roll = accAngle.y;
+
+  // Calculate yaw using magnetometer data
+  float mag_x = mag.x * cos(pitch) + mag.z * sin(pitch);
+  float mag_y = mag.x * sin(roll) * sin(pitch) + mag.y * cos(roll) - mag.z * sin(roll) * cos(pitch);
+
+  float yaw = atan2(-mag_y, mag_x) * RAD_TO_DEG;
+  return yaw;
+}
+
 vector_3d_t<float> IMU::getAngles(){
   vector_2d_t<float> accAngle = getAccAngle();
   vector_3d_t<int16_t> mag = readMag();
 
-  float pitch = accAngle.x
+  float pitch = accAngle.x;
   float roll = accAngle.y;
 
   // Calculate yaw using magnetometer data
@@ -362,9 +378,9 @@ ftime_t ftime_t::operator-(const ftime_t &other) {
   return {sec, usec};
 }
 
-KalmanFilter::KalmanFilter(IMU &imu, float qAngle, float qGyro, float rAngle,
+KalmanFilter::KalmanFilter(IMU &imu, float qAngle, float qGyro, float qMag, float rAngle,
                            float minDt)
-    : imu(imu), qAngle(qAngle), qGyro(qGyro), rAngle(rAngle), minDt(minDt),
+    : imu(imu), qAngle(qAngle), qGyro(qGyro), qMag(qMag), rAngle(rAngle), minDt(minDt),
       bias({0.0, 0.0, 0.0}), kfAngle({0.0, 0.0, 0.0}) {}
 
 angles_t KalmanFilter::step() {
@@ -384,22 +400,25 @@ angles_t KalmanFilter::step() {
   vector_2d_t<float> accAngle = imu.getAccAngle();
   vector_3d_t<float> gyrRate = imu.getGyrRate();
 
-  float pitch = accAngle.x, roll = accAngle.y;
-  float pitchRate = gyrRate.x, rollRate = gyrRate.z;
+  float pitch = accAngle.x, roll = accAngle.y, yaw = imu.getMagYaw();
+  float pitchRate = gyrRate.x, rollRate = gyrRate.z, yawRate = gyrRate.y;
 
   // Kalman filter.
-  filterStep(pitchParams, pitch, pitchRate, kfAngle.pitch, bias.pitch, dt);
-  filterStep(rollParams, roll, rollRate, kfAngle.roll, bias.roll, dt);
+  filterStep(pitchParams, pitch, pitchRate, kfAngle.pitch, bias.pitch, dt, true);
+  filterStep(rollParams, roll, rollRate, kfAngle.roll, bias.roll, dt, true);
+  filterStep(yawParams, yaw, yawRate, kfAngle.yaw, bias.yaw, dt, false);
 
   return kfAngle;
 }
 
 void KalmanFilter::filterStep(vector_4d_t<float> &p, float accAngle,
                               float gyrRate, float &kfAngle, float &bias,
-                              float dt) {
+                              float dt, bool isAccel) {
   kfAngle += dt * (gyrRate - bias);
 
-  p.v00() += -dt * (p.v10() + p.v01()) + qAngle * dt;
+  float qAngActual = isAccel ? qAngle : qMag;
+
+  p.v00() += -dt * (p.v10() + p.v01()) + qAngActual * dt;
   p.v01() += -dt * p.v11();
   p.v10() += -dt * p.v11();
   p.v11() += qGyro * dt;

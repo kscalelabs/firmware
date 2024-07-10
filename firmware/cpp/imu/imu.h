@@ -84,6 +84,10 @@ public:
   vector_2d_t<float> getAccAngle();
   vector_3d_t<float> getGyrRate();
 
+  float getMagYaw();
+
+  vector_3d_t<float> getAngles();
+
   dof_6_t get6DOF();
 
   std::string versionString();
@@ -119,7 +123,7 @@ public:
 
 class KalmanFilter {
 public:
-  KalmanFilter(IMU &imu, float qAngle = 0.01, float qGyro = 0.0003,
+  KalmanFilter(IMU &imu, float qAngle = 0.01, float qGyro = 0.0003, float qMag = 0.0001,
                float rAngle = 0.01, float minDt = 0.02);
 
   angles_t step();
@@ -129,6 +133,7 @@ private:
 
   float qAngle;
   float qGyro;
+  float qMag;
   float rAngle;
   float minDt;
 
@@ -139,7 +144,8 @@ private:
 
   vector_4d_t<float> pitchParams;
   vector_4d_t<float> rollParams;
+  vector_4d_t<float> yawParams;
 
   void filterStep(vector_4d_t<float> &p, float accAngle, float gyrRate,
-                  float &kfAngle, float &bias, float dt);
+                  float &kfAngle, float &bias, float dt, bool isAccel);
 };
