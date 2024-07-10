@@ -23,8 +23,9 @@ def main() -> None:
         angle = kf.step()
 
         if printTime > args.print:
-            print(imu.acc_angle() if args.raw else angle)
-            print(imu.gyr_rate())
+            #print(imu.acc_angle() if args.raw else angle)
+            #print(imu.gyr_rate())
+            print(imu.get_6DOF())
             printTime = 0
         printTime += args.dt
         

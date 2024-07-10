@@ -21,12 +21,12 @@ template <typename T> std::string vector_4d_t<T>::toString() {
   return ss.str();
 }
 
-template <typename T> std::string vector_6d_t<T>::toString() {
+std::string dof_6_t::toString() {
   std::ostringstream ss;
-  ss << "Vector6D<y=" << y << ", p=" << p << ", r=" << r << ", x=" << x
-     << ", y2=" << y2 << ", z=" << z << ">";
+  ss << "DoF6<yaw=" << yaw << ", pitch=" << pitch << ", roll=" << roll << ", x=" << x <<", y=" << y <<", z=" << z << ">";
   return ss.str();
 }
+
 
 std::string angles_t::toString() {
   std::ostringstream ss;
@@ -134,7 +134,7 @@ vector_3d_t<float> IMU::getGyrRate() {
   return {pitchRate, yawRate, rollRate};
 }
 
-vector_6d_t<float> IMU::get6DOF(){
+dof_6_t IMU::get6DOF(){
   vector_2d_t<float> accAngle = getAccAngle();
   vector_3d_t<float> gyrRate = getGyrRate();
 
@@ -428,15 +428,15 @@ PYBIND11_MODULE(imu, m) {
       .def_readonly("z", &vector_3d_t<int16_t>::z)
       .def("__str__", &vector_3d_t<int16_t>::toString);
 
-  py::class_<vector_6d_t<float>>(m, "Vector6D")
-      .def(py::init<float, float, float, float, float, float>(), "y"_a, "p"_a, "r"_a, "x"_a, "y2"_a, "z"_a)
-      .def_readonly("y", &vector_6d_t<float>::y)
-      .def_readonly("p", &vector_6d_t<float>::p)
-      .def_readonly("r", &vector_6d_t<float>::r)
-      .def_readonly("x", &vector_6d_t<float>::x)
-      .def_readonly("y2", &vector_6d_t<float>::y2)
-      .def_readonly("z", &vector_6d_t<float>::z)
-      .def("__str__", &vector_6d_t<float>::toString);
+  py::class_<dof_6_t>(m, "DOF6")
+      .def(py::init<float, float, float, float, float, float>(), "yaw"_a, "pitch"_a, "roll"_a, "x"_a, "y"_a, "z"_a)
+      .def_readonly("yaw", &dof_6_t::yaw)
+      .def_readonly("pitch", &dof_6_t::pitch)
+      .def_readonly("roll", &dof_6_t::roll)
+      .def_readonly("x", &dof_6_t::x)
+      .def_readonly("y", &dof_6_t::y)
+      .def_readonly("z", &dof_6_t::z)
+      .def("__str__", &dof_6_t::toString);
 
   py::class_<angles_t>(m, "Angles")
       .def(py::init<float, float, float>(), "yaw"_a, "pitch"_a, "roll"_a)
