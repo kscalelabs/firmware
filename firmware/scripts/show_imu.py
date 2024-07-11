@@ -15,7 +15,7 @@ def main() -> None:
     parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
     parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
     parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
-    parser.add_argument("--plot", type=bool, default=False, help="Display a live plot of the readings")
+    parser.add_argument("--plot", type=bool, default=True, help="Display a live plot of the readings")
     parser.add_argument("--print", type=bool, default=True, help="Print out readings")
     args = parser.parse_args()
 
@@ -56,7 +56,7 @@ def live_plot(args, imu, kf):
     plt.ion()
     fig.show()
     fig.canvas.draw()
-    labels = ['Angle 1', 'Angle 2', 'Angle 3', 'Angular Velocity 1', 'Angular Velocity 2', 'Angular Velocity 3']
+    labels = ['Yaw', 'Pitch', 'Roll', 'Yaw Velocity', 'Pitch Velocity', 'Roll Velocity']
 
     lines = [ax.plot([], [])[0] for ax in axs.flat]
     for ax, label in zip(axs.flat, labels):
@@ -73,10 +73,10 @@ def live_plot(args, imu, kf):
         elapsed = current - last
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [angle.yaw, angle.pitch, angle.roll, dof6.x, dof6.y, dof6.z]
+        data = [angle.yaw, angle.pitch, angle.roll, dof6.z, dof6.x, dof6.y]
 
         if args.print:
-            print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))
+            print(dict(zip(["Yaw", "Pitch", "Roll", "z", "y", "x"], data)))
 
         plotter(axs, lines, data, time.time())
         last = current
