@@ -128,6 +128,9 @@ float IMU::getMagYaw(){
 
   vector_2d_t<float> accAngle = getAccAngle();
   vector_3d_t<int16_t> mag = readMag();
+  
+  //Adjust axes
+  //mag.x = -mag.x;
 
   float pitch = accAngle.x;
   float roll = accAngle.y;
@@ -144,6 +147,9 @@ vector_3d_t<float> IMU::getAngles(){
   vector_2d_t<float> accAngle = getAccAngle();
   vector_3d_t<int16_t> mag = readMag();
 
+  //Adjust axes
+  //mag.x = -mag.x;
+
   float pitch = accAngle.x;
   float roll = accAngle.y;
 
@@ -156,6 +162,7 @@ vector_3d_t<float> IMU::getAngles(){
   return {yaw, pitch, roll};
 }
 
+// Deg/s
 vector_3d_t<float> IMU::getGyrRate() {
   vector_3d_t<int16_t> gyr = readGyr();
 
@@ -164,6 +171,15 @@ vector_3d_t<float> IMU::getGyrRate() {
         rollRate = (float)(gyr.z * GYR_GAIN);
 
   return {pitchRate, yawRate, rollRate};
+}
+
+// Gs
+vector_3d_t<float> IMU::getAccG(){
+  vector_3d_t<int16_t> acc = readAcc();
+  float xG = (float)(acc.x * ACCEL_GAIN),
+          yG = (float)(acc.y * ACCEL_GAIN),
+          zG = (float)(acc.z * ACCEL_GAIN);
+  return {xG, yG, zG};
 }
 
 dof_6_t IMU::get6DOF(){
@@ -487,7 +503,11 @@ PYBIND11_MODULE(imu, m) {
       .def("raw_gyr", &IMU::readGyr)
       .def("acc_angle", &IMU::getAccAngle)
       .def("gyr_rate", &IMU::getGyrRate)
+      .def("acc_g", &IMU::getAccG)
       .def("get_6DOF", &IMU::get6DOF)
+      .def("read_gyr", &IMU::readGyr)
+      .def("read_acc", &IMU::readAcc)
+      .def("read_mag", &IMU::readMag)
       .def_property_readonly("version", &IMU::versionString)
       .def("__str__", &IMU::toString);
 

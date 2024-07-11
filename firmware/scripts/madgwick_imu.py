@@ -11,6 +11,9 @@ import imufusion
 from firmware.cpp.imu.imu import IMU
 
 
+MAG_TO_MCRO_TSLA = 10000 * 0.000001
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Log the IMU values.")
     parser.add_argument("--dt", type=float, default=0.02, help="The time step between measurements")
@@ -27,17 +30,29 @@ def main() -> None:
 
     # Process sensor data
     ahrs = imufusion.Ahrs()
+    """ 
+    ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
+                                       0.5,  # gain
+                                       2000,  # gyroscope range
+                                       10,  # acceleration rejection
+                                       10,  # magnetic rejection
+                                       500)  # recovery trigger period """
 
     if args.plot:
-        live_plot(args, imu)
+        live_plot(args)
     elif args.print:
-        console(args, imu)
+        console(args)
 
 def get_imu_data():
-    gyro = imu.raw_gyr()
-    acc = imu.raw_acc()
+    gyro = imu.gyr_rate()
 
-    return [[gyro.x, gyro.y, gyro.z], [acc.x, acc.y, acc.z]]
+    acc = imu.acc_g()
+
+    mag = imu.read_mag() 
+    magList = [mag.x, mag.y, mag.z]
+    return np.array([[gyro.x, gyro.y, gyro.z],
+                     [acc.x, acc.y, acc.z],
+                     [val * MAG_TO_MCRO_TSLA for val in magList]])
 
         
 def console(args):
@@ -51,7 +66,7 @@ def console(args):
             printTime = 0
         printTime += args.dt
 
-def live_plot(args, imu, kf):
+def live_plot(args):
     def plotter(axs, lines, new_data, time):
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
@@ -67,7 +82,7 @@ def live_plot(args, imu, kf):
     plt.ion()
     fig.show()
     fig.canvas.draw()
-    labels = ['Angle 1', 'Angle 2', 'Angle 3', 'Angular Velocity 1', 'Angular Velocity 2', 'Angular Velocity 3']
+    labels = ['Pitch', 'Roll', 'Yaw', 'Angular Velocity 1', 'Angular Velocity 2', 'Angular Velocity 3']
 
     lines = [ax.plot([], [])[0] for ax in axs.flat]
     for ax, label in zip(axs.flat, labels):
@@ -81,8 +96,8 @@ def live_plot(args, imu, kf):
         elapsed = current - last
 
         #angle = kf.step()
-        gyroscope, accelerometer = get_imu_data()
-        ahrs.update_no_magnetometer(gyroscope, accelerometer, elapsed)
+        gyroscope, accelerometer, magnetometer = get_imu_data()
+        ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
         angle = ahrs.quaternion.to_euler()
 
 
