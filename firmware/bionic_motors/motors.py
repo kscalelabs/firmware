@@ -51,7 +51,7 @@ class BionicMotor:
         self.control_params = control_params
         self.can_bus = can_bus
         self.position = 0  # don't care here, but NOTE should not always be 0 at the start
-        self.update_position(), CANInterface
+        self.update_position()
 
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
         """Sends a CAN message to a motor.
@@ -124,7 +124,7 @@ class BionicMotor:
         command = set_zero_position(self.motor_id)
         self._send(SPECIAL_IDENTIFIER, bytes(command), 4)
 
-    def update_position(self, wait_time: float = 0.1) -> str:
+    def update_position(self, wait_time: float = 0.1, read_only: bool = False) -> str:
         """Updates the value of the motor's position attribute.
 
         NOTE: Do NOT use this to access the motor's position value.
@@ -133,6 +133,9 @@ class BionicMotor:
 
         Args:
             wait_time: how long to wait for a response from the motor
+            read_only: whether to read the position value or not
+        Returns:
+            "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_pos()
         self._send(self.motor_id, bytes(command), 2)
@@ -140,10 +143,12 @@ class BionicMotor:
 
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
-                self.position = message.data["Data"]
-                BionicMotor.can_messages.remove(
-                    message
-                )  # Flushes out any previous messages and ensures that the next message is fresh
+                BionicMotor.can_messages.remove(message)
+                if read_only:
+                    return message.data["Data"]
+                else:
+                    self.position = message.data["Data"]
+                # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"
