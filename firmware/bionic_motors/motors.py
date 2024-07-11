@@ -5,7 +5,11 @@ from dataclasses import dataclass
 
 import can
 
-from firmware.bionic_motors.commands import force_position_hybrid_control, get_motor_pos, set_zero_position
+from firmware.bionic_motors.commands import (
+    force_position_hybrid_control,
+    get_motor_pos,
+    set_zero_position,
+)
 from firmware.bionic_motors.responses import read_result, valid_message
 
 SPECIAL_IDENTIFIER = 0x7FF
@@ -129,6 +133,9 @@ class BionicMotor:
 
         Args:
             wait_time: how long to wait for a response from the motor
+            read_only: whether to read the position value or not
+        Returns:
+            "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_pos()
         self._send(self.motor_id, bytes(command), 2)

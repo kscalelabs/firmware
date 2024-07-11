@@ -1,25 +1,34 @@
-"""Simple robot controller module."""
+"""Simple robot controller module.
+
+Todo:
+1. add config and init
+2. full body
+3. tests
+"""
 
 import logging
-import time
 import math
-from typing import List, Dict
+import time
+from typing import Dict, List
+
 import can
 
 from firmware.bionic_motors.model import Arm, Body, Leg
 from firmware.bionic_motors.motors import BionicMotor, CANInterface
 from firmware.bionic_motors.utils import NORMAL_STRENGTH
 
-rad_to_deg = lambda rad: rad / (math.pi) * 180
+
+def rad_to_deg(rad: float) -> float:
+    return rad / (math.pi) * 180
 
 
 class Robot:
-    def __init__(self, setup: str = "left_arm", config=None) -> None:
+    def __init__(self, setup: str = "left_arm") -> None:
         # TODO - more init setup
         self.setup = setup
         self.can_bus = self._initialize_can_bus()
         self.body = self._initialize_body()
-        self.motor_config = self._initialize_motor_config(config=config)
+        self.motor_config = self._initialize_motor_config()
         self.prev_positions = {}
 
         # todo setup new
@@ -63,7 +72,7 @@ class Robot:
             ankle=BionicMotor(start_id + 1, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
         )
 
-    def _initialize_motor_config(self, config=None) -> Dict[str, Dict]:
+    def _initialize_motor_config(self) -> Dict[str, Dict]:
         config = {}
         # TODO update actual positions
         for part in ["left_arm", "right_arm", "left_leg", "right_leg"]:

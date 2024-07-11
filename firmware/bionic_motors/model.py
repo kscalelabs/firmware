@@ -1,10 +1,10 @@
 """Defines the motor model but with bionic motors instead."""
 
+import math
+import time
 from dataclasses import dataclass
 
 from firmware.bionic_motors.motors import BionicMotor
-
-import time, math
 
 # TODO: Head
 
@@ -46,23 +46,18 @@ class Arm:
         state = [False for _ in range(len(self.motors))]
         position = [part.position for part in self.motors]
         while not all(state):
-            # print(state)
-            # print("The following is the length of the CAN Message Buffer", len(BionicMotor.can_messages))
             for idx, part in enumerate(self.motors):
                 sign = math.copysign(1, target_vals[idx] - part.position)
                 if abs(part.position - target_vals[idx]) < thresholds[idx]:
-                    # print("Reached the position condition for ", idx+ 1)
                     state[idx] = True
                     position[idx] += 0
                 else:
                     position[idx] += sign * increments[idx]
 
                 part.update_position(0.001)
-                # part.update_position(0.0005)
                 part.set_position(int(position[idx]), 0, 0)
-        # print("Finished with this loop")
 
-    def hold_position(self, position: list, timeout: float = 2.0):
+    def hold_position(self, position: list, timeout: float = 2.0) -> None:
         cur_time = time.time()
         print("These are the current pos", position)
         while time.time() - cur_time < timeout:
