@@ -13,8 +13,8 @@
 #define M_PI 3.14159265358979323846
 
 #define GYR_GAIN 0.070
-#define ACCEL_GAIN 0.244/1000
-#define GAUSS_TO_MCRO_TSLA 10000 * 0.000001
+
+#define ACCEL_GAIN 0.244/1000 //Sensitivity for 8g
 
 namespace py = pybind11;
 

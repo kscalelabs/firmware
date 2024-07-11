@@ -11,7 +11,8 @@ import imufusion
 from firmware.cpp.imu.imu import IMU
 
 
-MAG_TO_MCRO_TSLA = 10000 * 0.000001
+MAG_TO_MCRO_TSLA = 0.0001 * 1000000
+MAX_WINDOW = 100 # data points
 
 
 def main() -> None:
@@ -20,23 +21,28 @@ def main() -> None:
     parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
     parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
     parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
-    parser.add_argument("--plot", type=bool, default=False, help="Display a live plot of the readings")
-    parser.add_argument("--print", type=bool, default=True, help="Print out readings")
+    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
+    parser.add_argument("--no-print", dest="print", default=True, action="store_false", help="Print out readings")
     args = parser.parse_args()
 
-    global imu, ahrs
+    global imu, ahrs, offset, start
+
+    start = time.time()
 
     imu = IMU(args.bus)
 
     # Process sensor data
     ahrs = imufusion.Ahrs()
-    """ 
+
+    #Gyro calibration
+    offset = imufusion.Offset(3300)
+
     ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
-                                       0.5,  # gain
+                                       0.6,  # gain
                                        2000,  # gyroscope range
-                                       10,  # acceleration rejection
-                                       10,  # magnetic rejection
-                                       500)  # recovery trigger period """
+                                       90,  # acceleration rejection
+                                       90,  # magnetic rejection
+                                       0)  # recovery trigger period
 
     if args.plot:
         live_plot(args)
@@ -45,12 +51,13 @@ def main() -> None:
 
 def get_imu_data():
     gyro = imu.gyr_rate()
+    gyroList = np.array([gyro.x, gyro.y, gyro.z])
 
     acc = imu.acc_g()
 
     mag = imu.read_mag() 
     magList = [mag.x, mag.y, mag.z]
-    return np.array([[gyro.x, gyro.y, gyro.z],
+    return np.array([offset.update(gyroList),
                      [acc.x, acc.y, acc.z],
                      [val * MAG_TO_MCRO_TSLA for val in magList]])
 
@@ -70,9 +77,17 @@ def live_plot(args):
     def plotter(axs, lines, new_data, time):
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
-            line.set_xdata(np.append(x_data, time))
-            line.set_ydata(np.append(y_data, data))
+            
+            x_data = np.append(x_data, time)
+            y_data = np.append(y_data, data)
+
+            if len(x_data) > MAX_WINDOW:
+                x_data = x_data[1:]
+                y_data = y_data[1:]
+            line.set_xdata(x_data)
+            line.set_ydata(y_data)
             ax.relim()
+            ax.set_ylim(-190,190)
             ax.autoscale_view(True, True, True)
         plt.pause(0.001)
 
@@ -95,19 +110,17 @@ def live_plot(args):
         current = time.time()
         elapsed = current - last
 
-        #angle = kf.step()
         gyroscope, accelerometer, magnetometer = get_imu_data()
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
         angle = ahrs.quaternion.to_euler()
 
-
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [angle[0], angle[1], angle[2], dof6.x, dof6.y, dof6.z]
+        data = [angle[0], angle[1], angle[2], dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
 
         if args.print:
             print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))
 
-        plotter(axs, lines, data, time.time())
+        plotter(axs, lines, data, current - start)
         last = current
 
 if __name__ == "__main__":
