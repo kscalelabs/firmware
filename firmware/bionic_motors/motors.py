@@ -5,11 +5,7 @@ from dataclasses import dataclass
 
 import can
 
-from firmware.bionic_motors.commands import (
-    force_position_hybrid_control,
-    get_motor_pos,
-    set_zero_position
-)
+from firmware.bionic_motors.commands import force_position_hybrid_control, get_motor_pos, set_zero_position
 from firmware.bionic_motors.responses import read_result, valid_message
 
 SPECIAL_IDENTIFIER = 0x7FF
@@ -140,14 +136,12 @@ class BionicMotor:
 
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
-                BionicMotor.can_messages.remove(
-                    message
-                )
+                BionicMotor.can_messages.remove(message)
                 if read_only:
                     return message.data["Data"]
                 else:
                     self.position = message.data["Data"]
-                  # Flushes out any previous messages and ensures that the next message is fresh
+                # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
                 return "Invalid"

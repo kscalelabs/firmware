@@ -248,6 +248,7 @@ def force_position_hybrid_control(kp: float, kd: float, position: float, speed: 
     command = push_bits(command, int(torque_to_int(torque_ff)), 12)
     return split_into_bytes(command)
 
+
 def debug(command: bytes) -> List[str]:
     return [hex(i) for i in command]
 

@@ -39,9 +39,10 @@ class Arm:
             self.wrist,
             self.gripper,
         ]
-    
 
-    def set_position_incremental(self, increments: list, target_vals: list, thresholds: list) -> None: #ensure that thresholds is kept at a non-zero value
+    def set_position_incremental(
+        self, increments: list, target_vals: list, thresholds: list
+    ) -> None:  # ensure that thresholds is kept at a non-zero value
         state = [False for _ in range(len(self.motors))]
         position = [part.position for part in self.motors]
         while not all(state):
@@ -54,10 +55,8 @@ class Arm:
                     state[idx] = True
                     position[idx] += 0
                 else:
+                    position[idx] += sign * increments[idx]
 
-                    position[idx] += sign * increments[idx] 
-                
-                
                 part.update_position(0.001)
                 # part.update_position(0.0005)
                 part.set_position(int(position[idx]), 0, 0)
@@ -70,8 +69,8 @@ class Arm:
             for idx, part in enumerate(self.motors):
                 part.set_position(int(position[idx]), 0, 0)
                 part.update_position(0.001)
-                if idx == 0: 
-                    print(part.position)   
+                if idx == 0:
+                    print(part.position)
 
 
 class Leg:
