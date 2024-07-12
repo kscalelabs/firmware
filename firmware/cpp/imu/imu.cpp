@@ -27,7 +27,6 @@ std::string dof_6_t::toString() {
   return ss.str();
 }
 
-
 std::string angles_t::toString() {
   std::ostringstream ss;
   ss << "Angles<yaw=" << yaw << ", pitch=" << pitch << ", roll=" << roll << ">";

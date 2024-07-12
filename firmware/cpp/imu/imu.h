@@ -26,7 +26,7 @@ public:
   vector_2d_t(T x, T y) : x(x), y(y) {}
 
   std::string toString();
-
+    
   T x, y;
 };
 
