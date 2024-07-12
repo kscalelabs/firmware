@@ -77,14 +77,14 @@ class IMU {
 public:
   IMU(int bus = 1);
 
+  float getMagYaw();
+
   vector_3d_t<int16_t> readAcc();
   vector_3d_t<int16_t> readMag();
   vector_3d_t<int16_t> readGyr();
 
   vector_2d_t<float> getAccAngle();
   vector_3d_t<float> getGyrRate();
-
-  float getMagYaw();
 
   vector_3d_t<float> getAngles();
 

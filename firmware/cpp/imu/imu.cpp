@@ -132,7 +132,7 @@ float IMU::getMagYaw(){
   float pitch = accAngle.x;
   float roll = accAngle.y;
 
-  // Calculate yaw using magnetometer data
+  // Calculate yaw using magnetometer data - logic taken from https://electronics.stackexchange.com/questions/525266/tilt-compensation-for-yaw-calculation-from-magnetometer-and-accelerometer
   float mag_x = mag.x * cos(pitch) + mag.z * sin(pitch);
   float mag_y = mag.x * sin(roll) * sin(pitch) + mag.y * cos(roll) - mag.z * sin(roll) * cos(pitch);
 
@@ -142,16 +142,10 @@ float IMU::getMagYaw(){
 
 vector_3d_t<float> IMU::getAngles(){
   vector_2d_t<float> accAngle = getAccAngle();
-  vector_3d_t<int16_t> mag = readMag();
 
   float pitch = accAngle.x;
   float roll = accAngle.y;
-
-  // Calculate yaw using magnetometer data
-  float mag_x = mag.x * cos(pitch) + mag.z * sin(pitch);
-  float mag_y = mag.x * sin(roll) * sin(pitch) + mag.y * cos(roll) - mag.z * sin(roll) * cos(pitch);
-
-  float yaw = atan2(-mag_y, mag_x) * RAD_TO_DEG;
+  float yaw = getMagYaw();
 
   return {yaw, pitch, roll};
 }
