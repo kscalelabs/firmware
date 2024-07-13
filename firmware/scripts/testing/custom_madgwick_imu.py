@@ -6,9 +6,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import time
 
-import imufusion
-
 from firmware.cpp.imu.imu import IMU
+from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler
 
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
@@ -32,18 +31,8 @@ def main() -> None:
 
     imu = IMU(args.bus)
 
-    # Process sensor data
-    ahrs = imufusion.Ahrs()
-
-    #Gyro calibration
-    offset = imufusion.Offset(3300)
-
-    ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
-                                       0.6,  # gain
-                                       2000,  # gyroscope range
-                                       90,  # acceleration rejection
-                                       90,  # magnetic rejection
-                                       0)  # recovery trigger period
+    #Beta is = sqrt(3/4)*gyro_mean_error
+    ahrs = Madgwick(beta=0.08)
 
     if args.plot:
         live_plot(args)
@@ -55,15 +44,14 @@ def read_quat(quat):
 
 def get_imu_data():
     gyro = imu.gyr_rate()
-    gyroList = np.array([gyro.x, gyro.y, gyro.z])
 
     acc = imu.acc_g()
 
     mag = imu.read_mag() 
-    magList = [mag.x, mag.y, mag.z]
-    return np.array([offset.update(gyroList),
-                     [acc.x, acc.y, acc.z],
-                     [val * MAG_TO_MCRO_TSLA for val in magList]])
+
+    return [Vector(gyro.x, gyro.y, gyro.z),
+            Vector(acc.x, acc.y, acc.z),
+            Vector(mag.x*MAG_TO_MCRO_TSLA, mag.y*MAG_TO_MCRO_TSLA,mag.z*MAG_TO_MCRO_TSLA)]
 
         
 def console(args):
@@ -77,10 +65,10 @@ def console(args):
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
         if(printTime > 0.5):
             if args.quat:
-                print(read_quat(ahrs.quaternion))
+                print(read_quat(ahrs.getQ()))
 
             else:
-                print(ahrs.quaternion.to_euler())
+                print(ahrs.getEuler())
             printTime = 0
         last = current
         printTime += elapsed
@@ -124,15 +112,15 @@ def live_plot(args):
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
-        angle = ahrs.quaternion.to_euler()
+        angle = ahrs.getEuler()
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [angle[0], angle[1], angle[2], dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
+        data = [angle.yaw, angle.pitch, angle.roll, dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
 
         if args.print and not args.quat:
             print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))
         elif args.quat:
-            print(read_quat(ahrs.quaternion))
+            print(read_quat(ahrs.getQ()))
         plotter(axs, lines, data, current - start)
         last = current
 

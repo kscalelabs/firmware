@@ -3,3 +3,6 @@
 pyserial
 python-can
 typed-argument-parser
+
+# Other
+imufusion

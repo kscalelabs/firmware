@@ -85,17 +85,26 @@ IMUMath::Euler Madgwick::getEuler(){
 }
 
 PYBIND11_MODULE(madgwick, m) {
-
     py::class_<IMUMath::Quaternion>(m, "Quaternion")
             .def(py::init<float, float, float, float>(), "w"_a = 0.0f, "x"_a = 0.0f, "y"_a = 0.0f, "z"_a = 0.0f)
+            .def_readonly("w", &IMUMath::Quaternion::w)
+            .def_readonly("x", &IMUMath::Quaternion::x)
+            .def_readonly("y", &IMUMath::Quaternion::y)
+            .def_readonly("z", &IMUMath::Quaternion::z)
             .def("__str__", &IMUMath::Quaternion::toString);
 
     py::class_<IMUMath::Euler>(m, "Euler")
             .def(py::init<float, float, float>(), "yaw"_a = 0.0f, "pitch"_a = 0.0f, "roll"_a = 0.0f)
+            .def_readonly("yaw", &IMUMath::Euler::yaw)
+            .def_readonly("pitch", &IMUMath::Euler::pitch)
+            .def_readonly("roll", &IMUMath::Euler::roll)
             .def("__str__", &IMUMath::Euler::toString);
 
     py::class_<IMUMath::Vector>(m, "Vector")
             .def(py::init<float, float, float>(), "x"_a = 0.0f, "y"_a = 0.0f, "z"_a = 0.0f)
+            .def_readonly("x", &IMUMath::Vector::x)
+            .def_readonly("y", &IMUMath::Vector::y)
+            .def_readonly("z", &IMUMath::Vector::z)
             .def("__str__", &IMUMath::Vector::toString);
 
     py::class_<Madgwick>(m, "Madgwick")
