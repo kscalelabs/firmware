@@ -5,16 +5,18 @@ import argparse
 import matplotlib.pyplot as plt
 import numpy as np
 import time
-import ahrs
-
+from ahrs.filters import Madgwick
+from ahrs.common.orientation import q2euler
 from firmware.cpp.imu.imu import IMU
-
+import math
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAG_TO_NANO_TSLA = 0.0001 * 1000000000
 DEG_TO_RAD = 3.14159268/180
 MAX_WINDOW = 100 # data points
 
+def radToDegrees(angles):
+    return [math.degrees(angle) for angle in angles]
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Log the IMU values.")
@@ -27,13 +29,14 @@ def main() -> None:
     parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
     args = parser.parse_args()
 
-    global imu, madgwick, offset, start
+    global imu, madgwick, offset, start, q
 
     start = time.time()
 
     imu = IMU(args.bus)
 
-    madgwick = ahrs.Madgwick(q0=[0.7071, 0.0, 0.7071, 0.0])
+    madgwick = Madgwick()
+    q = np.array([0.7071, 0.0, 0.7071, 0.0])
 
     if args.plot:
         live_plot(args)
@@ -50,9 +53,9 @@ def get_imu_data():
 
     mag = imu.read_mag() 
 
-    return [np.array(gyro.x*DEG_TO_RAD, gyro.y*DEG_TO_RAD, gyro.z*DEG_TO_RAD),
-            np.array(acc.x, acc.y, acc.z),
-            np.array(mag.x*MAG_TO_NANO_TSLA, mag.y*MAG_TO_NANO_TSLA,mag.z*MAG_TO_NANO_TSLA)]
+    return [np.array([gyro.x*DEG_TO_RAD, gyro.y*DEG_TO_RAD, gyro.z*DEG_TO_RAD]),
+            np.array([acc.x, acc.y, acc.z]),
+            np.array([mag.x*MAG_TO_NANO_TSLA, mag.y*MAG_TO_NANO_TSLA,mag.z*MAG_TO_NANO_TSLA])]
 
         
 def console(args):
@@ -63,13 +66,13 @@ def console(args):
         elapsed = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
-        angle = ahrs.updateMARG(gyroscope, accelerometer, magnetometer, elapsed)
+        q = madgwick.updateMARG(q, gyroscope, accelerometer, magnetometer, elapsed)
         if(printTime > 0.5):
             if args.quat:
-                print(angle)
+                print(q)
 
             else:
-                print(angle.to_angles())
+                print(radToDegrees(q2euler(q)))
             printTime = 0
         last = current
         printTime += elapsed
@@ -112,10 +115,12 @@ def live_plot(args):
         elapsed = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
-        angle = ahrs.updateMARG(gyroscope, accelerometer, magnetometer, elapsed)
+
+        madgwick.Dt = elapsed
+        angle = madgwick.updateMARG(q, gyroscope, accelerometer, magnetometer)
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [*angle.to_angles(), dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
+        data = [*radToDegrees(q2euler(q)), dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
 
         if args.print and not args.quat:
             print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))

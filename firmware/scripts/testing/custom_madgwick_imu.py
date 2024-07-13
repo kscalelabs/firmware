@@ -34,7 +34,7 @@ def main() -> None:
     imu = IMU(args.bus)
 
     #Beta is = sqrt(3/4)*gyro_mean_error
-    ahrs = Madgwick(beta=0.1)
+    ahrs = Madgwick(beta=0.5)
 
     if args.plot:
         live_plot(args)

@@ -127,7 +127,6 @@ static inline Matrix QuaternionToMatrix(Quaternion q) {
     const float qzqz = q.z * q.z;
 
 
-
     return Matrix(2.0f * (qwqw - 0.5f + qxqx), 2.0f * (qxqy - qwqz), 2.0f * (qxqz + qwqy),
                   2.0f * (qxqy + qwqz), 2.0f * (qwqw - 0.5f + qyqy), 2.0f * (qyqz - qwqx),
                   2.0f * (qxqz - qwqy), 2.0f * (qyqz + qwqx), 2.0f * (qwqw - 0.5f + qzqz));
@@ -135,11 +134,18 @@ static inline Matrix QuaternionToMatrix(Quaternion q) {
 
 static inline Euler QuaternionToEuler(Quaternion q) {
     float halfMinusQySquared = 0.5f - q.y * q.y; // calculate common terms to avoid repeated operations
+    
+    return Euler(
+        RadiansToDegrees(std::atan2(2.0f*(q.w*q.x + q.y*q.z), 1-2*(q.x*q.x + q.y*q.y))),
+        RadiansToDegrees(Asin(2.0f*(q.w*q.y - q.x*q.z))),
+        RadiansToDegrees(std::atan2(2.0f*(q.w*q.z + q.x*q.y), 1.0f - 2.0f*(q.y*q.y + q.z*q.z)))
+    );
+    /*
     return Euler(
         RadiansToDegrees(std::atan2(q.w * q.z + q.x * q.y, halfMinusQySquared - q.z * q.z)),
         RadiansToDegrees(Asin(q.w * q.y - q.z * q.x)),
         RadiansToDegrees(std::atan2(q.w * q.x + q.y * q.z, halfMinusQySquared - q.x * q.x))
-    );
+    );*/
 
 }
 } // namespace IMUMath

@@ -8,6 +8,8 @@
 namespace py = pybind11;
 using namespace pybind11::literals;
 
+class Offset()
+
 class Madgwick{
     private:
         float beta; // gain

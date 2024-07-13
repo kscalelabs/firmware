@@ -28,7 +28,6 @@ Madgwick::Madgwick(float beta, IMUMath::Quaternion q) : beta(beta), q(q) {}
 void Madgwick::update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vector mag, float dt){
     IMUMath::Quaternion prevQ = q;
 
-
     IMUMath::Quaternion qGyroHalf = IMUMath::VectorToQuaternion(IMUMath::Multiply(gyro, 0.5f));
     IMUMath::Quaternion qDot = IMUMath::QuaternionMultiply(prevQ, qGyroHalf);
 
