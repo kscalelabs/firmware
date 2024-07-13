@@ -47,3 +47,4 @@ endmacro()
 # Subprojects.
 add_subdirectory(can)
 add_subdirectory(imu)
+add_subdirectory(madgwick)

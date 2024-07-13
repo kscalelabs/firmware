@@ -1,2 +1,1 @@
 build_extension(imu)
-build_extension(madgwick)

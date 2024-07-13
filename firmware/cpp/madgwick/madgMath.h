@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstdint>
+#include <string>
 
 //Following adapted from https://github.com/xioTechnologies/Fusion/blob/main/Fusion/FusionMath.h
 namespace IMUMath {
@@ -121,16 +122,20 @@ static inline Matrix QuaternionToMatrix(Quaternion q) {
     const float qyqy = q.y * q.y;
     const float qzqz = q.z * q.z;
 
+
+
     return Matrix(2.0f * (qwqw - 0.5f + qxqx), 2.0f * (qxqy - qwqz), 2.0f * (qxqz + qwqy),
                   2.0f * (qxqy + qwqz), 2.0f * (qwqw - 0.5f + qyqy), 2.0f * (qyqz - qwqx),
                   2.0f * (qxqz - qwqy), 2.0f * (qyqz + qwqx), 2.0f * (qwqw - 0.5f + qzqz));
 }
 
 static inline Euler QuaternionToEuler(Quaternion q) {
-    float halfMinusQySquared = 0.5f - q.element.y * q.element.y; // calculate common terms to avoid repeated operations
-    return Euler( RadiansToDegrees(std::asin(-2.0f * (q.element.x * q.element.z - q.element.w * q.element.y)),
-                  RadiansToDegrees(std::atan2(2.0f * (q.element.y * q.element.z + q.element.w * q.element.x), halfMinusQySquared + q.element.z * q.element.z)),
-                  RadiansToDegrees(std::atan2(2.0f * (q.element.x * q.element.y + q.element.w * q.element.z), q.element.w * q.element.w + q.element.x * q.element.x - halfMinusQySquared))));
-}
+    float halfMinusQySquared = 0.5f - q.y * q.y; // calculate common terms to avoid repeated operations
+    return Euler(
+        RadiansToDegrees(std::atan2(q.w * q.z + q.x * q.y, halfMinusQySquared - q.z * q.z)),
+        RadiansToDegrees(Asin(q.w * q.y - q.z * q.x)),
+        RadiansToDegrees(std::atan2(q.w * q.x + q.y * q.z, halfMinusQySquared - q.x * q.x))
+    );
 
+}
 } // namespace IMUMath

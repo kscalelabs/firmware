@@ -99,7 +99,7 @@ PYBIND11_MODULE(madgwick, m) {
             .def("__str__", &IMUMath::Vector::toString);
 
     py::class_<Madgwick>(m, "Madgwick")
-            .def(py::init<float, IMUMath::Quaternion>(), "beta"_a = 0.1f, "q"_a = IMUMath::IDENTITY_QUATERNION)
+            .def(py::init<float, IMUMath::Quaternion>(), "beta"_a = 0.1f, "q"_a = IDENTITY_QUATERNION)
             .def("update", &Madgwick::update, "gyro"_a, "accel"_a, "mag"_a, "dt"_a)
             .def("getQ", &Madgwick::getQ)
             .def("getEuler", &Madgwick::getEuler);
