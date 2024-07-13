@@ -21,24 +21,132 @@ std::string IMUMath::Vector::toString() {
   return ss.str();
 }
 
+/*
+dt = self.Dt if dt is None else dt
+        if gyr is None or not np.linalg.norm(gyr) > 0:
+            return q
+        if mag is None or not np.linalg.norm(mag) > 0:
+            return self.updateIMU(q, gyr, acc)
+        qDot = 0.5 * q_prod(q, [0, *gyr])                           # (eq. 12)
+        a_norm = np.linalg.norm(acc)
+        if a_norm > 0:
+            a = acc/a_norm
+            m = mag/np.linalg.norm(mag)
+            # Rotate normalized magnetometer measurements
+            h = q_prod(q, q_prod([0, *m], q_conj(q)))               # (eq. 45)
+            bx = np.linalg.norm([h[1], h[2]])                       # (eq. 46)
+            bz = h[3]
+            qw, qx, qy, qz = q/np.linalg.norm(q)
+            # Objective function (eq. 31)
+            f = np.array([2.0*(qx*qz - qw*qy)   - a[0],
+                          2.0*(qw*qx + qy*qz)   - a[1],
+                          2.0*(0.5-qx**2-qy**2) - a[2],
+                          2.0*bx*(0.5 - qy**2 - qz**2) + 2.0*bz*(qx*qz - qw*qy)       - m[0],
+                          2.0*bx*(qx*qy - qw*qz)       + 2.0*bz*(qw*qx + qy*qz)       - m[1],
+                          2.0*bx*(qw*qy + qx*qz)       + 2.0*bz*(0.5 - qx**2 - qy**2) - m[2]])
+            # Jacobian (eq. 32)
+            J = np.array([[-2.0*qy,               2.0*qz,              -2.0*qw,               2.0*qx             ],
+                          [ 2.0*qx,               2.0*qw,               2.0*qz,               2.0*qy             ],
+                          [ 0.0,                 -4.0*qx,              -4.0*qy,               0.0                ],
+                          [-2.0*bz*qy,            2.0*bz*qz,           -4.0*bx*qy-2.0*bz*qw, -4.0*bx*qz+2.0*bz*qx],
+                          [-2.0*bx*qz+2.0*bz*qx,  2.0*bx*qy+2.0*bz*qw,  2.0*bx*qx+2.0*bz*qz, -2.0*bx*qw+2.0*bz*qy],
+                          [ 2.0*bx*qy,            2.0*bx*qz-4.0*bz*qx,  2.0*bx*qw-4.0*bz*qy,  2.0*bx*qx          ]])
+            gradient = J.T@f                                        # (eq. 34)
+            gradient /= np.linalg.norm(gradient)
+            qDot -= self.gain*gradient                              # (eq. 33)
+        q_new = q + qDot*dt                                         # (eq. 13)
+        q_new /= np.linalg.norm(q_new)
+        return q_new
+        */
+
 //Adapted from https://github.com/bjohnsonfl/Madgwick_Filter/blob/master/madgwickFilter.c
 Madgwick::Madgwick(float beta, IMUMath::Quaternion q) : beta(beta), q(q) {}
 
 void Madgwick::update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vector mag, float dt){
     IMUMath::Quaternion prevQ = q;
-    IMUMath::Quaternion qDot = IMUMath::Quaternion(0, 0, 0, 0);
-    IMUMath::Quaternion qA = IMUMath::VectorToQuaternion(accel);
 
-    float F_g [3] = {}; //Gravity objective function
-    float J_g [3][4] = {0}; //Jacobian for gravity
-
-    IMUMath::Quaternion qGrad = IMUMath::Quaternion(0, 0, 0, 0);
 
     IMUMath::Quaternion qGyroHalf = IMUMath::VectorToQuaternion(IMUMath::Multiply(gyro, 0.5f));
+    IMUMath::Quaternion qDot = IMUMath::QuaternionMultiply(prevQ, qGyroHalf);
 
-    qDot = IMUMath::QuaternionMultiply(prevQ, qGyroHalf);
+    IMUMath::Quaternion qA = IMUMath::VectorToQuaternion(accel);
+    IMUMath::Quaternion qM = IMUMath::VectorToQuaternion(mag);
 
     qA = IMUMath::QuaternionNormalise(qA);
+    qM = IMUMath::QuaternionNormalise(qM);
+
+    IMUMath::Quaternion h = IMUMath::QuaternionMultiply(prevQ, IMUMath::QuaternionMultiply(qM, IMUMath::QuaternionConjugate(prevQ)));
+    float bx = sqrt(h.y * h.y + h.z * h.z);
+    float bz = h.z;
+
+    IMUMath::Quaternion qNorm = IMUMath::QuaternionNormalise(prevQ);
+
+    float f [6] = {}; //objective function
+    float J [6][4] = {0}; //Jacobian
+
+    //Compute objective function and Jacobian
+    f[0] = 2*(qNorm.x * qNorm.z - qNorm.w * qNorm.y) - accel.x;
+    f[1] = 2*(qNorm.w * qNorm.x + qNorm.y* qNorm.z) - accel.y;
+    f[2] = 2*(0.5 - qNorm.x * qNorm.x - qNorm.y * qNorm.y) - accel.z;
+    f[3] = 2*bx*(0.5 - qNorm.y * qNorm.y - qNorm.z * qNorm.z) + 2*bz*(qNorm.x * qNorm.z - qNorm.w * qNorm.y) - mag.x;
+    f[4] = 2*bx*(qNorm.x * qNorm.y - qNorm.w * qNorm.z) + 2*bz*(qNorm.w * qNorm.x + qNorm.y * qNorm.z) - mag.y;
+    f[5] = 2*bx*(qNorm.w * qNorm.y + qNorm.x * qNorm.z) + 2*bz*(0.5 - qNorm.x * qNorm.x - qNorm.y * qNorm.y) - mag.z;
+
+    J[0][0] = -2 * qNorm.y;
+    J[0][1] =  2 * qNorm.z;
+    J[0][2] = -2 * qNorm.w;
+    J[0][3] =  2 * qNorm.x;
+
+    J[1][0] = 2 * qNorm.x;
+    J[1][1] = 2 * qNorm.w;
+    J[1][2] = 2 * qNorm.z;
+    J[1][3] = 2 * qNorm.y;
+
+    J[2][0] = 0;
+    J[2][1] = -4 * qNorm.x;
+    J[2][2] = -4 * qNorm.y;
+    J[2][3] = 0;
+
+    J[3][0] = -2 * bz * qNorm.y;
+    J[3][1] =  2 * bz * qNorm.z;
+    J[3][2] = -4 * bx * qNorm.y - 2 * bz * qNorm.w;
+    J[3][3] = -4 * bx * qNorm.z + 2 * bz * qNorm.x;
+
+    J[4][0] = -2 * bx * qNorm.z + 2 * bz * qNorm.x;
+    J[4][1] =  2 * bx * qNorm.y + 2 * bz * qNorm.w;
+    J[4][2] =  2 * bx * qNorm.x + 2 * bz * qNorm.z;
+    J[4][3] = -2 * bx * qNorm.w + 2 * bz * qNorm.y;
+
+    J[5][0] =  2 * bx * qNorm.y;
+    J[5][1] =  2 * bx * qNorm.z - 4 * bz * qNorm.x;
+    J[5][2] =  2 * bx * qNorm.w - 4 * bz * qNorm.y;
+    J[5][3] =  2 * bx * qNorm.x;
+
+    //Compute gradient
+    IMUMath::Quaternion qGrad;
+    qGrad.w = J[0][0] * f[0] + J[1][0] * f[1] + J[2][0] * f[2] + J[3][0] * f[3] + J[4][0] * f[4] + J[5][0] * f[5];
+    qGrad.x = J[0][1] * f[0] + J[1][1] * f[1] + J[2][1] * f[2] + J[3][1] * f[3] + J[4][1] * f[4] + J[5][1] * f[5];
+    qGrad.y = J[0][2] * f[0] + J[1][2] * f[1] + J[2][2] * f[2] + J[3][2] * f[3] + J[4][2] * f[4] + J[5][2] * f[5];
+    qGrad.z = J[0][3] * f[0] + J[1][3] * f[1] + J[2][3] * f[2] + J[3][3] * f[3] + J[4][3] * f[4] + J[5][3] * f[5];
+
+    qGrad = IMUMath::QuaternionNormalise(qGrad);
+
+    //Sensor fusion
+    qGrad = IMUMath::QuaternionScalarMultiply(qGrad, beta);
+    qDot = IMUMath::QuaternionAdd(qDot, IMUMath::QuaternionScalarMultiply(qGrad, -1.0f));
+
+    qDot = IMUMath::QuaternionScalarMultiply(qDot, dt);
+    q = IMUMath::QuaternionAdd(prevQ, qDot);
+    q = IMUMath::QuaternionNormalise(q);
+    
+
+/*
+    float F_g [3] = {}; //objective function
+    float J_g [3][4] = {0}; //Jacobian
+
+
+
+
 
     //Compute objective function and Jacobian
     F_g[0] = 2*(prevQ.x * prevQ.z - prevQ.w * prevQ.y) - qA.x;
@@ -74,6 +182,7 @@ void Madgwick::update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vect
     qDot = IMUMath::QuaternionScalarMultiply(qDot, dt);
     q = IMUMath::QuaternionAdd(prevQ, qDot);
     q = IMUMath::QuaternionNormalise(q);
+    */
 }
 
 IMUMath::Quaternion Madgwick::getQ(){

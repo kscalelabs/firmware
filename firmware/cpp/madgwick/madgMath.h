@@ -105,6 +105,10 @@ static inline Quaternion QuaternionNormalise(Quaternion q) {
     return Quaternion(q.w * invMag, q.x * invMag, q.y * invMag, q.z * invMag);
 }
 
+static inline Quaternion QuaternionConjugate(Quaternion q) {
+    return Quaternion(q.w, -q.x, -q.y, -q.z);
+}
+
 static inline Quaternion QuaternionScalarMultiply(Quaternion q, float scalar) {
 
     return Quaternion(q.w * scalar, q.x * scalar, q.y * scalar, q.z * scalar);
