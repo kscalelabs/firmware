@@ -11,6 +11,8 @@ from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler
 
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
+MAG_TO_NANO_TSLA = 0.0001 * 1000000000
+DEG_TO_RAD = 3.14159268/180
 MAX_WINDOW = 100 # data points
 
 
@@ -32,7 +34,7 @@ def main() -> None:
     imu = IMU(args.bus)
 
     #Beta is = sqrt(3/4)*gyro_mean_error
-    ahrs = Madgwick(beta=0.08)
+    ahrs = Madgwick(beta=0.1)
 
     if args.plot:
         live_plot(args)
@@ -49,9 +51,9 @@ def get_imu_data():
 
     mag = imu.read_mag() 
 
-    return [Vector(gyro.x, gyro.y, gyro.z),
+    return [Vector(gyro.x*DEG_TO_RAD, gyro.y*DEG_TO_RAD, gyro.z*DEG_TO_RAD),
             Vector(acc.x, acc.y, acc.z),
-            Vector(mag.x*MAG_TO_MCRO_TSLA, mag.y*MAG_TO_MCRO_TSLA,mag.z*MAG_TO_MCRO_TSLA)]
+            Vector(mag.x*MAG_TO_NANO_TSLA, mag.y*MAG_TO_NANO_TSLA,mag.z*MAG_TO_NANO_TSLA)]
 
         
 def console(args):

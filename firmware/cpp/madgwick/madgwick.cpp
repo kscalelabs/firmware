@@ -21,43 +21,6 @@ std::string IMUMath::Vector::toString() {
   return ss.str();
 }
 
-/*
-dt = self.Dt if dt is None else dt
-        if gyr is None or not np.linalg.norm(gyr) > 0:
-            return q
-        if mag is None or not np.linalg.norm(mag) > 0:
-            return self.updateIMU(q, gyr, acc)
-        qDot = 0.5 * q_prod(q, [0, *gyr])                           # (eq. 12)
-        a_norm = np.linalg.norm(acc)
-        if a_norm > 0:
-            a = acc/a_norm
-            m = mag/np.linalg.norm(mag)
-            # Rotate normalized magnetometer measurements
-            h = q_prod(q, q_prod([0, *m], q_conj(q)))               # (eq. 45)
-            bx = np.linalg.norm([h[1], h[2]])                       # (eq. 46)
-            bz = h[3]
-            qw, qx, qy, qz = q/np.linalg.norm(q)
-            # Objective function (eq. 31)
-            f = np.array([2.0*(qx*qz - qw*qy)   - a[0],
-                          2.0*(qw*qx + qy*qz)   - a[1],
-                          2.0*(0.5-qx**2-qy**2) - a[2],
-                          2.0*bx*(0.5 - qy**2 - qz**2) + 2.0*bz*(qx*qz - qw*qy)       - m[0],
-                          2.0*bx*(qx*qy - qw*qz)       + 2.0*bz*(qw*qx + qy*qz)       - m[1],
-                          2.0*bx*(qw*qy + qx*qz)       + 2.0*bz*(0.5 - qx**2 - qy**2) - m[2]])
-            # Jacobian (eq. 32)
-            J = np.array([[-2.0*qy,               2.0*qz,              -2.0*qw,               2.0*qx             ],
-                          [ 2.0*qx,               2.0*qw,               2.0*qz,               2.0*qy             ],
-                          [ 0.0,                 -4.0*qx,              -4.0*qy,               0.0                ],
-                          [-2.0*bz*qy,            2.0*bz*qz,           -4.0*bx*qy-2.0*bz*qw, -4.0*bx*qz+2.0*bz*qx],
-                          [-2.0*bx*qz+2.0*bz*qx,  2.0*bx*qy+2.0*bz*qw,  2.0*bx*qx+2.0*bz*qz, -2.0*bx*qw+2.0*bz*qy],
-                          [ 2.0*bx*qy,            2.0*bx*qz-4.0*bz*qx,  2.0*bx*qw-4.0*bz*qy,  2.0*bx*qx          ]])
-            gradient = J.T@f                                        # (eq. 34)
-            gradient /= np.linalg.norm(gradient)
-            qDot -= self.gain*gradient                              # (eq. 33)
-        q_new = q + qDot*dt                                         # (eq. 13)
-        q_new /= np.linalg.norm(q_new)
-        return q_new
-        */
 
 //Adapted from https://github.com/bjohnsonfl/Madgwick_Filter/blob/master/madgwickFilter.c
 Madgwick::Madgwick(float beta, IMUMath::Quaternion q) : beta(beta), q(q) {}
@@ -123,7 +86,8 @@ void Madgwick::update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vect
     J[5][3] =  2 * bx * qNorm.x;
 
     //Compute gradient
-    IMUMath::Quaternion qGrad;
+    IMUMath::Quaternion qGrad = IMUMath::Quaternion(0,0,0,0);
+
     qGrad.w = J[0][0] * f[0] + J[1][0] * f[1] + J[2][0] * f[2] + J[3][0] * f[3] + J[4][0] * f[4] + J[5][0] * f[5];
     qGrad.x = J[0][1] * f[0] + J[1][1] * f[1] + J[2][1] * f[2] + J[3][1] * f[3] + J[4][1] * f[4] + J[5][1] * f[5];
     qGrad.y = J[0][2] * f[0] + J[1][2] * f[1] + J[2][2] * f[2] + J[3][2] * f[3] + J[4][2] * f[4] + J[5][2] * f[5];
