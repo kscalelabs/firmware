@@ -25,11 +25,14 @@ if __name__ == "__main__":
 
 class IMUInterface:
     MAG_TO_MCRO_TSLA = 0.0001 * 1000000
+    GYRO_YAW_THRESHOLD = 3
 
     def __init__(self, bus):
         self.imu = IMU(bus)
         self.ahrs = imufusion.Ahrs()
         self.offset = imufusion.Offset(3300)
+        self.quatOffset = imufusion.Quaternion(0,0,0,0)
+        self.state = []
         self.ahrs.settings = imufusion.Settings(
             imufusion.CONVENTION_NWU,
             0.6, # gain
@@ -38,12 +41,17 @@ class IMUInterface:
             90, # magnetic rejection
             0 # recovery trigger period
         )
+    
+    def calibrateYaw(self):
+        if(self.state[1].z < self.GYRO_YAW_THRESHOLD):
+            self.quatOffset = self.ahrs.quaternion
+          
 
     def step(self, dt):
         gyroscope, accelerometer, magnetometer = self.get_imu_data()
         self.ahrs.update(gyroscope, accelerometer, magnetometer, dt)
-
-        return [self.ahrs.quaternion.to_euler(), self.imu.gyr_rate()]
+        self.state = [self.ahrs.quaternion.to_euler(), self.imu.gyr_rate()]
+        return [self.state[0] - self.quatOffset.to_euler(), self.state[1]]
 
     def get_imu(self):
         return self.imu
@@ -59,4 +67,3 @@ class IMUInterface:
         return np.array([self.offset.update(gyroList),
                         [acc.x, acc.y, acc.z],
                         [val * self.MAG_TO_MCRO_TSLA for val in magList]])
-
