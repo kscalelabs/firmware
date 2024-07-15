@@ -8,7 +8,7 @@ import time
 
 from firmware.cpp.imu.imu import IMU
 from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler
-
+from firmware.cpp.madgwick.offset import Offset
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAG_TO_NANO_TSLA = 0.0001 * 1000000000
@@ -36,6 +36,8 @@ def main() -> None:
     #Beta is = sqrt(3/4)*gyro_mean_error
     ahrs = Madgwick(beta=0.5)
 
+    offset = Offset()
+
     if args.plot:
         live_plot(args)
     elif args.print:
@@ -44,8 +46,9 @@ def main() -> None:
 def read_quat(quat):
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
-def get_imu_data():
+def get_imu_data(dt):
     gyro = imu.gyr_rate()
+    gyro = offset.update(Vector(gyro.x,gyro.y,gyro.z), dt)
 
     acc = imu.acc_g()
 
@@ -63,7 +66,7 @@ def console(args):
         current = time.time()
         elapsed = current - last
 
-        gyroscope, accelerometer, magnetometer = get_imu_data()
+        gyroscope, accelerometer, magnetometer = get_imu_data(elapsed)
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
         if(printTime > 0.5):
             if args.quat:
@@ -112,7 +115,7 @@ def live_plot(args):
         current = time.time()
         elapsed = current - last
 
-        gyroscope, accelerometer, magnetometer = get_imu_data()
+        gyroscope, accelerometer, magnetometer = get_imu_data(elapsed)
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
         angle = ahrs.getEuler()
 
