@@ -54,8 +54,7 @@ class IMUInterface:
         return [self.state[0] - self.quatOffset.to_euler(), self.state[1]]
     
     def get_measurement(self):
-        # return the state as a flat list
-        return [self.state[0].roll, self.state[0].pitch, self.state[0].yaw, self.state[1].x, self.state[1].y, self.state[1].z]
+        return [[self.state[0].roll, self.state[0].pitch, self.state[0].yaw], [self.state[1].x, self.state[1].y, self.state[1].z]]
 
     def get_imu(self):
         return self.imu
