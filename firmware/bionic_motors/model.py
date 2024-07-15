@@ -87,6 +87,44 @@ class Leg:
             self.foot.motor_id,
         ]
 
+    @property
+    def motors(self) -> list[BionicMotor]:
+        return [
+            self.pelvis,
+            self.hip,
+            self.thigh,
+            self.knee,
+            self.ankle,
+            self.foot,
+        ]
+    
+    def set_position_incremental(
+        self, increments: list, target_vals: list, thresholds: list
+    ) -> None:
+        state = [False for _ in range(len(self.motors))]
+        position = [part.position for part in self.motors]
+        while not all(state):
+            for idx, part in enumerate(self.motors):
+                sign = math.copysign(1, target_vals[idx] - part.position)
+                if abs(part.position - target_vals[idx]) < thresholds[idx]:
+                    state[idx] = True
+                    position[idx] += 0
+                else:
+                    position[idx] += sign * increments[idx]
+
+                part.update_position(0.001)
+                part.set_position(int(position[idx]), 0, 0)
+
+    def hold_position(self, position: list, timeout: float = 2.0) -> None:
+        cur_time = time.time()
+        print("These are the current pos", position)
+        while time.time() - cur_time < timeout:
+            for idx, part in enumerate(self.motors):
+                part.set_position(int(position[idx]), 0, 0)
+                part.update_position(0.001)
+                if idx == 0:
+                    print(part.position)
+
 
 @dataclass
 class Body:
