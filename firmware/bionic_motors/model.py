@@ -91,11 +91,11 @@ class Leg:
 @dataclass
 class Body:
     # head: Head
-    left_arm: Arm
+    #left_arm: Arm
     # right_arm: Arm
     # waist: BionicMotor
-    # left_leg: Leg
-    # right_leg: Leg
+    left_leg: Leg
+    right_leg: Leg
 
     @property
     def motor_ids(self) -> list[int]:

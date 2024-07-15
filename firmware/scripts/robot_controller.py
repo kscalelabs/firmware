@@ -49,7 +49,7 @@ class Robot:
                 left_arm=self._create_arm("left", start_id=1),
                 right_arm=self._create_arm("right", start_id=7),
                 left_leg=self._create_leg("left", start_id=13),
-                right_leg=self._create_leg("right", start_id=15),
+                right_leg=self._create_leg("right", start_id=19),
             )
         elif self.setup == "left_arm":
             return Body(left_arm=self._create_arm("left", start_id=1))

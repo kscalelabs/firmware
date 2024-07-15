@@ -18,6 +18,7 @@ class ViolenceStrength:
 NORMAL_STRENGTH = ViolenceStrength(
     ARM_PARAMS=ControlParams(kp=75, kd=3),
     GRIPPERS_PARAMS=ControlParams(kp=100, kd=2),
+    LEG_PARAMS=ControlParams(kp=75, kd=3), # NOT REAL VALUES
     # TODO: add more as needed
 )
 
