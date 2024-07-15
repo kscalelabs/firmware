@@ -5,21 +5,17 @@
 #include <pybind11/pybind11.h>
 #include <pybind11/stl_bind.h>
 
+#define TIMEOUT (5) // s
+
 namespace py = pybind11;
 using namespace pybind11::literals;
 
-class Offset()
-
-class Madgwick{
+class Offset{
     private:
-        float beta; // gain
-        IMUMath::Quaternion q;
+        int timeout;
+        float timer;
         IMUMath::Vector gyroOffset;
-
-
     public:
-        Madgwick(float beta=0.1f, IMUMath::Quaternion q=IDENTITY_QUATERNION, gyroOffset=VECTOR_ZERO);
-        void update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vector mag, float dt);
-        IMUMath::Quaternion getQ();
-        IMUMath::Euler getEuler();
+        Offset() : timeout(TIMEOUT), timer(0), gyroOffset(VECTOR_ZERO) {};
+        IMUMath::Vector update(IMUMath::Vector gyro, float dt);
 };

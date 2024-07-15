@@ -12,11 +12,10 @@ class Madgwick{
     private:
         float beta; // gain
         IMUMath::Quaternion q;
-        IMUMath::Vector gyroOffset;
-
+        //IMUMath::Vector gyroOffset;
 
     public:
-        Madgwick(float beta=0.1f, IMUMath::Quaternion q=IDENTITY_QUATERNION, gyroOffset=VECTOR_ZERO);
+        Madgwick(float beta=0.1f, IMUMath::Quaternion q=IDENTITY_QUATERNION);
         void update(IMUMath::Vector gyro, IMUMath::Vector accel, IMUMath::Vector mag, float dt);
         IMUMath::Quaternion getQ();
         IMUMath::Euler getEuler();

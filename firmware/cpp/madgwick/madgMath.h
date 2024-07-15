@@ -68,6 +68,10 @@ static inline Vector Multiply(Vector v, float scalar) {
     return Vector(v.x * scalar, v.y * scalar, v.z * scalar);
 }
 
+static inline Vector Add(Vector v1, Vector v2) {
+    return Vector(v1.x + v2.x, v1.y + v2.y, v1.z + v2.z);
+}
+
 static inline bool VectorEqual(Vector v1, Vector v2) {
     return v1.x == v2.x && v1.y == v2.y && v1.z == v2.z;
 }
