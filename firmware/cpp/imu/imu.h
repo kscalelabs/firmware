@@ -89,12 +89,6 @@ public:
   vector_3d_t<float> getGyrRate();
   vector_3d_t<float> getAccG();
 
-  float getMagYaw();
-
-  vector_3d_t<float> getAngles();
-
-  dof_6_t get6DOF();
-
   vector_3d_t<float> getAngles();
 
   dof_6_t get6DOF();
