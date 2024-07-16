@@ -53,6 +53,16 @@ public:
   T a, b, c, d;
 };
 
+class dof_6_t {
+public:  
+  dof_6_t(float yaw, float pitch, float roll, float x, float y, float z)
+      : yaw(yaw), pitch(pitch), roll(roll), x(x), y(y), z(z) {}
+
+  std::string toString();
+
+  float yaw, pitch, roll, x, y, z;
+};
+
 class angles_t {
 public:
   angles_t(float yaw, float pitch, float roll)
@@ -67,12 +77,18 @@ class IMU {
 public:
   IMU(int bus = 1);
 
+  float getMagYaw();
+
   vector_3d_t<int16_t> readAcc();
   vector_3d_t<int16_t> readMag();
   vector_3d_t<int16_t> readGyr();
 
   vector_2d_t<float> getAccAngle();
   vector_3d_t<float> getGyrRate();
+
+  vector_3d_t<float> getAngles();
+
+  dof_6_t get6DOF();
 
   std::string versionString();
   std::string toString();
@@ -107,7 +123,7 @@ public:
 
 class KalmanFilter {
 public:
-  KalmanFilter(IMU &imu, float qAngle = 0.01, float qGyro = 0.0003,
+  KalmanFilter(IMU &imu, float qAngle = 0.01, float qGyro = 0.0003, float qMag = 0.0001,
                float rAngle = 0.01, float minDt = 0.02);
 
   angles_t step();
@@ -117,6 +133,7 @@ private:
 
   float qAngle;
   float qGyro;
+  float qMag;
   float rAngle;
   float minDt;
 
@@ -127,7 +144,8 @@ private:
 
   vector_4d_t<float> pitchParams;
   vector_4d_t<float> rollParams;
+  vector_4d_t<float> yawParams;
 
   void filterStep(vector_4d_t<float> &p, float accAngle, float gyrRate,
-                  float &kfAngle, float &bias, float dt);
+                  float &kfAngle, float &bias, float dt, bool isAccel);
 };

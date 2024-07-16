@@ -21,6 +21,13 @@ template <typename T> std::string vector_4d_t<T>::toString() {
   return ss.str();
 }
 
+std::string dof_6_t::toString() {
+  std::ostringstream ss;
+  ss << "DoF6<yaw=" << yaw << ", pitch=" << pitch << ", roll=" << roll << ", x=" << x <<", y=" << y <<", z=" << z << ">";
+  return ss.str();
+}
+
+
 std::string angles_t::toString() {
   std::ostringstream ss;
   ss << "Angles<yaw=" << yaw << ", pitch=" << pitch << ", roll=" << roll << ">";
@@ -117,6 +124,32 @@ vector_2d_t<float> IMU::getAccAngle() {
   return {pitch, roll};
 }
 
+float IMU::getMagYaw(){
+
+  vector_2d_t<float> accAngle = getAccAngle();
+  vector_3d_t<int16_t> mag = readMag();
+
+  float pitch = accAngle.x;
+  float roll = accAngle.y;
+
+  // Calculate yaw using magnetometer data - logic taken from https://electronics.stackexchange.com/questions/525266/tilt-compensation-for-yaw-calculation-from-magnetometer-and-accelerometer
+  float mag_x = mag.x * cos(pitch) + mag.z * sin(pitch);
+  float mag_y = mag.x * sin(roll) * sin(pitch) + mag.y * cos(roll) - mag.z * sin(roll) * cos(pitch);
+
+  float yaw = atan2(-mag_y, mag_x) * RAD_TO_DEG;
+  return yaw;
+}
+
+vector_3d_t<float> IMU::getAngles(){
+  vector_2d_t<float> accAngle = getAccAngle();
+
+  float pitch = accAngle.x;
+  float roll = accAngle.y;
+  float yaw = getMagYaw();
+
+  return {yaw, pitch, roll};
+}
+
 vector_3d_t<float> IMU::getGyrRate() {
   vector_3d_t<int16_t> gyr = readGyr();
 
@@ -125,6 +158,13 @@ vector_3d_t<float> IMU::getGyrRate() {
         rollRate = (float)(gyr.z * GYR_GAIN);
 
   return {pitchRate, yawRate, rollRate};
+}
+
+dof_6_t IMU::get6DOF(){
+  vector_3d_t<float> angles = getAngles();
+  vector_3d_t<float> gyrRate = getGyrRate();
+
+  return {angles.x, angles.y, angles.z, gyrRate.x, gyrRate.y, gyrRate.z};
 }
 
 std::string IMU::versionString() {
@@ -332,9 +372,9 @@ ftime_t ftime_t::operator-(const ftime_t &other) {
   return {sec, usec};
 }
 
-KalmanFilter::KalmanFilter(IMU &imu, float qAngle, float qGyro, float rAngle,
+KalmanFilter::KalmanFilter(IMU &imu, float qAngle, float qGyro, float qMag, float rAngle,
                            float minDt)
-    : imu(imu), qAngle(qAngle), qGyro(qGyro), rAngle(rAngle), minDt(minDt),
+    : imu(imu), qAngle(qAngle), qGyro(qGyro), qMag(qMag), rAngle(rAngle), minDt(minDt),
       bias({0.0, 0.0, 0.0}), kfAngle({0.0, 0.0, 0.0}) {}
 
 angles_t KalmanFilter::step() {
@@ -354,22 +394,25 @@ angles_t KalmanFilter::step() {
   vector_2d_t<float> accAngle = imu.getAccAngle();
   vector_3d_t<float> gyrRate = imu.getGyrRate();
 
-  float pitch = accAngle.x, roll = accAngle.y;
-  float pitchRate = gyrRate.x, rollRate = gyrRate.z;
+  float pitch = accAngle.x, roll = accAngle.y, yaw = imu.getMagYaw();
+  float pitchRate = gyrRate.x, rollRate = gyrRate.z, yawRate = gyrRate.y;
 
   // Kalman filter.
-  filterStep(pitchParams, pitch, pitchRate, kfAngle.pitch, bias.pitch, dt);
-  filterStep(rollParams, roll, rollRate, kfAngle.roll, bias.roll, dt);
+  filterStep(pitchParams, pitch, pitchRate, kfAngle.pitch, bias.pitch, dt, true);
+  filterStep(rollParams, roll, rollRate, kfAngle.roll, bias.roll, dt, true);
+  filterStep(yawParams, yaw, yawRate, kfAngle.yaw, bias.yaw, dt, false);
 
   return kfAngle;
 }
 
 void KalmanFilter::filterStep(vector_4d_t<float> &p, float accAngle,
                               float gyrRate, float &kfAngle, float &bias,
-                              float dt) {
+                              float dt, bool isAccel) {
   kfAngle += dt * (gyrRate - bias);
 
-  p.v00() += -dt * (p.v10() + p.v01()) + qAngle * dt;
+  float qAngActual = isAccel ? qAngle : qMag;
+
+  p.v00() += -dt * (p.v10() + p.v01()) + qAngActual * dt;
   p.v01() += -dt * p.v11();
   p.v10() += -dt * p.v11();
   p.v11() += qGyro * dt;
@@ -414,6 +457,16 @@ PYBIND11_MODULE(imu, m) {
       .def_readonly("z", &vector_3d_t<int16_t>::z)
       .def("__str__", &vector_3d_t<int16_t>::toString);
 
+  py::class_<dof_6_t>(m, "DOF6")
+      .def(py::init<float, float, float, float, float, float>(), "yaw"_a, "pitch"_a, "roll"_a, "x"_a, "y"_a, "z"_a)
+      .def_readonly("yaw", &dof_6_t::yaw)
+      .def_readonly("pitch", &dof_6_t::pitch)
+      .def_readonly("roll", &dof_6_t::roll)
+      .def_readonly("x", &dof_6_t::x)
+      .def_readonly("y", &dof_6_t::y)
+      .def_readonly("z", &dof_6_t::z)
+      .def("__str__", &dof_6_t::toString);
+
   py::class_<angles_t>(m, "Angles")
       .def(py::init<float, float, float>(), "yaw"_a, "pitch"_a, "roll"_a)
       .def_readonly("yaw", &angles_t::yaw)
@@ -428,6 +481,7 @@ PYBIND11_MODULE(imu, m) {
       .def("raw_gyr", &IMU::readGyr)
       .def("acc_angle", &IMU::getAccAngle)
       .def("gyr_rate", &IMU::getGyrRate)
+      .def("get_6DOF", &IMU::get6DOF)
       .def_property_readonly("version", &IMU::versionString)
       .def("__str__", &IMU::toString);
 
