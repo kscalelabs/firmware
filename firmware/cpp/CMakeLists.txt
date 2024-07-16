@@ -45,6 +45,10 @@ macro(build_extension)
 endmacro()
 
 # Subprojects.
-add_subdirectory(can)
+if(APPLE)
+  message(WARNING "macOS doesn't support CAN bus")
+else()
+  add_subdirectory(can)
+endif()
 add_subdirectory(imu)
 add_subdirectory(madgwick)

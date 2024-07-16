@@ -6,5 +6,6 @@ typed-argument-parser
 
 # Other
 imufusion
-matplotlib==3.9.1
+matplotlib
 ahrs
+numpy<2.0.0

@@ -15,6 +15,3 @@ pybind11
 
 # Types
 typing_extensions
-
-# Other
-imufusion

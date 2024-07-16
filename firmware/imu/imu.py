@@ -21,8 +21,8 @@ if __name__ == "__main__":
 
 from typing import Any
 
-import imufusion  # type: ignore[import-not-found]
-import numpy as np  # type: ignore[import-not-found]
+import imufusion
+import numpy as np
 
 from firmware.cpp.imu.imu import IMU
 
@@ -37,7 +37,7 @@ class IMUInterface:
         self.offset: imufusion.Offset = imufusion.Offset(3300)
         self.quatOffset: imufusion.Quaternion = imufusion.Quaternion(0, 0, 0, 0)
         self.state: list[Any] = []
-        self.ahrs.settings: imufusion.Settings = imufusion.Settings(
+        self.ahrs.settings = imufusion.Settings(
             imufusion.CONVENTION_NWU,
             0.6,  # gain
             2000,  # gyroscope range
