@@ -65,7 +65,7 @@ class IMUInterface:
     def get_imu(self) -> IMU:
         return self.imu
 
-    def get_imu_data(self) -> list[np.ndarray]:
+    def get_imu_data(self) -> np.ndarray:
         gyro = self.imu.gyr_rate()
         gyro_lsit = np.array([gyro.x, gyro.y, gyro.z])
 
