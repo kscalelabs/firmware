@@ -23,3 +23,5 @@ out*/
 # Virtual environments.
 venv/
 
+# MacOS
+.DS_Store

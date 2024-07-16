@@ -3,3 +3,9 @@
 pyserial
 python-can
 typed-argument-parser
+
+# Other
+imufusion
+matplotlib
+ahrs
+numpy<2.0.0

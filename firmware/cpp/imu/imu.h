@@ -14,6 +14,8 @@
 
 #define GYR_GAIN 0.070
 
+#define ACCEL_GAIN 0.244/1000 //Sensitivity for 8g
+
 namespace py = pybind11;
 
 using namespace pybind11::literals;
@@ -24,7 +26,7 @@ public:
   vector_2d_t(T x, T y) : x(x), y(y) {}
 
   std::string toString();
-
+    
   T x, y;
 };
 
@@ -85,6 +87,7 @@ public:
 
   vector_2d_t<float> getAccAngle();
   vector_3d_t<float> getGyrRate();
+  vector_3d_t<float> getAccG();
 
   vector_3d_t<float> getAngles();
 
