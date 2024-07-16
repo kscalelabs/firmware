@@ -38,6 +38,20 @@ class Robot:
         buffer_reader = can.BufferedReader()
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
+    
+    def test_motors(self):
+        for part, part_config in self.motor_config.items():
+            for motor in part_config['motors']:
+                motor.set_position(0)
+                time.sleep(0.5)
+                motor.set_position(5)
+                time.sleep(0.5)
+                motor.set_position(0)
+                time.sleep(0.5)
+                motor.set_position(-5)
+                time.sleep(0.5)
+                motor.set_position(0)
+                time.sleep(0.5)
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
@@ -84,3 +98,49 @@ class Robot:
                     "offsets": motor_config[part_type]['offsets'],
                 }
         return config
+    
+
+    @staticmethod
+    def filter_motor_values(values: List[float], max_val: List[float]) -> List[float]:
+        for idx, (val, maxes) in enumerate(zip(values, max_val)):
+            if abs(val) > abs(maxes):
+                values[idx] = val // abs(val) * maxes
+
+        return values
+
+
+    def zero_out(self) -> None:
+        for part, part_config in self.motor_config.items():
+            for motor in part_config["motors"]:
+                motor.set_zero_position()
+                time.sleep(0.001)
+                motor.update_position(0.25)
+                logging.info(f"Part {motor.motor_id} at {motor.position}")
+
+    def set_position(self, new_positions: Dict[str, List[float]], offset: Dict[str, List[float]] = None) -> None:
+        for part, positions in new_positions.items():
+            
+            # Check if the part is in the motor config
+            if part not in self.motor_config:
+                raise ValueError(f"Part {part} not in motor config")
+            
+            config = self.motor_config[part]
+
+            if offset:
+                for idx, (pos, off) in enumerate(zip(positions, offset[part])):
+                    positions[idx] = pos - off
+
+            # Process the positions
+            positions = [rad_to_deg(pos) for pos in positions]
+            positions = [val - off for val, off in zip(positions, config["offsets"])]
+            positions = self.filter_motor_values(positions, config["maximum_values"])
+
+            # Check if the change is within the delta change
+            for i, (old, new) in enumerate(zip(self.prev_positions[part], positions)):
+                if abs(new - old) > self.delta_change:
+                    positions[i] = old
+
+            # Set the positions
+            for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
+                motor.set_position(sign * int(pos), 0, 0)
+
