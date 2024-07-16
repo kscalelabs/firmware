@@ -2,23 +2,30 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib.pyplot as plt # type: ignore
+import numpy as np # type: ignore
 import time
-from ahrs.filters import Madgwick
-from ahrs.common.orientation import q2euler
+from ahrs.filters import Madgwick # type: ignore
+from ahrs.common.orientation import q2euler # type: ignore
 from firmware.cpp.imu.imu import IMU
 import math
+
+imu: IMU = None  # type: ignore
+madgwick: Madgwick = None  # type: ignore
+q: np.ndarray = None
+start: float = 0 
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAG_TO_NANO_TSLA = 0.0001 * 1000000000
 DEG_TO_RAD = 3.14159268/180
 MAX_WINDOW = 100 # data points
 
-def read_quat(quat):
+def read_quat(quat) -> str: # type: ignore
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
-def get_imu_data():
+def get_imu_data() -> list[np.ndarray]:
+    global imu
+
     gyro = imu.gyr_rate()
 
     acc = imu.acc_g()
@@ -30,12 +37,14 @@ def get_imu_data():
             np.array([mag.x*MAG_TO_NANO_TSLA, mag.y*MAG_TO_NANO_TSLA,mag.z*MAG_TO_NANO_TSLA])]
 
         
-def console(args):
-    last = time.time()
-    printTime = 0
+def console(args: argparse.Namespace) ->  None:
+    global madgwick, q
+
+    last : float = time.time()
+    printTime : float = 0
     while True:
-        current = time.time()
-        elapsed = current - last
+        current : float = time.time()
+        elapsed : float = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
         q = madgwick.updateMARG(q, gyroscope, accelerometer, magnetometer, elapsed)
@@ -49,8 +58,10 @@ def console(args):
         last = current
         printTime += elapsed
 
-def live_plot(args):
-    def plotter(axs, lines, new_data, time):
+def live_plot(args: argparse.Namespace) -> None:
+    global imu, madgwick, q, start
+    
+    def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
             
@@ -101,7 +112,7 @@ def live_plot(args):
         plotter(axs, lines, data, current - start)
         last = current
 
-def radToDegrees(angles):
+def radToDegrees(angles : list[float]) -> list[float]:
     return [math.degrees(angle) for angle in angles]
 
 def main() -> None:
@@ -115,14 +126,14 @@ def main() -> None:
     parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
     args = parser.parse_args()
 
-    global imu, madgwick, offset, start, q
+    global imu, madgwick, offset, start, q  #type: ignore
 
-    start = time.time()
+    start = time.time() # type: ignore
 
-    imu = IMU(args.bus)
+    imu = IMU(args.bus) # type: ignore
 
-    madgwick = Madgwick()
-    q = np.array([0.7071, 0.0, 0.7071, 0.0])
+    madgwick = Madgwick() # type: ignore
+    q = np.array([0.7071, 0.0, 0.7071, 0.0]) # type: ignore
 
     if args.plot:
         live_plot(args)
@@ -130,4 +141,5 @@ def main() -> None:
         console(args)
         
 if __name__ == "__main__":
+
     main()
