@@ -22,11 +22,12 @@ def rad_to_deg(rad: float) -> float:
     return rad / math.pi * 180
 
 class Robot:
-    def __init__(self, config_path: str = "config.yaml") -> None:
+    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
         with open(config_path, 'r') as config_file:
-            self.config = yaml.safe_load(config_file)['robot']
-
-        self.setup = self.config['setup']
+            for robot in yaml.safe_load(config_file)['robots']:
+                if robot['setup'] == setup:
+                    self.config = robot
+        self.setup = setup
         self.delta_change = self.config['delta_change']
         self.can_bus = self._initialize_can_bus()
         self.body = self._initialize_body()
@@ -41,17 +42,17 @@ class Robot:
     
     def test_motors(self):
         for part, part_config in self.motor_config.items():
-            for motor in part_config['motors']:
-                motor.set_position(0)
+            print(f"testing {part}")
+            for motor, sign in zip(part_config['motors'], part_config['signs']):
+                print(f"testing {motor} w/ sign {sign}")
+                for i in range(0,600):
+                    motor.set_position(sign*i/10.0, 0, 0)
+                    time.sleep(0.001)
                 time.sleep(0.5)
-                motor.set_position(5)
-                time.sleep(0.5)
-                motor.set_position(0)
-                time.sleep(0.5)
-                motor.set_position(-5)
-                time.sleep(0.5)
-                motor.set_position(0)
-                time.sleep(0.5)
+                for i in range(600,0):
+                    motor.set_position(sign*i/10, 0, 0)
+            time.sleep(1)
+
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}

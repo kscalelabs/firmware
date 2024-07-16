@@ -67,7 +67,7 @@ class Arm:
                 if idx == 0:
                     print(part.position)
 
-
+@dataclass
 class Leg:
     pelvis: BionicMotor
     hip: BionicMotor
