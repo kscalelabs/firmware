@@ -16,33 +16,25 @@ def main() -> None:
     parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
     parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
     parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
-    parser.add_argument("--plot", type=bool, default=True, help="Display a live plot of the readings")
-    parser.add_argument("--print", type=bool, default=True, help="Print out readings")
+    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
     args = parser.parse_args()
 
     imu = IMU(args.bus)
     kf = KalmanFilter(imu, min_dt=args.dt)
     if args.plot:
         live_plot(args, imu, kf)
-    elif args.print:
-        console(args, imu, kf)
+    else:
+        console(imu, kf)
 
 
-def console(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:
-    print_time = 0
+def console(imu: IMU, kf: KalmanFilter) -> None:
 
     while True:
         kf.step()
-
-        if print_time > args.delay:
-            # print(imu.acc_angle() if args.raw else angle)
-            # print(imu.gyr_rate())
-            print(imu.get_6DOF())
-            print_time = 0
-        print_time += args.dt
+        print(imu.get_6DOF())
 
 
-def live_plot(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:  # type: ignore[no-untyped-def ]
+def live_plot(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:
     def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
@@ -71,8 +63,7 @@ def live_plot(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:  # 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
         data = [angle.yaw, angle.pitch, angle.roll, dof6.z, dof6.x, dof6.y]
 
-        if args.print:
-            print(dict(zip(["Yaw", "Pitch", "Roll", "z", "y", "x"], data)))
+        print(dict(zip(["Yaw", "Pitch", "Roll", "z", "y", "x"], data)))
 
         plotter(axs, lines, data, time.time())
 

@@ -88,6 +88,18 @@ while True:
 #### END VED CODE
 
 #### BEGIN GRIPPER CODE
+# motor = TestModel.left_arm.gripper
 
+# while True:
+#     end_time = time.time() + 4
+#     while time.time() < end_time:
+#         time.sleep(0.005)
+#         motor.set_position(-120, 0, 0)
+#     # time.sleep(2)
+#     end_time = time.time() + 4
+#     while time.time() < end_time:
+#         time.sleep(0.005)
+#         motor.set_position(0, 0, 0)
+#     # time.sleep(2)
 
 #### END GRIPPER CODE
