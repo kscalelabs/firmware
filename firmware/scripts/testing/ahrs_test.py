@@ -2,16 +2,19 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
-import time
-from ahrs.filters import Madgwick  # type: ignore
-from ahrs.common.orientation import q2euler  # type: ignore
-from firmware.cpp.imu.imu import IMU
 import math
+import time
+from typing import Any
 
-imu: IMU = None  # type: ignore
-madgwick: Madgwick = None  # type: ignore
+import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+import numpy as np  # type: ignore[import-not-found]
+from ahrs.common.orientation import q2euler  # type: ignore[import-not-found]
+from ahrs.filters import Madgwick  # type: ignore[import-not-found]
+
+from firmware.cpp.imu.imu import IMU
+
+imu: IMU = IMU(0)  # type: ignore[import-not-found]
+madgwick: Madgwick = None  # type: ignore[import-not-found]
 q: np.ndarray = None
 start: float = 0
 
@@ -21,13 +24,11 @@ DEG_TO_RAD = 3.14159268 / 180
 MAX_WINDOW = 100  # data points
 
 
-def read_quat(quat) -> str:  # type: ignore
+def read_quat(quat: Any) -> str:  # type: ignore[no-untyped-def]
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
 
 def get_imu_data() -> list[np.ndarray]:
-    global imu
-
     gyro = imu.gyr_rate()
 
     acc = imu.acc_g()
@@ -42,29 +43,27 @@ def get_imu_data() -> list[np.ndarray]:
 
 
 def console(args: argparse.Namespace) -> None:
-    global madgwick, q
-
+    global q
     last: float = time.time()
-    printTime: float = 0
+    print_time: float = 0
     while True:
         current: float = time.time()
         elapsed: float = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
         q = madgwick.updateMARG(q, gyroscope, accelerometer, magnetometer, elapsed)
-        if printTime > 0.5:
+        if print_time > 0.5:
             if args.quat:
                 print(q)
 
             else:
-                print(radToDegrees(q2euler(q)))
-            printTime = 0
+                print(rad_to_degrees(q2euler(q)))
+            print_time = 0
         last = current
-        printTime += elapsed
+        print_time += elapsed
 
 
 def live_plot(args: argparse.Namespace) -> None:
-    global imu, madgwick, q, start
 
     def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
@@ -107,7 +106,7 @@ def live_plot(args: argparse.Namespace) -> None:
         angle = madgwick.updateMARG(q, gyroscope, accelerometer, magnetometer)
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [*radToDegrees(q2euler(q)), dof6.x, dof6.y, dof6.z]  # x=pitch, y=roll, z=yaw
+        data = [*rad_to_degrees(q2euler(q)), dof6.x, dof6.y, dof6.z]  # x=pitch, y=roll, z=yaw
 
         if args.print and not args.quat:
             print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))
@@ -117,7 +116,7 @@ def live_plot(args: argparse.Namespace) -> None:
         last = current
 
 
-def radToDegrees(angles: list[float]) -> list[float]:
+def rad_to_degrees(angles: list[float]) -> list[float]:
     return [math.degrees(angle) for angle in angles]
 
 
@@ -132,14 +131,12 @@ def main() -> None:
     parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
     args = parser.parse_args()
 
-    global imu, madgwick, offset, start, q  # type: ignore
+    global imu, madgwick, q  # type: ignore[PGH003]
 
-    start = time.time()  # type: ignore
+    imu = IMU(args.bus)  # type: ignore[PGH003]
 
-    imu = IMU(args.bus)  # type: ignore
-
-    madgwick = Madgwick()  # type: ignore
-    q = np.array([0.7071, 0.0, 0.7071, 0.0])  # type: ignore
+    madgwick = Madgwick()  # type: ignore[PGH003]
+    q = np.array([0.7071, 0.0, 0.7071, 0.0])  # type: ignore[PGH003]
 
     if args.plot:
         live_plot(args)

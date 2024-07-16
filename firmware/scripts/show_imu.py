@@ -2,9 +2,10 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
 import time
+
+import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+import numpy as np  # type: ignore[import-not-found]
 
 from firmware.cpp.imu.imu import IMU, KalmanFilter
 
@@ -27,21 +28,21 @@ def main() -> None:
         console(args, imu, kf)
 
 
-def console(args: argparse.Namespace, imu, kf):  # type: ignore
-    printTime = 0
+def console(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:
+    print_time = 0
 
     while True:
-        angle = kf.step()
+        kf.step()
 
-        if printTime > args.delay:
+        if print_time > args.delay:
             # print(imu.acc_angle() if args.raw else angle)
             # print(imu.gyr_rate())
             print(imu.get_6DOF())
-            printTime = 0
-        printTime += args.dt
+            print_time = 0
+        print_time += args.dt
 
 
-def live_plot(args, imu, kf):  # type: ignore
+def live_plot(args: argparse.Namespace, imu: IMU, kf: KalmanFilter) -> None:  # type: ignore[no-untyped-def ]
     def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
@@ -64,13 +65,8 @@ def live_plot(args, imu, kf):  # type: ignore
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Degrees" if "Angle" in label else "Degrees/s")
 
-    last = time.time()
     while True:
-        current = time.time()
-
         angle = kf.step()
-
-        elapsed = current - last
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
         data = [angle.yaw, angle.pitch, angle.roll, dof6.z, dof6.x, dof6.y]
@@ -79,7 +75,6 @@ def live_plot(args, imu, kf):  # type: ignore
             print(dict(zip(["Yaw", "Pitch", "Roll", "z", "y", "x"], data)))
 
         plotter(axs, lines, data, time.time())
-        last = current
 
 
 if __name__ == "__main__":

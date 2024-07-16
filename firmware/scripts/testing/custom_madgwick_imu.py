@@ -2,21 +2,23 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
 import time
+from typing import Any
+
+import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+import numpy as np  # type: ignore[import-not-found]
 
 from firmware.cpp.imu.imu import IMU
-from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler  # type: ignore
-from firmware.cpp.madgwick.offset import Offset  # type: ignore
+from firmware.cpp.madgwick.madgwick import Madgwick, Vector  # type: ignore[import-not-found]
+from firmware.cpp.madgwick.offset import Offset  # type: ignore[import-not-found]
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAG_TO_NANO_TSLA = 0.0001 * 1000000000
 DEG_TO_RAD = 3.14159268 / 180
 MAX_WINDOW = 100  # data points
 
-imu: IMU = None  # type: ignore
-ahrs: Madgwick = None  # type: ignore
+imu: IMU = IMU(0)  # type: ignore[no-untyped-def]
+ahrs: Madgwick = None  # type: ignore[PGH003]
 offset: np.ndarray = None
 start: float = 0
 
@@ -49,7 +51,7 @@ def main() -> None:
         console(args)
 
 
-def read_quat(quat):  # type: ignore
+def read_quat(quat: Any) -> str:  # type: ignore[no-untyped-def]
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
 
@@ -70,22 +72,22 @@ def get_imu_data(dt: float) -> list[np.ndarray]:
 
 def console(args: argparse.Namespace) -> None:
     last = time.time()
-    printTime: float = 0
+    print_time: float = 0
     while True:
         current = time.time()
         elapsed = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data(elapsed)
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
-        if printTime > 0.5:
+        if print_time > 0.5:
             if args.quat:
                 print(read_quat(ahrs.getQ()))
 
             else:
                 print(ahrs.getEuler())
-            printTime = 0
+            print_time = 0
         last = current
-        printTime += elapsed
+        print_time += elapsed
 
 
 def live_plot(args: argparse.Namespace) -> None:

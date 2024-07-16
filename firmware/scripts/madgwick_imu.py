@@ -2,11 +2,12 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt  # type: ignore
-import numpy as np  # type: ignore
 import time
+from typing import Any
 
-import imufusion  # type: ignore
+import imufusion  # type: ignore[import-not-found]
+import matplotlib.pyplot as plt  # type: ignore[import-not-found]
+import numpy as np  # type: ignore[import-not-found]
 
 from firmware.cpp.imu.imu import IMU
 
@@ -14,39 +15,39 @@ MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAX_WINDOW = 100  # data points
 
 
-def read_quat(quat) -> str:  # type: ignore
+def read_quat(quat: Any) -> str:  # type: ignore[no-untyped-def]
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
 
 def get_imu_data() -> list[np.ndarray]:
     gyro = imu.gyr_rate()
-    gyroList = np.array([gyro.x, gyro.y, gyro.z])
+    gyro_list = np.array([gyro.x, gyro.y, gyro.z])
 
     acc = imu.acc_g()
 
     mag = imu.read_mag()
-    magList = [mag.x, mag.y, mag.z]
-    return np.array([offset.update(gyroList), [acc.x, acc.y, acc.z], [val * MAG_TO_MCRO_TSLA for val in magList]])
+    mag_list = [mag.x, mag.y, mag.z]
+    return np.array([offset.update(gyro_list), [acc.x, acc.y, acc.z], [val * MAG_TO_MCRO_TSLA for val in mag_list]])
 
 
 def console(args: argparse.Namespace) -> None:
     last = time.time()
-    printTime: float = 0
+    print_time: float = 0
     while True:
         current = time.time()
         elapsed = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
-        if printTime > 0.5:
+        if print_time > 0.5:
             if args.quat:
                 print(read_quat(ahrs.quaternion))
 
             else:
                 print(ahrs.quaternion.to_euler())
-            printTime = 0
+            print_time = 0
         last = current
-        printTime += elapsed
+        print_time += elapsed
 
 
 def live_plot(args: argparse.Namespace) -> None:
@@ -100,8 +101,8 @@ def live_plot(args: argparse.Namespace) -> None:
         last = current
 
 
-imu: IMU = None  # type: ignore
-ahrs: Madgwick = None  # type: ignore
+imu: IMU = IMU(0)  # type: ignore[PGH003]
+ahrs: Any = None  # type: ignore[name-defined]
 offset: np.ndarray = None
 start: float = 0
 
