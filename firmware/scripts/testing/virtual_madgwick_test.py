@@ -1,4 +1,4 @@
-from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler
+from firmware.cpp.madgwick.madgwick import Madgwick, Vector, Quaternion, Euler  # type: ignore
 
 
 dt = 0.01
@@ -11,4 +11,4 @@ yaw = 0
 
 print("Upright")
 for i in range(1000):
-    ahrs.update(Vector(0,0,0), Vector(0,0,0), Vector(0,0,0))
+    ahrs.update(Vector(0, 0, 0), Vector(0, 0, 0), Vector(0, 0, 0))

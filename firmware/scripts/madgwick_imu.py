@@ -2,43 +2,43 @@
 """Simple script to log the IMU values."""
 
 import argparse
-import matplotlib.pyplot as plt
-import numpy as np
+import matplotlib.pyplot as plt  # type: ignore
+import numpy as np  # type: ignore
 import time
 
-import imufusion
+import imufusion  # type: ignore
 
 from firmware.cpp.imu.imu import IMU
 
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
-MAX_WINDOW = 100 # data points
+MAX_WINDOW = 100  # data points
 
-def read_quat(quat):
+
+def read_quat(quat) -> str:  # type: ignore
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
-def get_imu_data():
+
+def get_imu_data() -> list[np.ndarray]:
     gyro = imu.gyr_rate()
     gyroList = np.array([gyro.x, gyro.y, gyro.z])
 
     acc = imu.acc_g()
 
-    mag = imu.read_mag() 
+    mag = imu.read_mag()
     magList = [mag.x, mag.y, mag.z]
-    return np.array([offset.update(gyroList),
-                     [acc.x, acc.y, acc.z],
-                     [val * MAG_TO_MCRO_TSLA for val in magList]])
+    return np.array([offset.update(gyroList), [acc.x, acc.y, acc.z], [val * MAG_TO_MCRO_TSLA for val in magList]])
 
-        
-def console(args):
+
+def console(args: argparse.Namespace) -> None:
     last = time.time()
-    printTime = 0
+    printTime: float = 0
     while True:
         current = time.time()
         elapsed = current - last
 
         gyroscope, accelerometer, magnetometer = get_imu_data()
         ahrs.update(gyroscope, accelerometer, magnetometer, elapsed)
-        if(printTime > 0.5):
+        if printTime > 0.5:
             if args.quat:
                 print(read_quat(ahrs.quaternion))
 
@@ -48,11 +48,12 @@ def console(args):
         last = current
         printTime += elapsed
 
-def live_plot(args):
-    def plotter(axs, lines, new_data, time):
+
+def live_plot(args: argparse.Namespace) -> None:
+    def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
-            
+
             x_data = np.append(x_data, time)
             y_data = np.append(y_data, data)
 
@@ -62,23 +63,22 @@ def live_plot(args):
             line.set_xdata(x_data)
             line.set_ydata(y_data)
             ax.relim()
-            ax.set_ylim(-190,190)
+            ax.set_ylim(-190, 190)
             ax.autoscale_view(True, True, True)
         plt.pause(0.001)
-
 
     # Setup live plotting
     fig, axs = plt.subplots(2, 3)  # 3 angles and 3 angular velocities
     plt.ion()
     fig.show()
     fig.canvas.draw()
-    labels = ['Pitch', 'Roll', 'Yaw', 'Angular Velocity 1', 'Angular Velocity 2', 'Angular Velocity 3']
+    labels = ["Pitch", "Roll", "Yaw", "Angular Velocity 1", "Angular Velocity 2", "Angular Velocity 3"]
 
     lines = [ax.plot([], [])[0] for ax in axs.flat]
     for ax, label in zip(axs.flat, labels):
         ax.set_title(label)
-        ax.set_xlabel('Time (s)')
-        ax.set_ylabel('Degrees' if 'Angle' in label else 'Degrees/s')
+        ax.set_xlabel("Time (s)")
+        ax.set_ylabel("Degrees" if "Angle" in label else "Degrees/s")
 
     last = time.time()
     while True:
@@ -90,7 +90,7 @@ def live_plot(args):
         angle = ahrs.quaternion.to_euler()
 
         dof6 = imu.get_6DOF()  # Expected to return a list of 6 values
-        data = [angle[0], angle[1], angle[2], dof6.x, dof6.y, dof6.z] #x=pitch, y=roll, z=yaw
+        data = [angle[0], angle[1], angle[2], dof6.x, dof6.y, dof6.z]  # x=pitch, y=roll, z=yaw
 
         if args.print and not args.quat:
             print(dict(zip(["Yaw", "Pitch", "Roll", "x", "y", "z"], data)))
@@ -98,6 +98,13 @@ def live_plot(args):
             print(read_quat(ahrs.quaternion))
         plotter(axs, lines, data, current - start)
         last = current
+
+
+imu: IMU = None  # type: ignore
+ahrs: Madgwick = None  # type: ignore
+offset: np.ndarray = None
+start: float = 0
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Log the IMU values.")
@@ -119,20 +126,23 @@ def main() -> None:
     # Process sensor data
     ahrs = imufusion.Ahrs()
 
-    #Gyro calibration
+    # Gyro calibration
     offset = imufusion.Offset(3300)
 
-    ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
-                                       0.6,  # gain
-                                       2000,  # gyroscope range
-                                       90,  # acceleration rejection
-                                       90,  # magnetic rejection
-                                       0)  # recovery trigger period
+    ahrs.settings = imufusion.Settings(
+        imufusion.CONVENTION_NWU,
+        0.6,  # gain
+        2000,  # gyroscope range
+        90,  # acceleration rejection
+        90,  # magnetic rejection
+        0,
+    )  # recovery trigger period
 
     if args.plot:
         live_plot(args)
     elif args.print:
         console(args)
+
 
 if __name__ == "__main__":
     main()
