@@ -10,45 +10,8 @@ import imufusion
 
 from firmware.cpp.imu.imu import IMU
 
-
 MAG_TO_MCRO_TSLA = 0.0001 * 1000000
 MAX_WINDOW = 100 # data points
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Log the IMU values.")
-    parser.add_argument("--dt", type=float, default=0.02, help="The time step between measurements")
-    parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
-    parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
-    parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
-    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
-    parser.add_argument("--no-print", dest="print", default=True, action="store_false", help="Print out readings")
-    parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
-    args = parser.parse_args()
-
-    global imu, ahrs, offset, start
-
-    start = time.time()
-
-    imu = IMU(args.bus)
-
-    # Process sensor data
-    ahrs = imufusion.Ahrs()
-
-    #Gyro calibration
-    offset = imufusion.Offset(3300)
-
-    ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
-                                       0.6,  # gain
-                                       2000,  # gyroscope range
-                                       90,  # acceleration rejection
-                                       90,  # magnetic rejection
-                                       0)  # recovery trigger period
-
-    if args.plot:
-        live_plot(args)
-    elif args.print:
-        console(args)
 
 def read_quat(quat):
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
@@ -135,6 +98,41 @@ def live_plot(args):
             print(read_quat(ahrs.quaternion))
         plotter(axs, lines, data, current - start)
         last = current
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Log the IMU values.")
+    parser.add_argument("--dt", type=float, default=0.02, help="The time step between measurements")
+    parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
+    parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
+    parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
+    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
+    parser.add_argument("--no-print", dest="print", default=True, action="store_false", help="Print out readings")
+    parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
+    args = parser.parse_args()
+
+    global imu, ahrs, offset, start
+
+    start = time.time()
+
+    imu = IMU(args.bus)
+
+    # Process sensor data
+    ahrs = imufusion.Ahrs()
+
+    #Gyro calibration
+    offset = imufusion.Offset(3300)
+
+    ahrs.settings = imufusion.Settings(imufusion.CONVENTION_NWU,
+                                       0.6,  # gain
+                                       2000,  # gyroscope range
+                                       90,  # acceleration rejection
+                                       90,  # magnetic rejection
+                                       0)  # recovery trigger period
+
+    if args.plot:
+        live_plot(args)
+    elif args.print:
+        console(args)
 
 if __name__ == "__main__":
     main()

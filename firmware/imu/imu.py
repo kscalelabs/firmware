@@ -1,7 +1,3 @@
-import numpy as np
-import time
-import imufusion
-from firmware.cpp.imu.imu import IMU
 '''
 Example usage:
 from firmware.imu.imu import IMUInterface
@@ -22,6 +18,11 @@ if __name__ == "__main__":
     main()
 
 '''
+
+import numpy as np
+import time
+import imufusion
+from firmware.cpp.imu.imu import IMU
 
 class IMUInterface:
     MAG_TO_MCRO_TSLA = 0.0001 * 1000000

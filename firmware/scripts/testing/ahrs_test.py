@@ -15,34 +15,6 @@ MAG_TO_NANO_TSLA = 0.0001 * 1000000000
 DEG_TO_RAD = 3.14159268/180
 MAX_WINDOW = 100 # data points
 
-def radToDegrees(angles):
-    return [math.degrees(angle) for angle in angles]
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Log the IMU values.")
-    parser.add_argument("--dt", type=float, default=0.02, help="The time step between measurements")
-    parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
-    parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
-    parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
-    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
-    parser.add_argument("--no-print", dest="print", default=True, action="store_false", help="Print out readings")
-    parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
-    args = parser.parse_args()
-
-    global imu, madgwick, offset, start, q
-
-    start = time.time()
-
-    imu = IMU(args.bus)
-
-    madgwick = Madgwick()
-    q = np.array([0.7071, 0.0, 0.7071, 0.0])
-
-    if args.plot:
-        live_plot(args)
-    elif args.print:
-        console(args)
-
 def read_quat(quat):
     return f"({quat.w}, {quat.x}, {quat.y}, {quat.z})"
 
@@ -129,5 +101,33 @@ def live_plot(args):
         plotter(axs, lines, data, current - start)
         last = current
 
+def radToDegrees(angles):
+    return [math.degrees(angle) for angle in angles]
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Log the IMU values.")
+    parser.add_argument("--dt", type=float, default=0.02, help="The time step between measurements")
+    parser.add_argument("--bus", type=int, default=1, help="The I2C bus number")
+    parser.add_argument("--raw", default=False, action="store_true", help="Print raw values")
+    parser.add_argument("--delay", type=float, default=0.2, help="How often to print readings")
+    parser.add_argument("--plot", default=False, action="store_true", help="Display a live plot of the readings")
+    parser.add_argument("--no-print", dest="print", default=True, action="store_false", help="Print out readings")
+    parser.add_argument("--quat", default=False, action="store_true", help="Print quaternion representation")
+    args = parser.parse_args()
+
+    global imu, madgwick, offset, start, q
+
+    start = time.time()
+
+    imu = IMU(args.bus)
+
+    madgwick = Madgwick()
+    q = np.array([0.7071, 0.0, 0.7071, 0.0])
+
+    if args.plot:
+        live_plot(args)
+    elif args.print:
+        console(args)
+        
 if __name__ == "__main__":
     main()
