@@ -496,7 +496,6 @@ PYBIND11_MODULE(imu, m) {
       .def("read_gyr", &IMU::readGyr)
       .def("read_acc", &IMU::readAcc)
       .def("read_mag", &IMU::readMag)
-      .def("get_6DOF", &IMU::get6DOF)
       .def_property_readonly("version", &IMU::versionString)
       .def("__str__", &IMU::toString);
 
