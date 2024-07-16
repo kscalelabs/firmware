@@ -3,6 +3,7 @@
 import math
 import time
 from dataclasses import dataclass
+from typing import Optional
 
 from firmware.bionic_motors.motors import BionicMotor
 
@@ -129,11 +130,11 @@ class Leg:
 @dataclass
 class Body:
     # head: Head
-    #left_arm: Arm
-    # right_arm: Arm
+    left_arm: Optional[Arm] = None
+    right_arm: Optional[Arm] = None
     # waist: BionicMotor
-    left_leg: Leg
-    right_leg: Leg
+    left_leg: Optional[Leg] = None
+    right_leg: Optional[Leg] = None
 
     @property
     def motor_ids(self) -> list[int]:

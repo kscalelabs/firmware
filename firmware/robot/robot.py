@@ -44,15 +44,19 @@ class Robot:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config['motors'], part_config['signs']):
-                print(f"testing {motor} w/ sign {sign}")
-                for i in range(0,600):
-                    motor.set_position(sign*i/10.0, 0, 0)
-                    time.sleep(0.001)
-                time.sleep(0.5)
-                for i in range(600,0):
-                    motor.set_position(sign*i/10, 0, 0)
+                self.test_motor(motor, sign)
             time.sleep(1)
-
+    
+    def test_motor(self, motor: BionicMotor, sign: int = 1, low: int = 0,high: int = 60, increment: float = 0.1, delay: float = 0.001, turnDelay: float = 5.5) -> None:
+        print(f"testing {motor} w/ sign {sign}")
+        print(BionicMotor.can_messages)
+        for i in range((int) (1/increment) * low, (int) (1/increment) * high):
+            motor.set_position(int(sign*i*increment),0,0)
+            time.sleep(delay)
+        time.sleep(turnDelay)
+        for i in range((int) (1/increment) * high, (int) (1/increment) * low):
+            motor.set_position(int(sign*i*increment), 0, 0)
+            time.sleep(delay)
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
