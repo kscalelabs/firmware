@@ -64,7 +64,7 @@ def run_leg():
     prev_state = state
     min_threshold = 3
     positions = [0, 0, 0, 0, 0, 0]  # running positions
-    increments = [-0.7, 0.2, 0.3, -0.5, 0, 0]  # per tick increment size
+    increments = [-0.7, 0.2, 0.3, -0.5, 0.2, 0.1]  # per tick increment size
     max_thresholds = [-90, 0, 30, 0, 0, 0]  # max angle for arm raise
     min_angle = [15, 0, 0, 0, 0, 0]  # angle before next motor can move
     while True:

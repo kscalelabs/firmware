@@ -47,15 +47,14 @@ class Robot:
                 self.test_motor(motor, sign)
             time.sleep(1)
     
-    def test_motor(self, motor: BionicMotor, sign: int = 1, low: int = 0,high: int = 60, increment: float = 0.1, delay: float = 0.001, turnDelay: float = 5.5) -> None:
+    def test_motor(self, motor: BionicMotor, sign: int = 1, low: int = 0,high: int = 60, increment: float = 0.1, delay: float = 0.001, turnDelay: float = 0.5) -> None:
         print(f"testing {motor} w/ sign {sign}")
-        print(BionicMotor.can_messages)
         for i in range((int) (1/increment) * low, (int) (1/increment) * high):
             motor.set_position(int(sign*i*increment),0,0)
             time.sleep(delay)
         time.sleep(turnDelay)
-        for i in range((int) (1/increment) * high, (int) (1/increment) * low):
-            motor.set_position(int(sign*i*increment), 0, 0)
+        for j in range((int) (1/increment) * high, (int) (1/increment) * low, -1):
+            motor.set_position(int(sign*j*increment), 0, 0)
             time.sleep(delay)
 
     def _initialize_body(self) -> Body:
@@ -80,8 +79,8 @@ class Robot:
 
     def _create_leg(self, side: str, start_id: int) -> Leg:
         return Leg(
-            pelvis=BionicMotor(start_id, NORMAL_STRENGTH.LEG_PARAMS, self.can_bus),
-            hip=BionicMotor(start_id + 1, NORMAL_STRENGTH.LEG_PARAMS, self.can_bus),
+            pelvis=BionicMotor(start_id, NORMAL_STRENGTH.LEG_PARAMS_HEAVY, self.can_bus),
+            hip=BionicMotor(start_id + 1, NORMAL_STRENGTH.LEG_PARAMS_HEAVY, self.can_bus),
             thigh=BionicMotor(start_id + 2, NORMAL_STRENGTH.LEG_PARAMS, self.can_bus),
             knee=BionicMotor(start_id + 3, NORMAL_STRENGTH.LEG_PARAMS, self.can_bus),
             ankle=BionicMotor(start_id + 4, NORMAL_STRENGTH.LEG_PARAMS, self.can_bus),
@@ -118,9 +117,6 @@ class Robot:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
                 motor.set_zero_position()
-                time.sleep(0.001)
-                motor.update_position(0.25)
-                logging.info(f"Part {motor.motor_id} at {motor.position}")
 
     def set_position(self, new_positions: Dict[str, List[float]], offset: Dict[str, List[float]] = None) -> None:
         for part, positions in new_positions.items():
