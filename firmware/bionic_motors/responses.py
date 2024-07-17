@@ -1,6 +1,7 @@
 """Takes in responses from the Q&A return type and interprets them."""
 
 import struct
+from typing import Dict, Union
 
 # Defintions
 
@@ -67,8 +68,8 @@ def position_speed_message(msg: bytes) -> dict:
     motor_pos = int.from_bytes(msg[1:3], "big")
     motor_speed = int.from_bytes(msg[3:5], "big") >> 4
     motor_current = int.from_bytes(msg[4:6], "big") & 0xFFF
-    motor_temp = ((msg[6]) - 50) / 2
-    motor_mos_temp = ((msg[7]) - 50) / 2
+    motor_temp: int = int(((msg[6]) - 50) / 2)
+    motor_mos_temp: int = int(((msg[7]) - 50) / 2)
 
     return {
         "Message Type": 1,
@@ -217,7 +218,7 @@ def valid_message(msg: bytes) -> bool:
     return get_message_type(msg) in MESSAGE_MAP
 
 
-def read_result(msg: bytes) -> dict:
+def read_result(msg: bytes) -> Union[Dict, None]:
     """Reads the result of the message and returns a list of the results regardless of Message Type.
 
     Args:
@@ -234,5 +235,5 @@ def read_result(msg: bytes) -> dict:
 
 
 if __name__ == "__main__":
-    vector = [0xA0, 0x01, 0x39, 0xF7, 0x24, 0x7D]
+    vector = bytes([0xA0, 0x01, 0x39, 0xF7, 0x24, 0x7D])
     print(read_result(vector))

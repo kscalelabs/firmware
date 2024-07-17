@@ -255,4 +255,4 @@ def debug(command: bytes) -> List[str]:
 
 if __name__ == "__main__":
     # python - m firmware.motors.bionic_motor
-    print(debug(set_zero_position(1)))
+    print(debug(bytes(set_zero_position(1))))

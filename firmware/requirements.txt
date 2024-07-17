@@ -3,8 +3,9 @@
 pyserial
 python-can
 typed-argument-parser
+pyyaml
 
-# Other
+# IMU
 imufusion
 matplotlib
 ahrs

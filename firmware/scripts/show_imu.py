@@ -28,7 +28,6 @@ def main() -> None:
 
 
 def console(imu: IMU, kf: KalmanFilter) -> None:
-
     while True:
         kf.step()
         print(imu.get_6DOF())
