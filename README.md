@@ -29,7 +29,6 @@ conda activate firmware
 make install-dev
 ```
 
-
 ### Raspberry Pi 4
 
 Set up the CAN bus (this might already be happening in a `systemctl` service):
@@ -54,4 +53,11 @@ Run the console for interfacing with motors:
 
 ```bash
 python -m firmware.scripts.single_motor
+```
+
+
+### Development
+To test C++ code and bindings quickly, run:
+```bash
+make build-ext
 ```

@@ -40,6 +40,7 @@ exclude = ["firmware/bionic_motors/", "firmware/motors_sync/", "firmware/scripts
 [[tool.mypy.overrides]]
 
 module = [
+    "imufusion.*",
     "torchaudio.*",
     "torchvision.*",
     "transformers.*",

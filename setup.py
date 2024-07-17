@@ -195,7 +195,7 @@ setup(
     version=version,
     description="The firmware project",
     author="Benjamin Bolte",
-    url="https///github.com/dpshai/firmware",
+    url="https///github.com/kscalelabs/firmware",
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.9",
