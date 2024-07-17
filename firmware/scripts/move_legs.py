@@ -43,30 +43,8 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
     last_errors: List[int] = [0, 0, 0, 0, 0, 0]
     def calculate_motor_current(pos_desired: int, pos_current: int,
                                 speed_desired: int, speed_current: int,
-                                torque_ff, integral_err_key, kp=1, ki=1, kd=1.5, kt=10) -> int:
-        #control_effort = (kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff) / kt
-        #return control_effort
-
-        current_t = time.time()  
-        dt = current_t - last_t
-        last_t = current_t      
-        pos_error = pos_desired - pos_current
-
-        speed_error = speed_desired - speed_current
-
-        p_term = kp * pos_error
-
-        integral_errors[integral_err_key] += pos_error * dt
-        integral_errors[integral_err_key] = max(-100, min(100, integral_errors[integral_err_key]))
-        i_term = ki * integral_errors[integral_err_key]
-
-        d_term = kd * (speed_error - last_errors[integral_err_key]) / dt if dt > 0 else 0
-
-        last_errors[integral_err_key] = speed_error
-
-        control_effort = p_term + i_term + d_term + torque_ff
-        control_effort /=  kt
-
+                                torque_ff, kp=2, kd=1.5, kt=10) -> int:
+        control_effort = (kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff) / kt
         return control_effort
 
 
@@ -95,11 +73,11 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 def main() -> None:
     robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
     #robot.zero_out()
-    # robot.test_motors()
+    robot.test_motors()
 
     config = robot.motor_config["right_leg"]
-    #test_torque_control(robot, config)
-    test_motor(robot, config, 3)
+    test_torque_control(robot, config)
+    #test_motor(robot, config, 3)
 
 def mac():
     def calculate_motor_current(pos_desired: int, pos_current: int,
