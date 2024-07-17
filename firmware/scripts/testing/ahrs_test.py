@@ -64,7 +64,6 @@ def console(args: argparse.Namespace) -> None:
 
 
 def live_plot(args: argparse.Namespace) -> None:
-
     def plotter(axs: np.ndarray, lines: list, new_data: list[float], time: float) -> None:
         for ax, line, data in zip(axs.flat, lines, new_data):
             x_data, y_data = line.get_xdata(), line.get_ydata()
