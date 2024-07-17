@@ -22,7 +22,8 @@ Note:
 before running this script.
 """
 
-from typing import Dict
+import time
+from typing import Dict, List
 
 from firmware.robot.robot import Robot
 
@@ -31,11 +32,38 @@ def test_motor(robot: Robot, config: Dict, motor_num: int) -> None:
     robot.test_motor(config["motors"][motor_num], sign=config["signs"][motor_num])
 
 
+def test_torque_control(robot: Robot, config: Dict) -> None:
+    def calculate_motor_current(pos_desired: int, pos_current: int,
+                                speed_desired: int, speed_current: int,
+                                torque_ff, kp=1, kd=1, kt=1) -> int:
+        control_effort = kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff / kt
+        return control_effort
+    
+    I_max = 20
+    desired_positions: List[int] = [60, 0, 0, 0, 0, 0]
+
+    while True:
+        for motor_num in range(6):
+            motor = config["motors"][motor_num]
+            pos_current = motor.position
+            speed_current = motor.speed
+            torque_ff = 0
+            control_effort = calculate_motor_current(desired_positions[motor_num], pos_current, 0, speed_current, torque_ff)
+
+            if abs(control_effort) > I_max:
+                control_effort = control_effort // abs(control_effort) * I_max
+            
+            motor.set_position_current_control(control_effort)
+            time.sleep(0.1)
+
+
 def main() -> None:
     robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
     robot.zero_out()
-    robot.test_motors()
+    #robot.test_motors()
 
+    config = robot.motor_config["right_leg"]
+    test_torque_control(robot, config)
     # config = robot.motor_config["right_leg"]
     # test_motor(robot, config, 0)
 
