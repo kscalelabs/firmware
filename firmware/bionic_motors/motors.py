@@ -86,7 +86,7 @@ class BionicMotor:
                     message_data = read_result(message.data)
                     if read_data_only:
                         if message_data and message_data["Message Type"] == 5:
-                            BionicMotor.can_messages.append(CanMessage(id=message_id, data=str(message_data)))
+                            BionicMotor.can_messages.append(CanMessage(id=message_id, data=message_data))
                     else:
                         BionicMotor.can_messages.append(CanMessage(id=message_id, data=str(message_data)))
                 else:
