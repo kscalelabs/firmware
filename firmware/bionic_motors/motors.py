@@ -162,7 +162,6 @@ class BionicMotor:
         command = get_motor_pos()
         self._send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
-
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 BionicMotor.can_messages.remove(message)
@@ -173,7 +172,7 @@ class BionicMotor:
                 # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
-                return "Invalid"
+                continue
         return "Valid"
 
     def update_speed(self, wait_time: float = 0.1, read_only: bool = False) -> str:
@@ -192,7 +191,6 @@ class BionicMotor:
         command = get_motor_speed(self.motor_id)
         self._send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
-
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 BionicMotor.can_messages.remove(message)
