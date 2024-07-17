@@ -32,7 +32,7 @@ class CANInterface:
 @dataclass
 class CanMessage:
     id: int
-    data: str
+    data: Any
 
 
 class BionicMotor:
