@@ -2,6 +2,7 @@
 
 import time
 from dataclasses import dataclass
+from typing import Any, List
 
 import can
 
@@ -23,7 +24,7 @@ class ControlParams:
 
 @dataclass
 class CANInterface:
-    bus: can.interface.Bus
+    bus: Any
     channel: can.BufferedReader
     bustype: can.Notifier
 
@@ -37,7 +38,7 @@ class CanMessage:
 class BionicMotor:
     """A class to interface with a motor over a CAN bus."""
 
-    can_messages = []
+    can_messages: List[Any] = []
 
     def __init__(self, motor_id: int, control_params: ControlParams, can_bus: CANInterface) -> None:
         """Initializes the motor.
@@ -84,10 +85,10 @@ class BionicMotor:
                     message_id = message.arbitration_id
                     message_data = read_result(message.data)
                     if read_data_only:
-                        if message_data["Message Type"] == 5:
-                            BionicMotor.can_messages.append(CanMessage(id=message_id, data=message_data))
+                        if message_data and message_data["Message Type"] == 5:
+                            BionicMotor.can_messages.append(CanMessage(id=message_id, data=str(message_data)))
                     else:
-                        BionicMotor.can_messages.append(CanMessage(id=message_id, data=message_data))
+                        BionicMotor.can_messages.append(CanMessage(id=message_id, data=str(message_data)))
                 else:
                     print("Invalid message")
 
@@ -152,6 +153,7 @@ class BionicMotor:
                 return "Valid"
             else:
                 return "Invalid"
+        return "Valid"
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"

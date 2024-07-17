@@ -20,15 +20,15 @@ class ViolenceStrength:
 NORMAL_STRENGTH = ViolenceStrength(
     ARM_PARAMS=ControlParams(kp=75, kd=3),
     GRIPPERS_PARAMS=ControlParams(kp=100, kd=2),
-    LEG_PARAMS=ControlParams(kp=75, kd=3), # NOT REAL VALUES
-    LEG_PARAMS_HEAVY=ControlParams(kp=125, kd=3)
+    LEG_PARAMS=ControlParams(kp=75, kd=3),  # NOT REAL VALUES
+    LEG_PARAMS_HEAVY=ControlParams(kp=125, kd=3),
     # TODO: add more as needed
 )
 
 MATT_STOMPY_STRENGTH = ViolenceStrength(
     ARM_PARAMS=ControlParams(kp=200, kd=4),
     GRIPPERS_PARAMS=ControlParams(kp=50, kd=2),
-    LEG_PARAMS=ControlParams(kp=200, kd=4), # NOT REAL VALUES
-    LEG_PARAMS_HEAVY=ControlParams(kp=200, kd=4)
+    LEG_PARAMS=ControlParams(kp=200, kd=4),  # NOT REAL VALUES
+    LEG_PARAMS_HEAVY=ControlParams(kp=200, kd=4),
     # TODO: Change Params
 )

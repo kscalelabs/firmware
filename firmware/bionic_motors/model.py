@@ -68,6 +68,7 @@ class Arm:
                 if idx == 0:
                     print(part.position)
 
+
 @dataclass
 class Leg:
     pelvis: BionicMotor
@@ -98,10 +99,8 @@ class Leg:
             self.ankle,
             self.foot,
         ]
-    
-    def set_position_incremental(
-        self, increments: list, target_vals: list, thresholds: list
-    ) -> None:
+
+    def set_position_incremental(self, increments: list, target_vals: list, thresholds: list) -> None:
         state = [False for _ in range(len(self.motors))]
         position = [part.position for part in self.motors]
         while not all(state):
@@ -138,11 +137,16 @@ class Body:
 
     @property
     def motor_ids(self) -> list[int]:
-        return (
-            # self.head.motor_ids
-            self.left_arm.motor_ids
-            + self.right_arm.motor_ids
-            + [self.waist.motor_id]
-            + self.left_leg.motor_ids
-            + self.right_leg.motor_ids
-        )
+        ids: list[int] = []
+        # if self.head:
+        #     ids += self.head.motor_ids
+        if self.left_arm:
+            ids += self.left_arm.motor_ids
+        if self.right_arm:
+            ids += self.right_arm.motor_ids
+        # ids.append(self.waist.motor_id)
+        if self.left_leg:
+            ids += self.left_leg.motor_ids
+        if self.right_leg:
+            ids += self.right_leg.motor_ids
+        return ids

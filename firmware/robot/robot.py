@@ -8,7 +8,7 @@ Todo:
 
 import math
 import time
-from typing import Dict, List
+from typing import Dict, List, Union
 
 import can
 import yaml
@@ -126,7 +126,9 @@ class Robot:
             for motor in part_config["motors"]:
                 motor.set_zero_position()
 
-    def set_position(self, new_positions: Dict[str, List[float]], offset: Dict[str, List[float]] = None) -> None:
+    def set_position(
+        self, new_positions: Dict[str, List[float]], offset: Union[Dict[str, List[float]], None] = None
+    ) -> None:
         for part, positions in new_positions.items():
             # Check if the part is in the motor config
             if part not in self.motor_config:
