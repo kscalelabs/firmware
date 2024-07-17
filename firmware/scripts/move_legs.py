@@ -44,7 +44,7 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
         control_effort = kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff / kt
         return control_effort
     
-    I_max = 20
+    I_max = 5
     desired_positions: List[int] = [60, 0, 0, 0, 0, 0]
 
     while True:
@@ -52,10 +52,10 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
             motor = config["motors"][motor_num]
             pos_current = motor.position
             speed_current = motor.speed
-            print(f"Motor {motor_num}: position={pos_current} speed={speed_current}")
+            #print(f"Motor {motor_num}: position={pos_current} speed={speed_current}")
             torque_ff = 0
             control_effort = calculate_motor_current(desired_positions[motor_num], pos_current, 0, speed_current, torque_ff)
-
+            print(f"Motor {motor_num} error: {pos_current - desired_positions[motor_num]} control effort: {control_effort}")
             if abs(control_effort) > I_max:
                 control_effort = control_effort // abs(control_effort) * I_max
             
@@ -65,16 +65,13 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 
 def main() -> None:
     robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
-    robot.zero_out()
-    #robot.test_motors()
+    #robot.zero_out()
+    robot.test_motors()
 
     config = robot.motor_config["right_leg"]
-    #test_torque_control(robot, config)
+    test_torque_control(robot, config)
     # config = robot.motor_config["right_leg"]
     #test_motor(robot, config, 0)
-    while True:
-        print(f"Motor 1 at {config['motors'][1].position}")
-        config['motors'][1].update_position()
 
 if __name__ == "__main__":
     main()
