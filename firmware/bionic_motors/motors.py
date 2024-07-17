@@ -201,7 +201,8 @@ class BionicMotor:
                 # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
-                return "Invalid"
+                continue
+                #return "Invalid"
     
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
