@@ -16,7 +16,7 @@ class ViolenceStrength:
 
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(
-    ARM_PARAMS=ControlParams(kp=75, kd=3),
+    ARM_PARAMS=ControlParams(kp=12, kd=2),
     GRIPPERS_PARAMS=ControlParams(kp=100, kd=2),
     # TODO: add more as needed
 )
