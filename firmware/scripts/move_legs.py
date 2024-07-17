@@ -4,10 +4,10 @@ def test_motor(robot, config, motor_num):
     robot.test_motor(config['motors'][motor_num], sign=config['signs'][motor_num])
 
 def main():
-    robot = Robot(config_path="../robot/config.yaml", setup="legs")
+    robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
     robot.zero_out()
     robot.test_motors()
-    leftConfig = robot.motor_config['left_leg']
+    leftConfig = robot.motor_config['right_leg']
 
     #test_motor(robot, leftConfig, 0)
 
