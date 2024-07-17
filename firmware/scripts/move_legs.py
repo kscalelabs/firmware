@@ -60,7 +60,7 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
                 control_effort = control_effort // abs(control_effort) * I_max
             
             motor.set_position_current_control(control_effort)
-            time.sleep(0.1)
+            motor.update_position()
 
 
 def main() -> None:
@@ -74,8 +74,7 @@ def main() -> None:
     #test_motor(robot, config, 0)
     while True:
         print(f"Motor 1 at {config['motors'][1].position}")
-        time.sleep(0.1)
-        config['motors'][1].set_position(1,0,0)
+        config['motors'][1].update_position()
 
 if __name__ == "__main__":
     main()
