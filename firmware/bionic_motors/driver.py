@@ -4,7 +4,7 @@ import time
 
 import can
 
-from firmware.bionic_motors.model import Leg, Body
+from firmware.bionic_motors.model import Body, Leg
 from firmware.bionic_motors.motors import BionicMotor, CANInterface
 from firmware.bionic_motors.utils import NORMAL_STRENGTH
 
@@ -17,23 +17,11 @@ notifier = can.Notifier(write_bus, [buffer_reader])
 
 CAN_BUS = CANInterface(write_bus, buffer_reader, notifier)
 
-""" # Create a model
-TestModel = Body(
-    left_arm=Arm(
-        rotator_cuff=BionicMotor(1, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        shoulder=BionicMotor(2, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        bicep=BionicMotor(3, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        elbow=BionicMotor(4, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        wrist=BionicMotor(5, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-        gripper=BionicMotor(6, NORMAL_STRENGTH.GRIPPERS_PARAMS, CAN_BUS),
-    ),
-    # upper_left_arm = Arm(
-    #     rotator_cuff = BionicMotor(1, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-    #     shoulder = BionicMotor(2, NORMAL_STRENGTH.ARM_PARAMS, CAN_BUS),
-    # ),
-) """
+TestModel = None
 
-TestModel = Body(
+
+def run_leg():
+    TestModel = Body(
     left_leg=Leg(
         pelvis=BionicMotor(13, NORMAL_STRENGTH.LEG_PARAMS, CAN_BUS),
         hip=BionicMotor(14, NORMAL_STRENGTH.LEG_PARAMS, CAN_BUS),
@@ -50,9 +38,7 @@ TestModel = Body(
         ankle=BionicMotor(23, NORMAL_STRENGTH.LEG_PARAMS, CAN_BUS),
         foot=BionicMotor(24, NORMAL_STRENGTH.LEG_PARAMS, CAN_BUS),
     ),
-)
-
-def run_leg():
+    )
     for part in TestModel.left_leg.motors:
         part.set_zero_position()
     for i, motor in enumerate(TestModel.left_leg.motors):
@@ -77,7 +63,8 @@ def run_leg():
                 print("Attempting to reach position")
                 increments[2] = -increments[2]
             positions = [
-                pos + incr if abs(pos) < abs(thr) else pos for pos, incr, thr in zip(positions, increments, max_thresholds)
+                pos + incr if abs(pos) < abs(thr) else pos
+                for pos, incr, thr in zip(positions, increments, max_thresholds)
             ]
         if counter == 2:
             counter = -1
@@ -98,10 +85,8 @@ def run_leg():
         if counter == 1:
             print(len(BionicMotor.can_messages), BionicMotor.can_messages)
 
-          
 
 def run_arm():
-
     # NOTE: you should only zero motors once
     # for each part in the arm, zero the position
     for part in TestModel.left_arm.motors:
@@ -133,7 +118,8 @@ def run_arm():
                 print("Attempting to reach position")
                 increments[2] = -increments[2]
             positions = [
-                pos + incr if abs(pos) < abs(thr) else pos for pos, incr, thr in zip(positions, increments, max_thresholds)
+                pos + incr if abs(pos) < abs(thr) else pos
+                for pos, incr, thr in zip(positions, increments, max_thresholds)
             ]
         if counter == 2:
             counter = -1
@@ -154,27 +140,3 @@ def run_arm():
         if counter == 1:
             print(len(BionicMotor.can_messages), BionicMotor.can_messages)
     #### END VED CODE
-
-#### BEGIN GRIPPER CODE
-# motor = TestModel.left_arm.gripper
-
-# while True:
-#     end_time = time.time() + 4
-#     while time.time() < end_time:
-#         time.sleep(0.005)
-#         motor.set_position(-120, 0, 0)
-#     # time.sleep(2)
-#     end_time = time.time() + 4
-#     while time.time() < end_time:
-#         time.sleep(0.005)
-#         motor.set_position(0, 0, 0)
-#     # time.sleep(2)
-
-#### END GRIPPER CODE
-
-
-# Run the arm
-# run_arm()
-
-# Run the leg
-run_leg()

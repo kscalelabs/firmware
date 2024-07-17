@@ -6,29 +6,30 @@ Todo:
 3. tests
 """
 
-import yaml
-import logging
 import math
 import time
 from typing import Dict, List
 
 import can
+import yaml
 
 from firmware.bionic_motors.model import Arm, Body, Leg
 from firmware.bionic_motors.motors import BionicMotor, CANInterface
 from firmware.bionic_motors.utils import NORMAL_STRENGTH
 
+
 def rad_to_deg(rad: float) -> float:
     return rad / math.pi * 180
 
+
 class Robot:
     def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
-        with open(config_path, 'r') as config_file:
-            for robot in yaml.safe_load(config_file)['robots']:
-                if robot['setup'] == setup:
+        with open(config_path, "r") as config_file:
+            for robot in yaml.safe_load(config_file)["robots"]:
+                if robot["setup"] == setup:
                     self.config = robot
         self.setup = setup
-        self.delta_change = self.config['delta_change']
+        self.delta_change = self.config["delta_change"]
         self.can_bus = self._initialize_can_bus()
         self.body = self._initialize_body()
         self.motor_config = self._initialize_motor_config()
@@ -39,31 +40,40 @@ class Robot:
         buffer_reader = can.BufferedReader()
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
-    
-    def test_motors(self):
+
+    def test_motors(self) -> None:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
-            for motor, sign in zip(part_config['motors'], part_config['signs']):
+            for motor, sign in zip(part_config["motors"], part_config["signs"]):
                 self.test_motor(motor, sign)
             time.sleep(1)
-    
-    def test_motor(self, motor: BionicMotor, sign: int = 1, low: int = 0,high: int = 60, increment: float = 0.1, delay: float = 0.001, turnDelay: float = 0.5) -> None:
+
+    def test_motor(
+        self,
+        motor: BionicMotor,
+        sign: int = 1,
+        low: int = 0,
+        high: int = 60,
+        increment: float = 0.1,
+        delay: float = 0.001,
+        turn_delay: float = 0.5,
+    ) -> None:
         print(f"testing {motor} w/ sign {sign}")
-        for i in range((int) (1/increment) * low, (int) (1/increment) * high):
-            motor.set_position(int(sign*i*increment),0,0)
+        for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
+            motor.set_position(int(sign * i * increment), 0, 0)
             time.sleep(delay)
-        time.sleep(turnDelay)
-        for j in range((int) (1/increment) * high, (int) (1/increment) * low, -1):
-            motor.set_position(int(sign*j*increment), 0, 0)
+        time.sleep(turn_delay)
+        for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
+            motor.set_position(int(sign * j * increment), 0, 0)
             time.sleep(delay)
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
-        for part, config in self.config['body_parts'].items():
-            if part.endswith('_arm'):
-                body_parts[part] = self._create_arm(part.split('_')[0], config['start_id'])
-            elif part.endswith('_leg'):
-                body_parts[part] = self._create_leg(part.split('_')[0], config['start_id'])
+        for part, config in self.config["body_parts"].items():
+            if part.endswith("_arm"):
+                body_parts[part] = self._create_arm(part.split("_")[0], config["start_id"])
+            elif part.endswith("_leg"):
+                body_parts[part] = self._create_leg(part.split("_")[0], config["start_id"])
 
         return Body(**body_parts)
 
@@ -89,20 +99,19 @@ class Robot:
 
     def _initialize_motor_config(self) -> Dict[str, Dict]:
         config = {}
-        motor_config = self.config['motor_config']
-        
-        for part, part_config in self.config['body_parts'].items():
+        motor_config = self.config["motor_config"]
+
+        for part, part_config in self.config["body_parts"].items():
             if hasattr(self.body, part):
-                part_type = 'arm' if 'arm' in part else 'leg'
+                part_type = "arm" if "arm" in part else "leg"
                 config[part] = {
                     "motors": getattr(self.body, part).motors,
-                    "signs": motor_config[part_type]['signs'],
-                    "increments": motor_config[part_type]['increments'],
-                    "maximum_values": motor_config[part_type]['maximum_values'],
-                    "offsets": motor_config[part_type]['offsets'],
+                    "signs": motor_config[part_type]["signs"],
+                    "increments": motor_config[part_type]["increments"],
+                    "maximum_values": motor_config[part_type]["maximum_values"],
+                    "offsets": motor_config[part_type]["offsets"],
                 }
         return config
-    
 
     @staticmethod
     def filter_motor_values(values: List[float], max_val: List[float]) -> List[float]:
@@ -112,7 +121,6 @@ class Robot:
 
         return values
 
-
     def zero_out(self) -> None:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
@@ -120,11 +128,10 @@ class Robot:
 
     def set_position(self, new_positions: Dict[str, List[float]], offset: Dict[str, List[float]] = None) -> None:
         for part, positions in new_positions.items():
-            
             # Check if the part is in the motor config
             if part not in self.motor_config:
                 raise ValueError(f"Part {part} not in motor config")
-            
+
             config = self.motor_config[part]
 
             if offset:
@@ -144,4 +151,3 @@ class Robot:
             # Set the positions
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos), 0, 0)
-
