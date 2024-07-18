@@ -32,6 +32,7 @@ from firmware.robot.robot import Robot
 def degrees_to_radians(degrees: float) -> float:
     return degrees * (3.14159 / 180)
 
+
 def test_motor(robot: Robot, config: Dict, motor_num: int) -> None:
     robot.test_motor(config["motors"][motor_num], sign=config["signs"][motor_num])
 
@@ -40,17 +41,28 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
     # In an ideal world, kt would actually be the torque constant, but we're using it as a scaling factor
     integral_errors: List[int] = [0, 0, 0, 0, 0, 0]
     last_errors: List[int] = [0, 0, 0, 0, 0, 0]
-    global last_t 
+    global last_t
     last_t = time.time()
-    def calculate_motor_current(pos_desired: int, pos_current: int,
-                                speed_desired: int, speed_current: int,
-                                torque_ff, integral_err_key, kp=2.5, ki=1, kd=1.5, kt=10) -> int:
-        #control_effort = (kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff) / kt
-        #return control_effort
+
+    def calculate_motor_current(
+        pos_desired: int,
+        pos_current: int,
+        speed_desired: int,
+        speed_current: int,
+        torque_ff: int,
+        integral_err_key: int,
+        kp: int = 2.5,
+        ki: int = 1,
+        kd: int = 1.5,
+        kt: int = 10,
+    ) -> int:
+        # control_effort = (kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff) / kt
+        # return control_effort
+
         global last_t
-        current_t = time.time()  
+        current_t = time.time()
         dt = current_t - last_t
-        last_t = current_t      
+        last_t = current_t
         pos_error = pos_desired - pos_current
 
         speed_error = speed_desired - speed_current
@@ -66,12 +78,10 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
         last_errors[integral_err_key] = speed_error
 
         control_effort = p_term + i_term + d_term + torque_ff
-        control_effort /=  kt
+        control_effort /= kt
         return control_effort
 
-
-    
-    I_max = 40
+    i_max = 40
     desired_positions: List[int] = [30, 0, 0, 0, 0, 0]
 
     while True:
@@ -79,14 +89,19 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
             motor = config["motors"][motor_num]
             pos_current = motor.position
             speed_current = motor.speed
-            #print(f"Motor {motor_num}: position={pos_current} speed={speed_current}")
-            if motor_num < 2: torque_ff = 0
-            else: torque_ff = 0
-            control_effort = calculate_motor_current(desired_positions[motor_num], pos_current, 0, speed_current, torque_ff, motor_num)
-            print(f"Motor {motor_num} error: {pos_current - desired_positions[motor_num]} control effort: {control_effort}")
-            if abs(control_effort) > I_max:
-                control_effort = control_effort // abs(control_effort) * I_max
-            
+            # print(f"Motor {motor_num}: position={pos_current} speed={speed_current}")
+            if motor_num < 2:
+                torque_ff = 100
+            else:
+                torque_ff = 0
+            control_effort = calculate_motor_current(
+                desired_positions[motor_num], pos_current, 0, speed_current, torque_ff, motor_num
+            )
+            error = pos_current - desired_positions[motor_num]
+            print(f"Motor {motor_num} error: {error} control effort: {control_effort}")
+            if abs(control_effort) > i_max:
+                control_effort = control_effort // abs(control_effort) * i_max
+
             motor.set_position_current_control(control_effort)
             motor.update_position()
             motor.update_speed()
@@ -94,17 +109,25 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 
 def main() -> None:
     robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
-    #robot.zero_out()
+    # robot.zero_out()
     robot.test_motors()
 
     config = robot.motor_config["right_leg"]
     test_torque_control(robot, config)
-    #test_motor(robot, config, 3)
+    # test_motor(robot, config, 3)
 
-def mac():
-    def calculate_motor_current(pos_desired: int, pos_current: int,
-                                speed_desired: int, speed_current: int,
-                                torque_ff, kp=15, kd=0.5, kt=25) -> int:
+
+def mac() -> None:
+    def calculate_motor_current(
+        pos_desired: int,
+        pos_current: int,
+        speed_desired: int,
+        speed_current: int,
+        torque_ff: int,
+        kp: int = 15,
+        kd: int = 0.5,
+        kt: int = 25,
+    ) -> int:
         control_effort = (kp * (pos_desired - pos_current) + kd * (speed_desired - speed_current) + torque_ff) / kt
         return control_effort
 
@@ -120,6 +143,7 @@ def mac():
             pos_current = 0
         time.sleep(0.4)
 
+
 if __name__ == "__main__":
-    #mac()
+    # mac()
     main()

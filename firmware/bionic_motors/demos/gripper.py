@@ -1,7 +1,5 @@
 """Example driver code on instantiating new motors and driving them."""
 
-import time
-
 import can
 
 from firmware.bionic_motors.model import Arm, Body

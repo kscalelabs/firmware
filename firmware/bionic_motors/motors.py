@@ -10,8 +10,8 @@ from firmware.bionic_motors.commands import (
     force_position_hybrid_control,
     get_motor_pos,
     get_motor_speed,
+    set_current_torque_control,
     set_zero_position,
-    set_current_torque_control
 )
 from firmware.bionic_motors.responses import read_result, valid_message
 
@@ -122,7 +122,7 @@ class BionicMotor:
         """
         command = force_position_hybrid_control(self.control_params.kp, self.control_params.kd, position, speed, torque)
         self._send(self.motor_id, bytes(command))
-    
+
     def set_position_torque_control(self, torque: int) -> None:
         """Sets the position of the motor using torque control.
 
@@ -131,7 +131,7 @@ class BionicMotor:
         """
         command = set_current_torque_control(motor_id=self.motor_id, value=torque, control_status=1)
         self._send(self.motor_id, bytes(command), 3)
-    
+
     def set_position_current_control(self, current: int) -> None:
         """Sets the position of the motor using current control.
 
@@ -202,7 +202,8 @@ class BionicMotor:
                 return "Valid"
             else:
                 continue
-                #return "Invalid"
-    
+                # return "Invalid"
+        return "Valid"
+
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
