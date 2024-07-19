@@ -22,6 +22,7 @@ Note:
 before running this script.
 """
 
+import math
 import time
 from typing import Dict, List
 
@@ -91,7 +92,7 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
             speed_current = motor.speed
             # print(f"Motor {motor_num}: position={pos_current} speed={speed_current}")
             if motor_num < 2:
-                torque_ff = 100
+                torque_ff = 400 * math.sin(pos_current)
             else:
                 torque_ff = 0
             control_effort = calculate_motor_current(
