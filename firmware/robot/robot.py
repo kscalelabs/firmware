@@ -153,3 +153,6 @@ class Robot:
             # Set the positions
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos), 0, 0)
+
+    def get_motor_positions(self) -> Dict[str, List[float]]:
+        return {part: [motor.position for motor in config["motors"]] for part, config in self.motor_config.items()}
