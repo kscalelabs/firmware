@@ -41,11 +41,11 @@ class Robot:
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
 
-    def test_motors(self) -> None:
+    def test_motors(self, low=0, high=60) -> None:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config["motors"], part_config["signs"]):
-                self.test_motor(motor, sign)
+                self.test_motor(motor, sign, low=low, high=high)
             time.sleep(1)
 
     def test_motor(
