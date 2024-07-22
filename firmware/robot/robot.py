@@ -154,5 +154,14 @@ class Robot:
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos), 0, 0)
 
+    def update_motor_data(self) -> None:
+        for _, config in self.motor_config.items():
+            for motor in config["motors"]:
+                motor.update_position(0.001)
+                motor.update_speed(0.001)
+    
+    def get_motor_speeds(self) -> Dict[str, List[float]]:
+        return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
+
     def get_motor_positions(self) -> Dict[str, List[float]]:
         return {part: [motor.position for motor in config["motors"]] for part, config in self.motor_config.items()}
