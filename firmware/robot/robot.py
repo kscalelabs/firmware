@@ -21,6 +21,7 @@ from firmware.bionic_motors.utils import NORMAL_STRENGTH
 def rad_to_deg(rad: float) -> float:
     return rad / math.pi * 180
 
+
 class Robot:
     def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
         with open(config_path, "r") as config_file:
@@ -44,7 +45,7 @@ class Robot:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config["motors"], part_config["signs"]):
-                self.test_motor(motor, sign, low=low, high=high, dir = dir)
+                self.test_motor(motor, sign, low=low, high=high, dir=dir)
             time.sleep(1)
 
     def test_motor(
@@ -60,13 +61,13 @@ class Robot:
     ) -> None:
         print(f"testing {motor} w/ sign {sign}")
         for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
-            motor.set_position(int(sign * i * increment*dir), 0, 0)
+            motor.set_position(int(sign * i * increment * dir), 0, 0)
             time.sleep(delay)
             motor.update_position(0.001)
             print(f"Motor at {motor.position}")
         time.sleep(turn_delay)
         for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
-            motor.set_position(int(sign * j * increment*dir), 0, 0)
+            motor.set_position(int(sign * j * increment * dir), 0, 0)
             time.sleep(delay)
             motor.update_position(0.001)
             print(f"Motor at {motor.position}")
