@@ -19,8 +19,8 @@ class ViolenceStrength:
 
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(
-    ARM_PARAMS=ControlParams(kp=12, kd=2),
-    ARM_PARAMS_HEAVY=ControlParams(kp=40, kd=2),
+    ARM_PARAMS=ControlParams(kp=30, kd=2),
+    ARM_PARAMS_HEAVY=ControlParams(kp=50, kd=2),
     GRIPPERS_PARAMS=ControlParams(kp=100, kd=2),
     LEG_PARAMS=ControlParams(kp=75, kd=3),  # NOT REAL VALUES
     LEG_PARAMS_HEAVY=ControlParams(kp=125, kd=3),
