@@ -168,4 +168,4 @@ class Robot:
         return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
 
     def get_motor_positions(self) -> Dict[str, List[float]]:
-        return {part: [motor.position for motor in config["motors"]] for part, config in self.motor_config.items()}
+        return {part: [motor.position * sign for motor, sign in zip(config["motors"], config["signs"])] for part, config in self.motor_config.items()}
