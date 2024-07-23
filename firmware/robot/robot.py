@@ -62,10 +62,14 @@ class Robot:
         for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
             motor.set_position(int(sign * i * increment), 0, 0)
             time.sleep(delay)
+            motor.update_position(0.001)
+            print(f"Motor at {motor.position}")
         time.sleep(turn_delay)
         for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
             motor.set_position(int(sign * j * increment), 0, 0)
             time.sleep(delay)
+            motor.update_position(0.001)
+            print(f"Motor at {motor.position}")
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}

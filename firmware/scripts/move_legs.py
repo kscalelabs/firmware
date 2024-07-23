@@ -10,16 +10,11 @@ Functions:
         The main function to initialize the robot, zero out its position, and run motor tests.
 
 The script initializes a Robot object with a specific configuration file and setup,
-then performs motor testing operations. It includes a commented-out section for
-testing an individual motor.
+then performs motor testing operations.
 
 Usage:
     Run this script directly to execute the main function, which will initialize
     the robot and run the motor tests.
-
-Note:
-    Ensure that the necessary configuration files and dependencies are in place
-before running this script.
 """
 
 import math
