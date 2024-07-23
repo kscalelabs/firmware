@@ -41,11 +41,11 @@ class Robot:
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
 
-    def test_motors(self) -> None:
+    def test_motors(self, low: int = 0, high: int = 60) -> None:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config["motors"], part_config["signs"]):
-                self.test_motor(motor, sign)
+                self.test_motor(motor, sign, low=low, high=high)
             time.sleep(1)
 
     def test_motor(
@@ -62,10 +62,14 @@ class Robot:
         for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
             motor.set_position(int(sign * i * increment), 0, 0)
             time.sleep(delay)
+            motor.update_position(0.001)
+            print(f"Motor at {motor.position}")
         time.sleep(turn_delay)
         for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
             motor.set_position(int(sign * j * increment), 0, 0)
             time.sleep(delay)
+            motor.update_position(0.001)
+            print(f"Motor at {motor.position}")
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
@@ -79,8 +83,8 @@ class Robot:
 
     def _create_arm(self, side: str, start_id: int) -> Arm:
         return Arm(
-            rotator_cuff=BionicMotor(start_id, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
-            shoulder=BionicMotor(start_id + 1, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
+            rotator_cuff=BionicMotor(start_id, NORMAL_STRENGTH.ARM_PARAMS_HEAVY, self.can_bus),
+            shoulder=BionicMotor(start_id + 1, NORMAL_STRENGTH.ARM_PARAMS_HEAVY, self.can_bus),
             bicep=BionicMotor(start_id + 2, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
             elbow=BionicMotor(start_id + 3, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
             wrist=BionicMotor(start_id + 4, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
@@ -153,3 +157,15 @@ class Robot:
             # Set the positions
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos), 0, 0)
+
+    def update_motor_data(self) -> None:
+        for _, config in self.motor_config.items():
+            for motor in config["motors"]:
+                motor.update_position(0.001)
+                motor.update_speed(0.001)
+
+    def get_motor_speeds(self) -> Dict[str, List[float]]:
+        return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
+
+    def get_motor_positions(self) -> Dict[str, List[float]]:
+        return {part: [motor.position for motor in config["motors"]] for part, config in self.motor_config.items()}
