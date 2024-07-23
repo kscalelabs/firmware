@@ -10,6 +10,7 @@ class ViolenceStrength:
     """A class to dictate the strength of the violence."""
 
     ARM_PARAMS: ControlParams
+    ARM_PARAMS_HEAVY: ControlParams
     GRIPPERS_PARAMS: ControlParams
     LEG_PARAMS: ControlParams
     LEG_PARAMS_HEAVY: ControlParams
@@ -19,6 +20,7 @@ class ViolenceStrength:
 # Control parameters
 NORMAL_STRENGTH = ViolenceStrength(
     ARM_PARAMS=ControlParams(kp=12, kd=2),
+    ARM_PARAMS_HEAVY=ControlParams(kp=30, kd=2),
     GRIPPERS_PARAMS=ControlParams(kp=100, kd=2),
     LEG_PARAMS=ControlParams(kp=75, kd=3),  # NOT REAL VALUES
     LEG_PARAMS_HEAVY=ControlParams(kp=125, kd=3),
@@ -27,6 +29,7 @@ NORMAL_STRENGTH = ViolenceStrength(
 
 MATT_STOMPY_STRENGTH = ViolenceStrength(
     ARM_PARAMS=ControlParams(kp=200, kd=4),
+    ARM_PARAMS_HEAVY=ControlParams(kp=12, kd=2),
     GRIPPERS_PARAMS=ControlParams(kp=50, kd=2),
     LEG_PARAMS=ControlParams(kp=200, kd=4),  # NOT REAL VALUES
     LEG_PARAMS_HEAVY=ControlParams(kp=200, kd=4),

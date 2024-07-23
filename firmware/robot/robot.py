@@ -83,8 +83,8 @@ class Robot:
 
     def _create_arm(self, side: str, start_id: int) -> Arm:
         return Arm(
-            rotator_cuff=BionicMotor(start_id, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
-            shoulder=BionicMotor(start_id + 1, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
+            rotator_cuff=BionicMotor(start_id, NORMAL_STRENGTH.ARM_PARAMS_HEAVY, self.can_bus),
+            shoulder=BionicMotor(start_id + 1, NORMAL_STRENGTH.ARM_PARAMS_HEAVY, self.can_bus),
             bicep=BionicMotor(start_id + 2, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
             elbow=BionicMotor(start_id + 3, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
             wrist=BionicMotor(start_id + 4, NORMAL_STRENGTH.ARM_PARAMS, self.can_bus),
