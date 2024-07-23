@@ -41,7 +41,7 @@ class Robot:
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
 
-    def test_motors(self, low=0, high=60) -> None:
+    def test_motors(self, low: int = 0, high: int = 60) -> None:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config["motors"], part_config["signs"]):
@@ -163,7 +163,7 @@ class Robot:
             for motor in config["motors"]:
                 motor.update_position(0.001)
                 motor.update_speed(0.001)
-    
+
     def get_motor_speeds(self) -> Dict[str, List[float]]:
         return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
 
