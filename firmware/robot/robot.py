@@ -129,10 +129,10 @@ class Robot:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
                 motor.set_zero_position()
-
+    
     def set_position(
-        self, new_positions: Dict[str, List[float]], offset: Union[Dict[str, List[float]], None] = None
-    ) -> None:
+        self, new_positions: Dict[str, List[float]], offset: Union[Dict[str, List[float]], None] = None,
+        radians: bool = False) -> None:
         for part, positions in new_positions.items():
             # Check if the part is in the motor config
             if part not in self.motor_config:
@@ -145,7 +145,8 @@ class Robot:
                     positions[idx] = pos - off
 
             # Process the positions
-            positions = [rad_to_deg(pos) for pos in positions]
+            if radians:
+                positions = [rad_to_deg(pos) for pos in positions]
             positions = [val - off for val, off in zip(positions, config["offsets"])]
             positions = self.filter_motor_values(positions, config["maximum_values"])
 

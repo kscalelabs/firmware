@@ -235,5 +235,5 @@ def read_result(msg: bytes) -> Union[Dict, None]:
 
 
 if __name__ == "__main__":
-    vector = bytes([0xA0, 0x01, 0x39, 0xF7, 0x24, 0x7D])
+    vector = bytes([0x01, 0xEA, 0xCC, 0x71, 0xB3, 0x7D])
     print(read_result(vector))
