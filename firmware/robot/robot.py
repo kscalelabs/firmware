@@ -41,11 +41,11 @@ class Robot:
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
 
-    def test_motors(self, low: int = 0, high: int = 60) -> None:
+    def test_motors(self, low: int = 0, high: int = 60, dir: int = 1) -> None:
         for part, part_config in self.motor_config.items():
             print(f"testing {part}")
             for motor, sign in zip(part_config["motors"], part_config["signs"]):
-                self.test_motor(motor, sign, low=low, high=high)
+                self.test_motor(motor, sign, low=low, high=high, dir=dir)
             time.sleep(1)
 
     def test_motor(
@@ -54,19 +54,20 @@ class Robot:
         sign: int = 1,
         low: int = 0,
         high: int = 60,
+        dir: int = 1,
         increment: float = 0.1,
         delay: float = 0.001,
         turn_delay: float = 0.5,
     ) -> None:
         print(f"testing {motor} w/ sign {sign}")
         for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
-            motor.set_position(int(sign * i * increment), 0, 0)
+            motor.set_position(int(sign * i * increment * dir), 0, 0)
             time.sleep(delay)
             motor.update_position(0.001)
             print(f"Motor at {motor.position}")
         time.sleep(turn_delay)
         for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
-            motor.set_position(int(sign * j * increment), 0, 0)
+            motor.set_position(int(sign * j * increment * dir), 0, 0)
             time.sleep(delay)
             motor.update_position(0.001)
             print(f"Motor at {motor.position}")
@@ -131,7 +132,10 @@ class Robot:
                 motor.set_zero_position()
 
     def set_position(
-        self, new_positions: Dict[str, List[float]], offset: Union[Dict[str, List[float]], None] = None
+        self,
+        new_positions: Dict[str, List[float]],
+        offset: Union[Dict[str, List[float]], None] = None,
+        radians: bool = False,
     ) -> None:
         for part, positions in new_positions.items():
             # Check if the part is in the motor config
@@ -145,7 +149,8 @@ class Robot:
                     positions[idx] = pos - off
 
             # Process the positions
-            positions = [rad_to_deg(pos) for pos in positions]
+            if radians:
+                positions = [rad_to_deg(pos) for pos in positions]
             positions = [val - off for val, off in zip(positions, config["offsets"])]
             positions = self.filter_motor_values(positions, config["maximum_values"])
 
@@ -158,14 +163,17 @@ class Robot:
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos), 0, 0)
 
-    def update_motor_data(self) -> None:
+    def update_motor_data(self, timeout: float = 0.001) -> None:
         for _, config in self.motor_config.items():
             for motor in config["motors"]:
-                motor.update_position(0.001)
-                motor.update_speed(0.001)
+                motor.update_position(timeout)
+                motor.update_speed(timeout)
 
     def get_motor_speeds(self) -> Dict[str, List[float]]:
         return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
 
     def get_motor_positions(self) -> Dict[str, List[float]]:
-        return {part: [motor.position for motor in config["motors"]] for part, config in self.motor_config.items()}
+        return {
+            part: [motor.position * sign for motor, sign in zip(config["motors"], config["signs"])]
+            for part, config in self.motor_config.items()
+        }
