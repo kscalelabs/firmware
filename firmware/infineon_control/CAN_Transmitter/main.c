@@ -56,17 +56,18 @@
 * Defines
 ******************************************************************************/
 /* Declarations for System timer timing */
-#define TICKS_PER_SECOND                    9           /* Ticks per Second */
+#define TICKS_PER_SECOND                    100          /* Ticks per Second */
 
 /* Define macro to enable/disable printing of debug messages */
 #define ENABLE_XMC_DEBUG_PRINT              (0)
 
 #define ticker_lim 				1152000
+#define time_to_wait            100
 
 #define BUS_1 					6
-#define BUS_2 					13
-#define BUS_3 					19
-#define BUS_4					25
+#define BUS_2 					12
+#define BUS_3 					18
+#define BUS_4					24
 
 
 static uint8_t bus_counter_1;
@@ -78,7 +79,6 @@ static uint8_t bus_counter_4;
 static Motors motors;
 //static Motor TestMotor;
 static uint32_t counter;
-static uint32_t ticker;
 
 
 
@@ -123,107 +123,262 @@ static volatile bool timer_interrupt_flag = false;
 *  void
 *
 *******************************************************************************/
+// void SysTick_Handler(void)
+// {
+// 	static int alternator = 1;
+//     static bool has_reset = false;
+//     static int ticker = 0;
+
+    
+
+    
+
+
+
+//     if (!has_reset) {
+//         for (int i = 0; i < motors.num_motors; i++)  {
+//         reset_position(&CAN_NODE_1_LMO_0, &motors.motors[i]);
+//         reset_position(&CAN_NODE_2_LMO_0, &motors.motors[i]);
+//         reset_position(&CAN_NODE_3_LMO_0, &motors.motors[i]);
+//         reset_position(&CAN_NODE_4_LMO_0, &motors.motors[i]);
+
+//     }
+//     has_reset = true;
+//     }
+
+//     else {
+
+//     if (alternator == 7 && ticker < time_to_wait) {
+//         ticker ++;
+//     }
+
+//     else {
+
+
+//     else {
+    
+// //	static uint64_t message;
+
+
+
+// // 	if (alternator) {
+// // //		message = get_position(&motors->motors[0]);
+// // //		update_data(&CAN_NODE_2_LMO_0, 2, message);
+// //     /* Update CAN message. Sample and send button state. */
+// //     // CAN_NODE_2_LMO_0.can_data_byte[0] = 0xE0;
+// //     // CAN_NODE_2_LMO_0.can_data_byte[1] = 0x01;
+
+// //     get_position(&CAN_NODE_2_LMO_0, &motors.motors[0]);
+
+// //     CAN_NODE_3_LMO_0.can_data_byte[0] = 0xE0;
+// // 	CAN_NODE_3_LMO_0.can_data_byte[1] = 0x01;
+
+// //     // XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x001);
+// //     XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x002);
+
+// // //    XMC_CAN_MO_SetIdentifier(XMC_CAN_MO_t *const can_mo, const uint32_t can_identifier)
+
+// //     /* Configure data to be transmitted and data length code */
+// //     // XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
+
+// //     /* Send data in CAN_NODE_LMO_0 */
+// //     // XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
+
+
+// //     XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
+// //     XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
+
+//     /* Toggle USER LED1 to indicate that the message is transmitted */
+// //    XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
+
+//     if (bus_counter_1 == BUS_1) {
+//     	bus_counter_1 = 0;
+//     }
+
+//     if (bus_counter_2 == BUS_2) {
+//     	bus_counter_2 = BUS_1;
+//     }
+
+//     if (bus_counter_3 == BUS_3) {
+//     	bus_counter_3 = BUS_2;
+//     }
+
+//     if (bus_counter_4 == BUS_4) {
+//     	bus_counter_4 = BUS_3;
+//     }
+
+//     if (alternator == 13) {
+//         alternator = 1;
+//     }
+  
+//     if (alternator <= 6) {
+//     	set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 5.0f, 1, 5.0f, 0.0f, 0.0f);
+// 		set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2], 0.001, 0.001, 0.001, 0.001, 0.001);
+// 		set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], 0.001, 0.001, 0.001, 0.001, 0.001);
+// 		set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4],0.001, 0.001, 0.001, 0.001, 0.001);
+
+//         // get_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1]);
+
+
+// 	}
+
+// 	else {
+// 		set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 0.0f, 1, 5.0f, 0.0f, 0.0f);
+// 		set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2], 10, 12, 14, 15, 18);
+// 		set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], 10, 12, 14, 15, 18);
+// 		set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4], 10, 12, 14, 15, 18);
+
+
+
+
+// //    CAN_NODE_2_LMO_0.can_data_byte[1] = 0x02;
+// //    CAN_NODE_3_LMO_0.can_data_byte[1] = 0x02;
+// //
+// //    XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x7FF);
+// //    XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x7FF);
+// //
+// //
+// //
+// //    XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
+// //
+// //    XMC_CAN_MO_SetDataLengthCode(&CAN_NODE_2_LMO_0, 8);
+// //
+// //
+// //        /* Send data in CAN_NODE_LMO_0 */
+// //	XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
+// //
+// //	XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
+// //
+// //	        /* Send data in CAN_NODE_LMO_0 */
+// //	XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
+// //	XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
+// 	}
+
+// 	counter ++;
+
+// 	alternator++;
+// 	bus_counter_1 ++;
+//     bus_counter_2 ++;
+// 	bus_counter_3 ++;
+// 	bus_counter_4 ++;
+//     ticker = 0;
+// }
+//     }
+
+//     /* Timer interrupt occurs, set the flag to true  */
+//     timer_interrupt_flag = true;
+// }
+
 void SysTick_Handler(void)
 {
-	static bool alternator = true;
-//	static uint64_t message;
+    static int alternator = 1;
+    static bool has_reset = false;
+    static int ticker = 0;
 
+    if (!has_reset) {
+        for (int i = 0; i < motors.num_motors; i++)  {
+            reset_position(&CAN_NODE_1_LMO_0, &motors.motors[i]);
+            reset_position(&CAN_NODE_2_LMO_0, &motors.motors[i]);
+            reset_position(&CAN_NODE_3_LMO_0, &motors.motors[i]);
+            reset_position(&CAN_NODE_4_LMO_0, &motors.motors[i]);
+        }
+        has_reset = true;
+    } else {
+        if (alternator == 7 && ticker < time_to_wait) {
+            ticker++;
+        } else {
+            // static uint64_t message;
 
+            // if (alternator) {
+            //     message = get_position(&motors->motors[0]);
+            //     update_data(&CAN_NODE_2_LMO_0, 2, message);
+            //     /* Update CAN message. Sample and send button state. */
+            //     // CAN_NODE_2_LMO_0.can_data_byte[0] = 0xE0;
+            //     // CAN_NODE_2_LMO_0.can_data_byte[1] = 0x01;
 
-// 	if (alternator) {
-// //		message = get_position(&motors->motors[0]);
-// //		update_data(&CAN_NODE_2_LMO_0, 2, message);
-//     /* Update CAN message. Sample and send button state. */
-//     // CAN_NODE_2_LMO_0.can_data_byte[0] = 0xE0;
-//     // CAN_NODE_2_LMO_0.can_data_byte[1] = 0x01;
+            //     get_position(&CAN_NODE_2_LMO_0, &motors.motors[0]);
 
-//     get_position(&CAN_NODE_2_LMO_0, &motors.motors[0]);
+            //     CAN_NODE_3_LMO_0.can_data_byte[0] = 0xE0;
+            //     CAN_NODE_3_LMO_0.can_data_byte[1] = 0x01;
 
-//     CAN_NODE_3_LMO_0.can_data_byte[0] = 0xE0;
-// 	CAN_NODE_3_LMO_0.can_data_byte[1] = 0x01;
+            //     // XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x001);
+            //     XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x002);
 
-//     // XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x001);
-//     XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x002);
+            //     // XMC_CAN_MO_SetIdentifier(XMC_CAN_MO_t *const can_mo, const uint32_t can_identifier)
 
-// //    XMC_CAN_MO_SetIdentifier(XMC_CAN_MO_t *const can_mo, const uint32_t can_identifier)
+            //     /* Configure data to be transmitted and data length code */
+            //     // XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
 
-//     /* Configure data to be transmitted and data length code */
-//     // XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
+            //     /* Send data in CAN_NODE_LMO_0 */
+            //     // XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
 
-//     /* Send data in CAN_NODE_LMO_0 */
-//     // XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
+            //     XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
+            //     XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
 
+            //     /* Toggle USER LED1 to indicate that the message is transmitted */
+            //     // XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
+            // }
 
-//     XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
-//     XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
+            if (bus_counter_1 == BUS_1) {
+                bus_counter_1 = 0;
+            }
 
-    /* Toggle USER LED1 to indicate that the message is transmitted */
-//    XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
+            if (bus_counter_2 == BUS_2) {
+                bus_counter_2 = BUS_1;
+            }
 
-    if (bus_counter_1 == BUS_1) {
-    	bus_counter_1 = 0;
+            if (bus_counter_3 == BUS_3) {
+                bus_counter_3 = BUS_2;
+            }
+
+            if (bus_counter_4 == BUS_4) {
+                bus_counter_4 = BUS_3;
+            }
+
+            if (alternator == 13) {
+                alternator = 1;
+            }
+
+            if (alternator <= 6) {
+                set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2],5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], 5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4], 5.0f, 1, 5.0f, 0.0f, 0.0f);
+            } else {
+                set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], -5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2], -5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], -5.0f, 1, 5.0f, 0.0f, 0.0f);
+                set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4], -5.0f, 1, 5.0f, 0.0f, 0.0f);
+
+                // CAN_NODE_2_LMO_0.can_data_byte[1] = 0x02;
+                // CAN_NODE_3_LMO_0.can_data_byte[1] = 0x02;
+                //
+                // XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x7FF);
+                // XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x7FF);
+                //
+                // XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
+                //
+                // XMC_CAN_MO_SetDataLengthCode(&CAN_NODE_2_LMO_0, 8);
+                //
+                // /* Send data in CAN_NODE_LMO_0 */
+                // XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
+                //
+                // XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
+                //
+                // /* Send data in CAN_NODE_LMO_0 */
+                // XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
+                // XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
+            }
+
+            counter++;
+            alternator++;
+            bus_counter_1++;
+            bus_counter_2++;
+            bus_counter_3++;
+            bus_counter_4++;
+            ticker = 0;
+        }
     }
-
-    if (bus_counter_2 == BUS_2) {
-    	bus_counter_2 = BUS_1;
-    }
-
-    if (bus_counter_3 == BUS_3) {
-    	bus_counter_3 = BUS_2;
-    }
-
-    if (bus_counter_4 == BUS_4) {
-    	bus_counter_4 = BUS_3;
-    }
-  
-    if (alternator) {
-    	set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 0.001, 0.001, 0.001, 0.001, 0.001);
-		set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2], 0.001, 0.001, 0.001, 0.001, 0.001);
-		set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], 0.001, 0.001, 0.001, 0.001, 0.001);
-		set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4],0.001, 0.001, 0.001, 0.001, 0.001);
-
-
-	}
-
-	else {
-		set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 10, 12, 14, 15, 18);
-		set_position(&CAN_NODE_2_LMO_0, &motors.motors[bus_counter_2], 10, 12, 14, 15, 18);
-		set_position(&CAN_NODE_3_LMO_0, &motors.motors[bus_counter_3], 10, 12, 14, 15, 18);
-		set_position(&CAN_NODE_4_LMO_0, &motors.motors[bus_counter_4], 10, 12, 14, 15, 18);
-
-
-
-
-//    CAN_NODE_2_LMO_0.can_data_byte[1] = 0x02;
-//    CAN_NODE_3_LMO_0.can_data_byte[1] = 0x02;
-//
-//    XMC_CAN_MO_SetIdentifier(&CAN_NODE_2_LMO_0, 0x7FF);
-//    XMC_CAN_MO_SetIdentifier(&CAN_NODE_3_LMO_0, 0x7FF);
-//
-//
-//
-//    XMC_CAN_MO_UpdateData(&CAN_NODE_2_LMO_0);
-//
-//    XMC_CAN_MO_SetDataLengthCode(&CAN_NODE_2_LMO_0, 8);
-//
-//
-//        /* Send data in CAN_NODE_LMO_0 */
-//	XMC_CAN_MO_Transmit(&CAN_NODE_2_LMO_0);
-//
-//	XMC_CAN_MO_UpdateData(&CAN_NODE_3_LMO_0);
-//
-//	        /* Send data in CAN_NODE_LMO_0 */
-//	XMC_CAN_MO_Transmit(&CAN_NODE_3_LMO_0);
-//	XMC_GPIO_ToggleOutput(CYBSP_USER_LED_PORT, CYBSP_USER_LED_PIN);
-	}
-
-	counter ++;
-
-	//  alternator = !alternator;
-	bus_counter_1 ++;
-    bus_counter_2 ++;
-	bus_counter_3 ++;
-	bus_counter_4 ++;
 
     /* Timer interrupt occurs, set the flag to true  */
     timer_interrupt_flag = true;
@@ -269,16 +424,27 @@ int main(void)
 
 
 
+
+
     cy_rslt_t result;
-    init_motors(25, &motors);
-    ticker = 0;
+    init_motors(24, &motors);
+//    ticker = 0;
+
+    // for (int i = 0; i < motors.num_motors; i++)  {
+    //     reset_position(&CAN_NODE_1_LMO_0, &motors.motors[i]);
+    //     reset_position(&CAN_NODE_2_LMO_0, &motors.motors[i]);
+    //     reset_position(&CAN_NODE_3_LMO_0, &motors.motors[i]);
+    //     reset_position(&CAN_NODE_4_LMO_0, &motors.motors[i]);
+    // }
+
+//    set_position(&CAN_NODE_1_LMO_0, &motors.motors[bus_counter_1], 1.0f, 30.0f, 5.0f, 0.0f, 0.0f);
 
 //    init_motor(&TestMotor, -90, 90, 1);
 
 
     #if ENABLE_XMC_DEBUG_PRINT
     /* Assign false to disable printing of debug messages */
-    static volatile bool debug_printf = true;
+    static volatile bool debug_printf = false;
     #endif
 
     /* Initialize the device and board peripherals */
@@ -308,12 +474,12 @@ int main(void)
             debug_printf = false;
         }
         #endif
-        if (ticker >= ticker_lim) {
-        	printf("Decimal: %" PRIu32 "\r\n", counter);
-        	printf("Hexadecimal: 0x%" PRIx32 "\r\n", counter);
-        	ticker = 0;
-        }
-        ticker ++;
+//        if (ticker >= ticker_lim) {
+//        	printf("Decimal: %" PRIu32 "\r\n", counter);
+//        	printf("Hexadecimal: 0x%" PRIx32 "\r\n", counter);
+//        	ticker = 0;
+//        }
+//        ticker ++;
 
     }
 }
