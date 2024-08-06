@@ -10,3 +10,6 @@ imufusion
 matplotlib
 ahrs
 numpy<2.0.0
+
+# Robstride
+robstride
