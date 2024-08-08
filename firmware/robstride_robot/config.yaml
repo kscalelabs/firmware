@@ -1,5 +1,5 @@
 robots:
-  - setup: "left_arm"
+  - setup: "full_body"
     delta_change: 10
     body_parts:
       left_arm:
@@ -21,34 +21,16 @@ robots:
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 60, 60]
         offsets: [0, 0, 0, 0, 0, 0]
-  - setup: "legs"
+  - setup: "left_arm"
     delta_change: 10
     body_parts:
-      left_leg:
-        start_id: 13
-      right_leg:
-        start_id: 19
+      left_arm:
+        start_id: 1
     motor_config:
       arm:
         signs: [1, -1, 1, -1, 1, 1]
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 0, 10]
-        offsets: [0, 0, 0, 0, 0, 0]
-      leg:
-        signs: [-1, 1, 1, -1, 1, -1]
-        increments: [4, 4, 4, 4, 4, 4]
-        maximum_values: [60, 60, 60, 60, 60, 60]
-        offsets: [0, 0, 0, 0, 0, 0]
-  - setup: "right_leg"
-    delta_change: 10
-    body_parts:
-      right_leg:
-        start_id: 19
-    motor_config:
-      leg:
-        signs: [1, -1, 1, -1, -1, 1]
-        increments: [4, 4, 4, 4, 4, 4]
-        maximum_values: [60, 60, 60, 60, 60, 60]
         offsets: [0, 0, 0, 0, 0, 0]
 
 constants:

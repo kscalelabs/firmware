@@ -28,13 +28,17 @@ class Robot:
             for robot in yaml.safe_load(config_file)["robots"]:
                 if robot["setup"] == setup:
                     self.config = robot
+        self.robstride_params = {}
+        for param in self.config["constants"]:
+            self.robstride_params[param] = self.config["constants"][param]
+
         self.setup = setup
         self.delta_change = self.config["delta_change"]
         self.can_bus = self._initialize_can_bus()
         self.body = self._initialize_body()
         self.motor_config = self._initialize_motor_config()
         self.prev_positions: dict = {part: [] for part in self.motor_config}
-        self.client = robstride.Client(self.can_bus.write_bus)
+        self.client = robstride.Client(self.can_bus.bus)
 
     def _initialize_can_bus(self) -> CANInterface:
         write_bus = can.interface.Bus(channel="can0", bustype="socketcan")
@@ -62,16 +66,14 @@ class Robot:
     ) -> None:
         print(f"testing {motor} w/ sign {sign}")
         for i in range((int)(1 / increment) * low, (int)(1 / increment) * high):
-            motor.set_position(int(sign * i * increment * dir), 0, 0)
+            motor.set_position(int(sign * i * increment * dir))
             time.sleep(delay)
-            motor.get_position()
-            print(f"Motor at {motor.position}")
+            print(f"Motor at {motor.get_position()}")
         time.sleep(turn_delay)
         for j in range((int)(1 / increment) * high, (int)(1 / increment) * low, -1):
-            motor.set_position(int(sign * j * increment * dir), 0, 0)
+            motor.set_position(int(sign * j * increment * dir))
             time.sleep(delay)
-            motor.get_position()
-            print(f"Motor at {motor.position}")
+            print(f"Motor at {motor.get_position()}")
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
@@ -84,23 +86,35 @@ class Robot:
         return Body(**body_parts)
 
     def _create_arm(self, side: str, start_id: int) -> Arm:
+        motors = []
+        for i in range(6):
+            if i in self.robstride_params:
+                motors.append(RobstrideMotor(start_id + i, self.robstride_params[i], self.client))
+            else: 
+                motors.append(RobstrideMotor(start_id + i, self.robstride_params["default"], self.client))
         return Arm(
-            rotator_cuff=RobstrideMotor(start_id, None, self.client),
-            shoulder=RobstrideMotor(start_id + 1, None, self.client),
-            bicep=RobstrideMotor(start_id + 2, None, self.client),
-            elbow=RobstrideMotor(start_id + 3, None, self.client),
-            wrist=RobstrideMotor(start_id + 4, None, self.client),
-            gripper=RobstrideMotor(start_id + 5, None, self.client),
+            shoulder=motors[0],
+            elbow=motors[1],
+            wrist=motors[2],
+            wrist_rotation=motors[3],
+            hand=motors[4],
+            thumb=motors[5],
         )
 
     def _create_leg(self, side: str, start_id: int) -> Leg:
+        motors = []
+        for i in range(6):
+            if i in self.robstride_params:
+                motors.append(RobstrideMotor(start_id + i, self.robstride_params[i], self.client))
+            else: 
+                motors.append(RobstrideMotor(start_id + i, self.robstride_params["default"], self.client))
         return Leg(
-            pelvis=RobstrideMotor(start_id, None, self.client),
-            hip=RobstrideMotor(start_id + 1, None, self.client),
-            thigh=RobstrideMotor(start_id + 2, None, self.client),
-            knee=RobstrideMotor(start_id + 3, None, self.client),
-            ankle=RobstrideMotor(start_id + 4, None, self.client),
-            foot=RobstrideMotor(start_id + 5, None, self.client),
+            hip=motors[0],
+            thigh=motors[1],
+            knee=motors[2],
+            ankle=motors[3],
+            foot=motors[4],
+            toe=motors[5],
         )
 
     def _initialize_motor_config(self) -> Dict[str, Dict]:
@@ -131,6 +145,7 @@ class Robot:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
                 motor.set_zero_position()
+                motor.set_position(0)
 
     def set_position(
         self,
@@ -164,17 +179,11 @@ class Robot:
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * int(pos))
 
-    def update_motor_data(self, timeout: float = 0.001) -> None:
-        for _, config in self.motor_config.items():
-            for motor in config["motors"]:
-                motor.get_position()
-                # motor.update_speed()
-
     def get_motor_speeds(self) -> Dict[str, List[float]]:
-        return {part: [motor.speed for motor in config["motors"]] for part, config in self.motor_config.items()}
+        return {part: [motor.get_speed() for motor in config["motors"]] for part, config in self.motor_config.items()}
 
     def get_motor_positions(self) -> Dict[str, List[float]]:
         return {
-            part: [motor.position * sign for motor, sign in zip(config["motors"], config["signs"])]
+            part: [motor.get_position() * sign for motor, sign in zip(config["motors"], config["signs"])]
             for part, config in self.motor_config.items()
         }
