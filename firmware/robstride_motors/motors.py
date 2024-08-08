@@ -1,11 +1,12 @@
 """Defines a class that dictates how to communicate with the motors.
 
 Modified to work with Robstride motors.
+TODO: create a generic motor class that can work with any motor type.
 """
 
 from dataclasses import dataclass
 
-import firmware.robstride_robot.client as robstride
+import firmware.robstride_motors.client as robstride
 
 
 @dataclass

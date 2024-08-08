@@ -1,9 +1,12 @@
-"""Defines the motor model but with Robstride motors instead."""
+"""Defines the motor model but with Robstride motors instead.
+
+TODO: Merge models into one generic model.
+"""
 
 from dataclasses import dataclass
 from typing import Optional
 
-from firmware.robstride_robot.motors import RobstrideMotor
+from firmware.robstride_motors.motors import RobstrideMotor
 
 # TODO: Head
 

@@ -4,8 +4,8 @@ import time
 
 import can
 
-import firmware.robstride_robot.client as robstride
-from firmware.robstride_robot.motors import RobstrideMotor, RobstrideParams
+import firmware.robstride_motors.client as robstride
+from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
 
 
 def main() -> None:

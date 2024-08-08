@@ -13,10 +13,10 @@ from typing import Dict, List, Union
 import can
 import yaml
 
-import firmware.robstride_robot.client as robstride
+import firmware.robstride_motors.client as robstride
 from firmware.bionic_motors.motors import CANInterface
-from firmware.robstride_robot.model import Arm, Body, Leg
-from firmware.robstride_robot.motors import RobstrideMotor
+from firmware.robstride_motors.model import Arm, Body, Leg
+from firmware.robstride_motors.motors import RobstrideMotor
 
 
 def rad_to_deg(rad: float) -> float:
