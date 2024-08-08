@@ -2,7 +2,7 @@
    Modified to work with Robstride motors."""
 
 import can
-import robstride
+import firmware.robstride_robot.client as robstride
 
 from firmware.bionic_motors.motors import *
 

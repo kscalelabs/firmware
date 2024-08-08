@@ -1,7 +1,7 @@
 """Script to test Robstride firmware."""
 import time
 import can
-import robstride
+import firmware.robstride_robot.client as robstride
 
 from firmware.robstride_robot.motors import RobstrideMotor, RobstrideParams
 
