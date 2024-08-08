@@ -1,8 +1,10 @@
 """Script to test Robstride firmware."""
-import time
-import can
-import firmware.robstride_robot.client as robstride
 
+import time
+
+import can
+
+import firmware.robstride_robot.client as robstride
 from firmware.robstride_robot.motors import RobstrideMotor, RobstrideParams
 
 
@@ -23,7 +25,7 @@ def main() -> None:
     client = robstride.Client(can.interface.Bus(channel="can0", bustype="socketcan"))
     motor = RobstrideMotor(1, param, client)
 
-    def position_test(top: float = 5*2*3.14) -> None:
+    def position_test(top: float = 5 * 2 * 3.14) -> None:
         motor.set_position(top)
 
         cur_pos = motor.get_position()
@@ -42,7 +44,6 @@ def main() -> None:
             print(f"Motor at {cur_pos}")
             time.sleep(0.1)
 
-    
     def torque_test(position: float = 0) -> None:
         def calculate_desired_current(position: float, cur_pos: float, speed: float) -> float:
             kp = 0.2
@@ -51,20 +52,21 @@ def main() -> None:
             kt = 1
             current = (kp * (position - cur_pos) + kd * (speed - motor.get_speed())) * kt + torque_ff
             return current
+
         print(motor.get_position())
         motor.set_operation_mode(robstride.RunMode.Current)
         cur_posp = motor.get_position()
 
         while abs(cur_posp - position) > 0.1:
             cur_posp = motor.get_position()
-            cur_speed = motor.get_speed()
+            # cur_speed = motor.get_speed()
             desired_current = calculate_desired_current(position, cur_posp, 0)
             motor.set_current(desired_current)
             print(f"Motor at {cur_posp}, setting current to {desired_current}")
             time.sleep(0.1)
         print("DONE")
-    
-    #position_test(top=5*2*3.14)
+
+    # position_test(top=5*2*3.14)
     print(motor.get_position())
     motor.set_position(10)
     time.sleep(3)
@@ -72,8 +74,9 @@ def main() -> None:
     motor.set_zero_position()
     motor.set_position(0)
     print(motor.get_position())
-    #torque_test(35)
+    # torque_test(35)
     print("DONE")
+
 
 if __name__ == "__main__":
     main()

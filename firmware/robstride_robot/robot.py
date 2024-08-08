@@ -11,12 +11,13 @@ import time
 from typing import Dict, List, Union
 
 import can
-import robstride
 import yaml
 
-from firmware.bionic_motors.model import Arm, Body, Leg
+import firmware.robstride_robot.client as robstride
 from firmware.bionic_motors.motors import CANInterface
-from firmware.robstride_robot.motors import RobstrideMotor, RobstrideParams
+from firmware.robstride_robot.model import Arm, Body, Leg
+from firmware.robstride_robot.motors import RobstrideMotor
+
 
 def rad_to_deg(rad: float) -> float:
     return rad / math.pi * 180
@@ -90,15 +91,15 @@ class Robot:
         for i in range(6):
             if i in self.robstride_params:
                 motors.append(RobstrideMotor(start_id + i, self.robstride_params[i], self.client))
-            else: 
+            else:
                 motors.append(RobstrideMotor(start_id + i, self.robstride_params["default"], self.client))
         return Arm(
-            shoulder=motors[0],
-            elbow=motors[1],
-            wrist=motors[2],
-            wrist_rotation=motors[3],
-            hand=motors[4],
-            thumb=motors[5],
+            rotator_cuff=motors[0],
+            shoulder=motors[1],
+            bicep=motors[2],
+            elbow=motors[3],
+            wrist=motors[4],
+            gripper=motors[5],
         )
 
     def _create_leg(self, side: str, start_id: int) -> Leg:
@@ -106,15 +107,15 @@ class Robot:
         for i in range(6):
             if i in self.robstride_params:
                 motors.append(RobstrideMotor(start_id + i, self.robstride_params[i], self.client))
-            else: 
+            else:
                 motors.append(RobstrideMotor(start_id + i, self.robstride_params["default"], self.client))
         return Leg(
-            hip=motors[0],
-            thigh=motors[1],
-            knee=motors[2],
-            ankle=motors[3],
-            foot=motors[4],
-            toe=motors[5],
+            pelvis=motors[0],
+            hip=motors[1],
+            thigh=motors[2],
+            knee=motors[3],
+            ankle=motors[4],
+            foot=motors[5],
         )
 
     def _initialize_motor_config(self) -> Dict[str, Dict]:
