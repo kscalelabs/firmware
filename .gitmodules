@@ -1,0 +1,3 @@
+[submodule "firmware/robstride_robot/robstride"]
+	path = firmware/robstride_robot/robstride
+	url = https://github.com/sirwart/robstride.git
