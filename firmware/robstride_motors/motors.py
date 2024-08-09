@@ -7,6 +7,7 @@ TODO: create a generic motor class that can work with any motor type.
 from dataclasses import dataclass
 
 import firmware.robstride_motors.client as robstride
+from firmware.robot_utils.motor_utils import MotorInterface
 
 
 @dataclass
@@ -23,7 +24,7 @@ class RobstrideParams:
     spd_filt_gain: float
 
 
-class RobstrideMotor:
+class RobstrideMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
 
     def __init__(self, motor_id: int, control_params: RobstrideParams, client: robstride.Client) -> None:
@@ -34,19 +35,17 @@ class RobstrideMotor:
             control_params: The control parameters for the motor.
             client: The CAN bus interface.
         """
-        self.motor_id = motor_id
-        self.control_params = control_params
-        self.client = client
+        super().__init__(motor_id, control_params, client)
         self.set_operation_mode(robstride.RunMode.Position)
-        self.client.enable(self.motor_id)
+        self.enable()
         self.get_position()
         self.set_control_params()
 
     def disable(self) -> None:
-        self.client.disable(self.motor_id)
+        self.communication_interface.disable(self.motor_id)
 
     def enable(self) -> None:
-        self.client.enable(self.motor_id)
+        self.communication_interface.enable(self.motor_id)
 
     def set_control_params(self) -> None:
         print(self.control_params.__dict__.items())
@@ -59,8 +58,8 @@ class RobstrideMotor:
         Args:
             mode: The mode to set the motor to.
         """
-        self.client.write_param(self.motor_id, "run_mode", mode)
-        self.client.enable(self.motor_id)
+        self.communication_interface.write_param(self.motor_id, "run_mode", mode)
+        self.communication_interface.enable(self.motor_id)
 
     def set_position(self, position: float) -> None:
         """Sets the position of the motor using force position hybrid control.
@@ -68,12 +67,12 @@ class RobstrideMotor:
         Args:
             position: The position to set the motor to.
         """
-        resp = self.client.write_param(self.motor_id, "loc_ref", position)
+        resp = self.communication_interface.write_param(self.motor_id, "loc_ref", position)
         self.position = resp.angle
 
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
-        _ = self.client.zero_pos(self.motor_id)
+        _ = self.communication_interface.zero_pos(self.motor_id)
 
     def get_position(self) -> float:
         """Updates the value of the motor's position attribute.
@@ -84,7 +83,7 @@ class RobstrideMotor:
         Returns:
             "Valid" if the message is valid, "Invalid" otherwise
         """
-        resp = self.client.read_param(self.motor_id, "mechpos")
+        resp = self.communication_interface.read_param(self.motor_id, "mechpos")
         if type(resp) is float:
             self.position = resp
         return self.position
@@ -98,7 +97,7 @@ class RobstrideMotor:
         Returns:
             "Valid" if the message is valid, "Invalid" otherwise
         """
-        resp = self.client.read_param(self.motor_id, "mechvel")
+        resp = self.communication_interface.read_param(self.motor_id, "mechvel")
         self.speed = resp
         return self.speed
 
@@ -108,7 +107,7 @@ class RobstrideMotor:
         Args:
         current: The current to set the motor to.
         """
-        self.client.write_param(self.motor_id, "iq_ref", current)
+        self.communication_interface.write_param(self.motor_id, "iq_ref", current)
 
     def __str__(self) -> str:
-        return f"BionicMotor ({self.motor_id})"
+        return f"RobstrideMotor ({self.motor_id})"
