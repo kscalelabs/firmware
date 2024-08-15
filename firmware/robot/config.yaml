@@ -26,38 +26,18 @@ robots:
       - motor_id: "default"
         kp: 0.5
         kd: 0.1
-  - setup: "right_arm"
-    motor_type: "robstride"
-    delta_change: 10
-    body_parts:
-      right_arm:
-        start_id: 1
-    motor_config:
-      arm:
-        signs: [1, -1, 1, -1, 1, 1]
-        increments: [4, 4, 4, 4, 4, 4]
-        maximum_values: [60, 60, 60, 60, 0, 10]
-        offsets: [0, 0, 0, 0, 0, 0]
-    params:
-      - motor_id: "default"
-        torque_limit: 50
-        cur_kp: 0.1
-        cur_ki: 0.1
-        cur_fit_gain: 0.1
-        speed_limit: 100
-        current_limit: 100
-        loc_kp: 0.1
-        spd_kp: 0.1
-        spd_ki: 0.1
-        spd_fit_gain: 0.1
   - setup: "right_leg"
     motor_type: "robstride"
     delta_change: 10
     body_parts:
       right_leg:
         start_id: 16
+        canbus_id: 0
+        dof: 6
       left_leg:
         start_id: 11
+        canbus_id: 1
+        dof: 6
     motor_config:
       leg:
         signs: [1, 1, 1, 1, 1, 1]

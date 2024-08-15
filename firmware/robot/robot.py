@@ -10,8 +10,8 @@ import yaml
 import firmware.robstride_motors.client as robstride
 from firmware.bionic_motors.motors import CANInterface
 from firmware.robot.model import Arm, Body, Leg
-from firmware.robot_utils.motor_utils import MotorInterface
 from firmware.robot_utils.motor_factory import MotorFactory
+from firmware.robot_utils.motor_utils import MotorInterface
 
 
 def rad_to_deg(rad: float) -> float:
@@ -28,99 +28,87 @@ class Robot:
         print("Loaded config")
         self.setup = setup
         self.delta_change = self.config["delta_change"]
-        self.communication_interface = self._initialize_communication_interface()
-        print(self._initialize_communication_interface())
-        print(self._initialize_communication_interface().bus)
+
+        self.communication_interfaces = self._initialize_communication_interfaces()
+        print("Initialized communication interfaces")
         self.body = self._initialize_body()
         self.motor_config = self._initialize_motor_config()
         self.prev_positions: dict = {part: [] for part in self.motor_config}
 
-    def _initialize_communication_interface(self) -> Any:
-        # Initialize the appropriate communication interface based on the config
-        if self.config["motor_type"] == "bionic":
-            return self._initialize_can_bus()
-        elif self.config["motor_type"] == "robstride":
-            return robstride.Client(can.interface.Bus(channel="can0", bustype="socketcan"))#self._initialize_can_bus().bus)
-        else:
-            raise ValueError(f"Unsupported motor type: {self.config['motor_type']}")
+    def _initialize_communication_interfaces(self) -> Dict[str, Any]:
+        interfaces = {}
+        for part, config in self.config["body_parts"].items():
+            canbus_id = config.get("canbus_id", 0)
+            if self.config["motor_type"] == "bionic":
+                interfaces[part] = self._initialize_can_interface(canbus_id)
+            elif self.config["motor_type"] == "robstride":
+                interfaces[part] = robstride.Client(can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan"))
+            else:
+                raise ValueError(f"Unsupported motor type: {self.config['motor_type']}")
+        return interfaces
 
-    def _initialize_can_bus(self) -> CANInterface:
-        #write_bus = can.interface.Bus(channel="can0", bustype="socketcan")
+    def _initialize_can_interface(self, canbus_id: int) -> CANInterface:
+        write_bus = can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan")
         buffer_reader = can.BufferedReader()
         notifier = can.Notifier(write_bus, [buffer_reader])
         return CANInterface(write_bus, buffer_reader, notifier)
 
-    def _create_motor(self, motor_id: int, control_params: Any) -> MotorInterface:
+    def _create_motor(self, part: str, motor_id: int, control_params: Any) -> MotorInterface:
         return MotorFactory.create_motor(
             self.config["motor_type"],
             motor_id,
             control_params,
-            self.communication_interface
+            self.communication_interfaces[part]
         )
 
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
         for part, config in self.config["body_parts"].items():
             if part.endswith("_arm"):
-                body_parts[part] = self._create_arm(part.split("_")[0], config["start_id"])
+                body_parts[part] = self._create_arm(part, config["start_id"], config["dof"])
             elif part.endswith("_leg"):
-                body_parts[part] = self._create_leg(part.split("_")[0], config["start_id"])
-
+                body_parts[part] = self._create_leg(part, config["start_id"], config["dof"])
         return Body(**body_parts)
 
-    def _create_arm(self, side: str, start_id: int) -> Arm:
+    def _create_arm(self, part: str, start_id: int, dof: int) -> Arm:
         motors = []
-        for i in range(5):
-            control_params = self.config["params"].get(i+start_id, self.config["params"]["default"])
-            motors.append(self._create_motor(start_id + i, control_params))
-        return Arm(
-            rotator_cuff=motors[0],
-            shoulder=motors[1],
-            bicep=motors[2],
-            elbow=motors[3],
-            wrist=motors[4],
-            gripper=motors[5],
-        )
+        for i in range(dof):
+            control_params = self._get_motor_params(start_id + i)
+            motors.append(self._create_motor(part, start_id + i, control_params))
+        return Arm(motors=motors)
 
-    def _create_leg(self, side: str, start_id: int) -> Leg:
+    def _create_leg(self, part: str, start_id: int, dof: int) -> Leg:
         motors = []
-        if side == "left":
-            self.communication_interface = robstride.Client(can.interface.Bus(channel="can1", bustype="socketcan"))#self._initialize_can_bus().bus)
+        for i in range(dof):
+            control_params = self._get_motor_params(start_id + i)
+            motors.append(self._create_motor(part, start_id + i, control_params))
+        return Leg(motors=motors)
 
-        for i in range(5):
-            # Key is default if not in params
-            control_params = [key for key in self.config["params"] if key["motor_id"] == i+start_id]
-            if not control_params:
-                control_params = [key for key in self.config["params"] if key["motor_id"] == "default"]
-            control_params = control_params[0]
-            print(control_params)
-            print(i+start_id)
-            control_params = control_params.copy()
-            control_params.pop("motor_id")
-            motors.append(self._create_motor(start_id + i, control_params))
-        print("Made leg")
-        return Leg(
-            pelvis=motors[0],
-            hip=motors[1],
-            thigh=motors[2],
-            knee=motors[3],
-            ankle=motors[4],
-            foot=motors[4],
-        )
+    def _get_motor_params(self, motor_id: int) -> Dict[str, Any]:
+        default_params = next(param for param in self.config["params"] if param["motor_id"] == "default")
+        specific_params = next((param for param in self.config["params"] if param["motor_id"] == motor_id), None)
+
+        if specific_params:
+            return {**default_params, **specific_params}
+        return default_params
 
     def _initialize_motor_config(self) -> Dict[str, Dict[str, Any]]:
         motor_config = {}
-        motor_config_params = self.config["motor_config"]
-
         for part, part_config in self.config["body_parts"].items():
             if hasattr(self.body, part):
                 part_type = "arm" if "arm" in part else "leg"
+                dof = part_config["dof"]
+
+                signs = self.config["motor_config"][part_type]["signs"][:dof]
+                if part.startswith("left"):
+                    signs = [-s for s in signs]
+
                 motor_config[part] = {
                     "motors": getattr(self.body, part).motors,
-                    "signs": motor_config_params[part_type]["signs"],
-                    "increments": motor_config_params[part_type]["increments"],
-                    "maximum_values": motor_config_params[part_type]["maximum_values"],
-                    "offsets": motor_config_params[part_type]["offsets"],
+                    "signs": signs,
+                    "increments": self.config["motor_config"][part_type]["increments"][:dof],
+                    "maximum_values": self.config["motor_config"][part_type]["maximum_values"][:dof],
+                    "offsets": self.config["motor_config"][part_type]["offsets"][:dof],
                 }
         return motor_config
 
@@ -131,22 +119,25 @@ class Robot:
                 values[idx] = val // abs(val) * maxes
 
         return values
-    
-    def test_motors(self, low: int = 0, high: int = 10, radians=False) -> None:
+
+    """
+    Test all motors by setting them to a range of values from low to high
+
+    Args:
+        low: The lower bound of the range
+        high: The upper bound of the range
+        radians: Whether the values should be interpreted as radians
+    """
+    def test_motors(self, low: int = 0, high: int = 10, radians: bool =False) -> None:
         for part, config in self.motor_config.items():
-            for motor in config["motors"]:
-                # print(f"Testing {motor}")
-                # for i in range(low, high):
-                #     motor.set_position(deg_to_rad(i) if not radians else i)
-                #     time.sleep(0.1)
-                #     print(motor.get_position())
-                motor.set_position(deg_to_rad(high))
-                time.sleep(5)
-                motor.set_position(0)
-                # for i in range(high, low, -1):
-                #     motor.set_position(deg_to_rad(i) if not radians else i)
-                #     time.sleep(0.5)
-                #     print(motor.get_position())
+            for motor, sign in zip(config["motors"], config["signs"]):
+                for val in range(low, high + 1):
+                    if not radians:
+                        set_val = deg_to_rad(float(val))
+                    else:
+                        set_val = val
+                    motor.set_position(sign * set_val)
+                    time.sleep(0.1)
 
     def zero_out(self) -> None:
         for part, part_config in self.motor_config.items():

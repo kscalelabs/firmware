@@ -37,13 +37,11 @@ class RobstrideMotor(MotorInterface):
         """
         super().__init__(motor_id, control_params, client)
         self.disable()
-        print("Setting operation mode")
         self.set_operation_mode(robstride.RunMode.Position)
-        print("Setting control params")
         self.enable()
         self.get_position()
         self.set_control_params()
-        print("Motor initialized")
+        print(f"Motor {motor_id} initialized")
 
     def disable(self) -> None:
         self.communication_interface.disable(self.motor_id)
