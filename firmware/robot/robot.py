@@ -89,8 +89,12 @@ class Robot:
         specific_params = next((param for param in self.config["params"] if param["motor_id"] == motor_id), None)
 
         if specific_params:
-            return {**default_params, **specific_params}
-        return default_params
+            temp = {**default_params, **specific_params}
+            temp.pop("motor_id")
+            return temp
+        temp = default_params.copy()
+        temp.pop("motor_id")
+        return temp  
 
     def _initialize_motor_config(self) -> Dict[str, Dict[str, Any]]:
         motor_config = {}
@@ -132,6 +136,14 @@ class Robot:
         for part, config in self.motor_config.items():
             for motor, sign in zip(config["motors"], config["signs"]):
                 for val in range(low, high + 1):
+                    if not radians:
+                        set_val = deg_to_rad(float(val))
+                    else:
+                        set_val = val
+                    motor.set_position(sign * set_val)
+                    time.sleep(0.1)
+                time.sleep(1)
+                for val in range(high, low - 1, -1):
                     if not radians:
                         set_val = deg_to_rad(float(val))
                     else:

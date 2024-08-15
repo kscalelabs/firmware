@@ -40,7 +40,7 @@ robots:
         dof: 5
     motor_config:
       leg:
-        signs: [1, 1, 1, 1, 1, 1]
+        signs: [-1, 1, -1, -1, 1, 1]
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 0, 10]
         offsets: [0, 0, 0, 0, 0, 0]
