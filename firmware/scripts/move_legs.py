@@ -106,7 +106,7 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 def main() -> None:
 
     print("Initializing")
-    robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
+    robot = Robot(config_path="../robot/config.yaml", setup="mini_legs")
     print("Initialized")
     robot.zero_out()
     robot.test_motors(low=0,high=30)
