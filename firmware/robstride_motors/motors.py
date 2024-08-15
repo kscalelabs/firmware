@@ -36,10 +36,14 @@ class RobstrideMotor(MotorInterface):
             client: The CAN bus interface.
         """
         super().__init__(motor_id, control_params, client)
+        self.disable()
+        print("Setting operation mode")
         self.set_operation_mode(robstride.RunMode.Position)
+        print("Setting control params")
         self.enable()
         self.get_position()
         self.set_control_params()
+        print("Motor initialized")
 
     def disable(self) -> None:
         self.communication_interface.disable(self.motor_id)
@@ -48,9 +52,8 @@ class RobstrideMotor(MotorInterface):
         self.communication_interface.enable(self.motor_id)
 
     def set_control_params(self) -> None:
-        print(self.control_params.__dict__.items())
-        for param, value in self.control_params.__dict__.items():
-            self.client.write_param(self.motor_id, param, value)
+        for param, value in self.control_params.items():
+            self.communication_interface.write_param(self.motor_id, param, value)
 
     def set_operation_mode(self, mode: robstride.RunMode) -> None:
         """Sets the operation mode of the motor to position, speed, or current control!
@@ -67,12 +70,15 @@ class RobstrideMotor(MotorInterface):
         Args:
             position: The position to set the motor to.
         """
+        print(self.motor_id)
         resp = self.communication_interface.write_param(self.motor_id, "loc_ref", position)
         self.position = resp.angle
+        print("Position set")
 
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
         _ = self.communication_interface.zero_pos(self.motor_id)
+        self.set_position(0)
 
     def get_position(self) -> float:
         """Updates the value of the motor's position attribute.

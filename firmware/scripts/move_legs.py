@@ -104,13 +104,19 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 
 
 def main() -> None:
-    robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
-    # robot.zero_out()
-    robot.test_motors()
 
-    config = robot.motor_config["right_leg"]
-    test_torque_control(robot, config)
+    print("Initializing")
+    robot = Robot(config_path="../robot/config.yaml", setup="right_leg")
+    print("Initialized")
+    robot.zero_out()
+    robot.test_motors(low=0,high=30)
+    robot.motor_config["right_leg"]["motors"][0].set_position(3.14/4)
+    time.sleep(10)
+
+    #config = robot.motor_config["right_leg"]
+    #test_torque_control(robot, config)
     # test_motor(robot, config, 3)
+    robot.disable_motors()
 
 
 def mac() -> None:

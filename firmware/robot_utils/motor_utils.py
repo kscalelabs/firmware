@@ -2,9 +2,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
-from firmware.bionic_motors.motors import BionicMotor
-from firmware.robstride_motors.motors import RobstrideMotor
-
 
 @dataclass
 class MotorParams:
@@ -48,13 +45,3 @@ class MotorInterface(ABC):
 
     def __str__(self) -> str:
         return f"Motor ({self.motor_id})"
-
-class MotorFactory:
-    @staticmethod
-    def create_motor(motor: str, motor_id: int, control_params: Any, communication_interface: Any) -> MotorInterface:
-        if motor == "bionic":
-            return BionicMotor(motor_id, control_params, communication_interface)
-        elif motor == "robstride":
-            return RobstrideMotor(motor_id, control_params, communication_interface)
-        else:
-            raise ValueError(f"Motor type {motor} not recognized.")
