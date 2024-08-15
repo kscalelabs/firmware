@@ -17,8 +17,8 @@ class MotorInterface(ABC):
         self.motor_id = motor_id
         self.control_params = control_params
         self.communication_interface = communication_interface
-        self.position = 0
-        self.speed = 0
+        self.position: float = 0
+        self.speed: float = 0
 
     @abstractmethod
     def set_position(self, position: float, *args: Any) -> None:

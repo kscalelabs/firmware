@@ -5,13 +5,14 @@ TODO: create a generic motor class that can work with any motor type.
 """
 
 from dataclasses import dataclass
+from typing import Any
 
 import firmware.robstride_motors.client as robstride
-from firmware.robot_utils.motor_utils import MotorInterface
+from firmware.robot_utils.motor_utils import MotorInterface, MotorParams
 
 
 @dataclass
-class RobstrideParams:
+class RobstrideParams(MotorParams):
     limit_torque: float
     cur_kp: float
     cur_ki: float
@@ -62,11 +63,12 @@ class RobstrideMotor(MotorInterface):
         self.communication_interface.write_param(self.motor_id, "run_mode", mode)
         self.communication_interface.enable(self.motor_id)
 
-    def set_position(self, position: float) -> None:
+    def set_position(self, position: float, *args: Any) -> None:
         """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to.
+            args: Additional arguments to pass to the motor.
         """
         print(self.motor_id)
         resp = self.communication_interface.write_param(self.motor_id, "loc_ref", position)
@@ -92,7 +94,7 @@ class RobstrideMotor(MotorInterface):
             self.position = resp
         return self.position
 
-    def get_speed(self) -> float | robstride.RunMode:
+    def get_speed(self) -> float:
         """Updates the value of the motor's speed attribute.
 
         Args:
@@ -102,7 +104,8 @@ class RobstrideMotor(MotorInterface):
             "Valid" if the message is valid, "Invalid" otherwise
         """
         resp = self.communication_interface.read_param(self.motor_id, "mechvel")
-        self.speed = resp
+        if type(resp) is float:
+            self.speed = resp
         return self.speed
 
     def set_current(self, current: float) -> None:

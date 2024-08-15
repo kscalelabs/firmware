@@ -14,13 +14,13 @@ from firmware.bionic_motors.commands import (
     set_zero_position,
 )
 from firmware.bionic_motors.responses import read_result, valid_message
-from firmware.robot_utils.motor_utils import MotorInterface
+from firmware.robot_utils.motor_utils import MotorInterface, MotorParams
 
 SPECIAL_IDENTIFIER = 0x7FF
 
 
 @dataclass
-class ControlParams:
+class ControlParams(MotorParams):
     kp: float
     kd: float
 
@@ -92,14 +92,16 @@ class BionicMotor(MotorInterface):
                 else:
                     pass
 
-    def set_position(self, position: float, speed: float, torque: int) -> None:
+    def set_position(self, position: float, *args: Any) -> None:
         """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to (in degrees)
-            speed: The speed to set the motor to (in rpm)
-            torque: The torque to set the motor to (in Nm)
+            args: Additional arguments to pass to the motor (speed in rpm, torque in Nm)
         """
+        speed = args[0] if len(args) > 0 else 0
+        torque = args[1] if len(args) > 1 else 0
+
         command = force_position_hybrid_control(self.control_params.kp, self.control_params.kd, position, speed, torque)
         self.send(self.motor_id, bytes(command))
 
