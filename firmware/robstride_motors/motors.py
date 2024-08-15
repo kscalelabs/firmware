@@ -50,7 +50,7 @@ class RobstrideMotor(MotorInterface):
         self.communication_interface.enable(self.motor_id)
 
     def set_control_params(self) -> None:
-        for param, value in self.control_params.items():
+        for param, value in self.control_params.__dict__.items():
             self.communication_interface.write_param(self.motor_id, param, value)
 
     def set_operation_mode(self, mode: robstride.RunMode) -> None:
