@@ -217,7 +217,7 @@ class Robot:
         radians: Whether the values should be interpreted as radians
     """
 
-    def test_motors(self, low: int = 0, high: int = 10, radians: bool = False) -> None:
+    def test_motors(self, low: int = 0, high: int = 10, total_sign=1, radians: bool = False) -> None:
         for part, config in self.motor_config.items():
             for motor, sign in zip(config["motors"], config["signs"]):
                 for val in range(low, high + 1):
@@ -225,7 +225,7 @@ class Robot:
                         set_val = deg_to_rad(float(val))
                     else:
                         set_val = val
-                    motor.set_position(sign * set_val)
+                    motor.set_position(total_sign*sign * set_val)
                     time.sleep(0.1)
                 time.sleep(1)
                 for val in range(high, low - 1, -1):
@@ -233,7 +233,7 @@ class Robot:
                         set_val = deg_to_rad(float(val))
                     else:
                         set_val = val
-                    motor.set_position(sign * set_val)
+                    motor.set_position(total_sign*sign * set_val)
                     time.sleep(0.1)
 
     """
@@ -254,6 +254,13 @@ class Robot:
             for part, part_config in self.motor_config.items():
                 for motor in part_config["motors"]:
                     motor.disable()
+
+    def update_motor_data(self) -> None:
+        if self.config["motor_type"] == "bionic":
+            for part, part_config in self.motor_config.items():
+                for motor in part_config["motors"]:
+                    motor.update_position()
+                    motor.update_speed()
 
     """
     Set the position of the robot to a new position
