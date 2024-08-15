@@ -1,3 +1,5 @@
+"""This module contains the abstract base class for motor interfaces."""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
@@ -6,6 +8,7 @@ from typing import Any
 @dataclass
 class MotorParams:
     pass
+
 
 class MotorInterface(ABC):
     """Abstract base class for motor interfaces."""
@@ -41,7 +44,6 @@ class MotorInterface(ABC):
     def get_speed(self) -> float:
         """Gets the current speed of the motor."""
         pass
-
 
     def __str__(self) -> str:
         return f"Motor ({self.motor_id})"

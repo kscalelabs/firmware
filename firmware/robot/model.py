@@ -7,6 +7,7 @@ from firmware.robot_utils.motor_utils import MotorInterface
 
 # TODO: Head
 
+
 @dataclass
 class BodyPart:
     motors: List[MotorInterface] = field(default_factory=list)
@@ -15,13 +16,16 @@ class BodyPart:
     def motor_ids(self) -> List[int]:
         return [motor.motor_id for motor in self.motors]
 
+
 @dataclass
 class Arm(BodyPart):
     pass
 
+
 @dataclass
 class Leg(BodyPart):
     pass
+
 
 @dataclass
 class Body:

@@ -1,7 +1,10 @@
-from firmware.bionic_motors.motors import BionicMotor, ControlParams
-from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
+"""Motor factory module. Contains a factory class to create motor objects based on configuration."""
+
 from typing import Any
+
+from firmware.bionic_motors.motors import BionicMotor, ControlParams
 from firmware.robot_utils.motor_utils import MotorInterface
+from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
 
 
 class MotorFactory:
@@ -15,7 +18,6 @@ class MotorFactory:
 
             return BionicMotor(motor_id, bionic_params, communication_interface)
         elif motor == "robstride":
-
             robstride_params = RobstrideParams(
                 limit_torque=control_params["limit_torque"],
                 cur_kp=control_params["cur_kp"],

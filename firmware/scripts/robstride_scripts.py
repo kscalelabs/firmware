@@ -69,7 +69,7 @@ def main() -> None:
     # position_test(top=5*2*3.14)
     motor.set_zero_position()
     print(motor.get_position())
-    motor.set_position(3.14/6)
+    motor.set_position(3.14 / 6)
     time.sleep(7)
     print(motor.get_position())
     motor.set_zero_position()

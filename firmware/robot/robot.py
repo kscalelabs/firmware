@@ -17,8 +17,10 @@ from firmware.robot_utils.motor_utils import MotorInterface
 def rad_to_deg(rad: float) -> float:
     return rad / math.pi * 180
 
+
 def deg_to_rad(deg: float) -> float:
     return deg * math.pi / 180
+
 
 class Robot:
     def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
@@ -41,8 +43,9 @@ class Robot:
     Returns:
         A dictionary mapping body parts to their communication interfaces
     """
+
     def _initialize_communication_interfaces(self) -> Dict[str, Any]:
-        interfaces = {}
+        interfaces: Any = {}
         for part, config in self.config["body_parts"].items():
             canbus_id = config.get("canbus_id", 0)
             if self.config["motor_type"] == "bionic":
@@ -62,6 +65,7 @@ class Robot:
     Returns:
         A CAN interface for the given CAN bus ID (used for Bionic motors)
     """
+
     def _initialize_can_interface(self, canbus_id: int) -> CANInterface:
         write_bus = can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan")
         buffer_reader = can.BufferedReader()
@@ -79,12 +83,10 @@ class Robot:
     Returns:
         A motor interface for the given body part and motor ID
     """
+
     def _create_motor(self, part: str, motor_id: int, control_params: Any) -> MotorInterface:
         return MotorFactory.create_motor(
-            self.config["motor_type"],
-            motor_id,
-            control_params,
-            self.communication_interfaces[part]
+            self.config["motor_type"], motor_id, control_params, self.communication_interfaces[part]
         )
 
     """
@@ -93,6 +95,7 @@ class Robot:
     Returns:
         A Body object representing the robot's body
     """
+
     def _initialize_body(self) -> Body:
         body_parts: dict = {}
         for part, config in self.config["body_parts"].items():
@@ -112,6 +115,7 @@ class Robot:
 
     TODO: Combine with _create_leg
     """
+
     def _create_arm(self, part: str, start_id: int, dof: int) -> Arm:
         motors = []
         for i in range(dof):
@@ -127,6 +131,7 @@ class Robot:
         start_id: The ID of the first motor in the leg
         dof: The degrees of freedom of the leg
     """
+
     def _create_leg(self, part: str, start_id: int, dof: int) -> Leg:
         motors = []
         for i in range(dof):
@@ -143,6 +148,7 @@ class Robot:
     Returns:
         The parameters for the given motor
     """
+
     def _get_motor_params(self, motor_id: int) -> Dict[str, Any]:
         default_params = next(param for param in self.config["params"] if param["motor_id"] == "default")
         specific_params = next((param for param in self.config["params"] if param["motor_id"] == motor_id), None)
@@ -162,6 +168,7 @@ class Robot:
         A dictionary mapping body parts to their motor configurations
 
     """
+
     def _initialize_motor_config(self) -> Dict[str, Dict[str, Any]]:
         motor_config = {}
         for part, part_config in self.config["body_parts"].items():
@@ -192,6 +199,7 @@ class Robot:
     Returns:
         The filtered values
     """
+
     @staticmethod
     def filter_motor_values(values: List[float], max_val: List[float]) -> List[float]:
         for idx, (val, maxes) in enumerate(zip(values, max_val)):
@@ -208,7 +216,8 @@ class Robot:
         high: The upper bound of the range
         radians: Whether the values should be interpreted as radians
     """
-    def test_motors(self, low: int = 0, high: int = 10, radians: bool =False) -> None:
+
+    def test_motors(self, low: int = 0, high: int = 10, radians: bool = False) -> None:
         for part, config in self.motor_config.items():
             for motor, sign in zip(config["motors"], config["signs"]):
                 for val in range(low, high + 1):
@@ -230,6 +239,7 @@ class Robot:
     """
     Zero out all motors
     """
+
     def zero_out(self) -> None:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
@@ -238,6 +248,7 @@ class Robot:
     """
     Disable all motors (only available for Robstride motors)
     """
+
     def disable_motors(self) -> None:
         if self.config["motor_type"] == "robstride":
             for part, part_config in self.motor_config.items():
@@ -252,6 +263,7 @@ class Robot:
         offset: The offset to apply to the new positions (optional), formatted the same as new_positions
         radians: Whether the values should be interpreted as radians (optional)
     """
+
     def set_position(
         self,
         new_positions: Dict[str, List[float]],
@@ -282,12 +294,14 @@ class Robot:
     """
     Get the speeds of all motors
     """
+
     def get_motor_speeds(self) -> Dict[str, List[float]]:
         return {part: [motor.get_speed() for motor in config["motors"]] for part, config in self.motor_config.items()}
 
     """
     Get the positions of all motors
     """
+
     def get_motor_positions(self) -> Dict[str, List[float]]:
         return {
             part: [motor.get_position() * sign for motor, sign in zip(config["motors"], config["signs"])]
