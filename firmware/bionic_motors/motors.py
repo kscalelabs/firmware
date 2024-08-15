@@ -70,7 +70,7 @@ class BionicMotor(MotorInterface):
         )
         self.communication_interface.bus.send(message)
 
-    def read(self, timeout: float = 0.25, read_data_only: bool = True) -> None:
+    def read(self, timeout: float = 0.001, read_data_only: bool = True) -> None:
         """Generic read can bus method that reads messages from the can bus.
 
         Args:
@@ -127,7 +127,7 @@ class BionicMotor(MotorInterface):
         self.update_speed()
         return self.speed
 
-    def update_position(self, wait_time: float = 0.1) -> str:
+    def update_position(self, wait_time: float = 0.001) -> str:
         """Updates the value of the motor's position attribute.
 
         NOTE: Do NOT use this to access the motor's position value.
@@ -149,10 +149,11 @@ class BionicMotor(MotorInterface):
                 self.position = message.data["Data"]
                 return "Valid"
             else:
+                BionicMotor.can_messages.remove(message)
                 continue
         return "Valid"
 
-    def update_speed(self, wait_time: float = 0.1) -> str:
+    def update_speed(self, wait_time: float = 0.001) -> str:
         """Updates the value of the motor's speed attribute.
 
         NOTE: Do NOT use this to access the motor's speed value.
@@ -166,7 +167,7 @@ class BionicMotor(MotorInterface):
             "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_speed(self.motor_id)
-        self._send(self.motor_id, bytes(command), 2)
+        self.send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
