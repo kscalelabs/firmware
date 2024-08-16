@@ -112,7 +112,7 @@ class BionicMotor(MotorInterface):
             current: The current to set the motor to (in A)
         """
         command = set_current_torque_control(motor_id=self.motor_id, value=int(current), control_status=0)
-        self.send(SPECIAL_IDENTIFIER, bytes(command), 4)
+        self.send(SPECIAL_IDENTIFIER, bytes(command), 3)
 
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
@@ -149,9 +149,10 @@ class BionicMotor(MotorInterface):
                 self.position = message.data["Data"]
                 return "Valid"
             else:
+                # Clear buffer of any non-position messages
                 BionicMotor.can_messages.remove(message)
                 continue
-        return "Valid"
+        return "Invalid"
 
     def update_speed(self, wait_time: float = 0.001) -> str:
         """Updates the value of the motor's speed attribute.
