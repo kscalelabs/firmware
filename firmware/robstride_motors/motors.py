@@ -63,12 +63,12 @@ class RobstrideMotor(MotorInterface):
         self.communication_interface.write_param(self.motor_id, "run_mode", mode)
         self.communication_interface.enable(self.motor_id)
 
-    def set_position(self, position: float, *args: Any) -> None:
+    def set_position(self, position: float, **kwargs: Any) -> None:
         """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to.
-            args: Additional arguments to pass to the motor.
+            kwargs: Additional arguments to pass to the motor.
         """
         print(self.motor_id)
         resp = self.communication_interface.write_param(self.motor_id, "loc_ref", position)

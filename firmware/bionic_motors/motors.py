@@ -92,15 +92,15 @@ class BionicMotor(MotorInterface):
                 else:
                     pass
 
-    def set_position(self, position: float, *args: Any) -> None:
+    def set_position(self, position: float, **kwargs: Any) -> None:
         """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to (in degrees)
-            args: Additional arguments to pass to the motor (speed in rpm, torque in Nm)
+            kwargs: Additional arguments to pass to the motor. (speed in rpm, torque in Nm)
         """
-        speed = args[0] if len(args) > 0 else 0
-        torque = args[1] if len(args) > 1 else 0
+        speed = kwargs.get("speed", 0)
+        torque = kwargs.get("torque", 0)
 
         command = force_position_hybrid_control(self.control_params.kp, self.control_params.kd, position, speed, torque)
         self.send(self.motor_id, bytes(command))
@@ -120,10 +120,12 @@ class BionicMotor(MotorInterface):
         self.send(SPECIAL_IDENTIFIER, bytes(command), 4)
 
     def get_position(self) -> float:
+        """Gets the current position of the motor."""
         self.update_position()
         return self.position
 
     def get_speed(self) -> float:
+        """Gets the current speed of the motor."""
         self.update_speed()
         return self.speed
 

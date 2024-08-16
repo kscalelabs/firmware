@@ -21,7 +21,7 @@ class MotorInterface(ABC):
         self.speed: float = 0
 
     @abstractmethod
-    def set_position(self, position: float, *args: Any) -> None:
+    def set_position(self, position: float, **kwargs: Any) -> None:
         """Sets the position of the motor."""
         pass
 
