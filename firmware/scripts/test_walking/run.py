@@ -16,13 +16,14 @@ from firmware.scripts.robot_controller import Robot
 
 
 class cmd:
-    vx = 0.0
-    vy = -0.3
+    vx = 0.5
+    vy = 0.0
     dyaw = 0.0
-    
-# TODO(Ved): Add the correct imports
+
+
+# TODO: Add the correct imports
 robot = Robot("legs")
-robot.zero_out()  # TODO: (Ved - zero out the legs)
+robot.zero_out()
 imu = IMUInterface(1) # Bus = 1
 
 
@@ -56,10 +57,11 @@ def run(policy):
     lin_vel = 2.0
     dof_vel = 0.05
     phase = 0.64
-    default = np.array([ 1.17,  1.03,  0.1 , -1.04, -0.27,  1.73,  0.38, -2.15, -1.6 , 2.94,  0.8 ,  1.72])
-    kps = tau_limit= np.array([212.5, 127.5, 127.5, 127.5, 127.5, 127.5, 212.5, 127.5, 127.5, 127.5, 127.5, 127.5])
-    kds = np.array([15, 10, 10, 10, 10, 10, 15, 10, 10, 10, 10, 10])
-
+    default = np.array([3.12, -1.98 ,-1.38, 1.32, 0 ,-0.28, 1.5, 1.62, 1, -2.2,   3.55, 3.18, 3.24 ,-1, 0.42,  -1.02, 1.38, -3.24, 1.2, 0])
+    kps = tau_limit= np.array([212.5 , 212.5 , 127.5 , 212.5 , 127.5 , 127.5 ,  38.25,  38.25,
+        38.25,  38.25, 212.5 , 212.5 , 127.5 , 212.5 , 127.5 , 127.5 ,
+        38.25,  38.25,  38.25,  38.25])
+    kds = np.array([[10, 10, 10, 10, 10, 10, 10,  5,  5,  5, 10, 10, 10, 10, 10, 10, 10, 5,  5,  5]])
     target_q = np.zeros((num_actions), dtype=np.double)
     action = np.zeros((num_actions), dtype=np.double)
 
@@ -67,13 +69,13 @@ def run(policy):
     for _ in range(frame_stack):
         hist_obs.append(np.zeros([1, num_single_obs], dtype=np.double))
 
-    target_frequency = 250  # Hz
+    target_frequency = 100  # Hz
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
     while True: 
         loop_start_time = time.time()
 
-        # TODO: Ved
+        # TODO:
         # q = robot.get_positions()
         # dq = robot.get_velocities()
         # imu_data = imu.get_data()
@@ -82,8 +84,8 @@ def run(policy):
         obs = np.zeros([1, num_single_obs], dtype=np.float32)
         q = default
         dq = np.zeros((num_actions), dtype=np.double)
-        omega = np.array([0.18525067, -0.18715704, -0.02971003])
-        eu_ang = np.array([-0.02666937,  0.00341947, -0.008603  ])
+        omega = np.array([0.15215212, 0.11281695, 0.24282128])
+        eu_ang = np.array([1.56999633e+00, 3.19999898e-07, 1.57159633e+00 ])
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
     
         # TODO: Allen, Pfb30 - figure out phase dt logic
@@ -92,12 +94,12 @@ def run(policy):
         obs[0, 2] = cmd.vx * lin_vel
         obs[0, 3] = cmd.vy * lin_vel
         obs[0, 4] = cmd.dyaw * ang_vel
-        obs[0, 5:17] = (q - default) * dof_pos
-        obs[0, 17:29] = dq * dof_vel
-        obs[0, 29:41] = action
-        obs[0, 41:44] = omega
-        obs[0, 44:47] = eu_ang
-
+        obs[0, 5 : (num_actions + 5)] = (q - default) * dof_pos
+        obs[0, (num_actions + 5) : (2 * num_actions + 5)] = dq * dof_vel
+        obs[0, (2 * num_actions + 5) : (3 * num_actions + 5)] = action
+        obs[0, (3 * num_actions + 5) : (3 * num_actions + 5) + 3] = omega
+        obs[0, (3 * num_actions + 5) + 3 : (3 * num_actions + 5) + 2 * 3] = eu_ang
+    
         obs = np.clip(obs, -clip_observations, clip_observations)
 
         hist_obs.append(obs)
