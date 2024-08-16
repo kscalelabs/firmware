@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import firmware.robstride_motors.client as robstride
-from firmware.robot_utils.motor_utils import MotorInterface, MotorParams
+from firmware.motor_utils.motor_utils import MotorInterface, MotorParams
 
 
 @dataclass

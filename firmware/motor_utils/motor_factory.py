@@ -3,7 +3,7 @@
 from typing import Any
 
 from firmware.bionic_motors.motors import BionicMotor, ControlParams
-from firmware.robot_utils.motor_utils import MotorInterface
+from firmware.motor_utils.motor_utils import MotorInterface
 from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
 
 

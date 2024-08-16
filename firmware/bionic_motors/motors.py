@@ -14,7 +14,7 @@ from firmware.bionic_motors.commands import (
     set_zero_position,
 )
 from firmware.bionic_motors.responses import read_result, valid_message
-from firmware.robot_utils.motor_utils import MotorInterface, MotorParams
+from firmware.motor_utils.motor_utils import MotorInterface, MotorParams
 
 SPECIAL_IDENTIFIER = 0x7FF
 

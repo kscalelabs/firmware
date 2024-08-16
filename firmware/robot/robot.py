@@ -9,9 +9,9 @@ import yaml
 
 import firmware.robstride_motors.client as robstride
 from firmware.bionic_motors.motors import CANInterface
+from firmware.motor_utils.motor_factory import MotorFactory
+from firmware.motor_utils.motor_utils import MotorInterface
 from firmware.robot.model import Arm, Body, Leg
-from firmware.robot_utils.motor_factory import MotorFactory
-from firmware.robot_utils.motor_utils import MotorInterface
 
 
 def rad_to_deg(rad: float) -> float:
@@ -128,7 +128,7 @@ class Robot:
         return Leg(motors=motors)
 
     def _get_motor_params(self, motor_id: int) -> Dict[str, Any]:
-        """Get the parameters for a given motor by pulling from the default parameters and overriding with specific parameters.
+        """Get the parameters for a motor by pulling from default parameters and overriding with specific parameters.
 
         Args:
             motor_id: The ID of the motor
@@ -206,7 +206,7 @@ class Robot:
                         set_val = deg_to_rad(float(val))
                     else:
                         set_val = val
-                    motor.set_position(total_sign*sign * set_val)
+                    motor.set_position(total_sign * sign * set_val)
                     time.sleep(0.1)
                 time.sleep(1)
                 for val in range(high, low - 1, -1):
@@ -214,7 +214,7 @@ class Robot:
                         set_val = deg_to_rad(float(val))
                     else:
                         set_val = val
-                    motor.set_position(total_sign*sign * set_val)
+                    motor.set_position(total_sign * sign * set_val)
                     time.sleep(0.1)
 
     def zero_out(self) -> None:

@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import List, Optional
 
-from firmware.robot_utils.motor_utils import MotorInterface
+from firmware.motor_utils.motor_utils import MotorInterface
 
 # TODO: Head
 
