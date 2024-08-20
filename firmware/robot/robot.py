@@ -190,7 +190,7 @@ class Robot:
 
         return values
 
-    def test_motors(self, low: int = 0, high: int = 10, total_sign: int = 1, radians: bool = False) -> None:
+    def test_motors(self, low: int = 0, high: int = 10, total_sign: int = 1, radians: bool = False, timeout: float = 0.1) -> None:
         """Test all motors by setting them to a range of values from low to high.
 
         Args:
@@ -207,7 +207,7 @@ class Robot:
                     else:
                         set_val = val
                     motor.set_position(total_sign * sign * set_val)
-                    time.sleep(0.1)
+                    time.sleep(timeout)
                 time.sleep(1)
                 for val in range(high, low - 1, -1):
                     if not radians:
@@ -215,7 +215,7 @@ class Robot:
                     else:
                         set_val = val
                     motor.set_position(total_sign * sign * set_val)
-                    time.sleep(0.1)
+                    time.sleep(timeout)
 
     def zero_out(self) -> None:
         """Zero out all motors."""

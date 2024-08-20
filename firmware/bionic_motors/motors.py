@@ -129,7 +129,7 @@ class BionicMotor(MotorInterface):
         self.update_speed()
         return self.speed
 
-    def update_position(self, wait_time: float = 0.001) -> str:
+    def update_position(self, wait_time: float = 0.001) -> None:
         """Updates the value of the motor's position attribute.
 
         NOTE: Do NOT use this to access the motor's position value.
@@ -139,8 +139,6 @@ class BionicMotor(MotorInterface):
         Args:
             wait_time: how long to wait for a response from the motor
             read_only: whether to read the position value or not
-        Returns:
-            "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_pos()
         self.send(self.motor_id, bytes(command), 2)
@@ -149,12 +147,11 @@ class BionicMotor(MotorInterface):
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 BionicMotor.can_messages.remove(message)
                 self.position = message.data["Data"]
-                return "Valid"
+                return
             else:
                 # Clear buffer of any non-position messages
                 BionicMotor.can_messages.remove(message)
                 continue
-        return "Invalid"
 
     def update_speed(self, wait_time: float = 0.001) -> str:
         """Updates the value of the motor's speed attribute.
