@@ -190,7 +190,9 @@ class Robot:
 
         return values
 
-    def test_motors(self, low: int = 0, high: int = 10, total_sign: int = 1, radians: bool = False, timeout: float = 0.1) -> None:
+    def test_motors(
+        self, low: int = 0, high: int = 10, total_sign: int = 1, radians: bool = False, timeout: float = 0.1
+    ) -> None:
         """Test all motors by setting them to a range of values from low to high.
 
         Args:
@@ -198,6 +200,7 @@ class Robot:
             high: The upper bound of the range
             total_sign: The total sign to apply to the motors
             radians: Whether the values should be interpreted as radians
+            timeout: Time to sleep in between sets
         """
         for part, config in self.motor_config.items():
             for motor, sign in zip(config["motors"], config["signs"]):
