@@ -70,10 +70,8 @@ class RobstrideMotor(MotorInterface):
             position: The position to set the motor to.
             kwargs: Additional arguments to pass to the motor.
         """
-        print(self.motor_id)
         resp = self.communication_interface.write_param(self.motor_id, "loc_ref", position)
         self.position = resp.angle
-        print("Position set")
 
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""

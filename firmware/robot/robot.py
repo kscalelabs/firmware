@@ -265,13 +265,12 @@ class Robot:
             positions = [val - off for val, off in zip(positions, config["offsets"])]
             positions = self.filter_motor_values(positions, config["maximum_values"])
 
-            for i, (old, new) in enumerate(zip(self.prev_positions[part], positions)):
-                if abs(new - old) > self.delta_change:
-                    positions[i] = old
+            # for i, (old, new) in enumerate(zip(self.prev_positions[part], positions)):
+            #     if abs(new - old) > self.delta_change:
+            #         positions[i] = old
 
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
-                motor.set_position(sign * int(pos))
-
+                motor.set_position(sign * pos)
     def get_motor_speeds(self) -> Dict[str, List[float]]:
         """Get the speeds of all motors."""
         return {part: [motor.get_speed() for motor in config["motors"]] for part, config in self.motor_config.items()}
