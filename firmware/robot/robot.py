@@ -271,6 +271,7 @@ class Robot:
 
             for motor, pos, sign in zip(config["motors"], positions, config["signs"]):
                 motor.set_position(sign * pos)
+
     def get_motor_speeds(self) -> Dict[str, List[float]]:
         """Get the speeds of all motors."""
         return {part: [motor.get_speed() for motor in config["motors"]] for part, config in self.motor_config.items()}
