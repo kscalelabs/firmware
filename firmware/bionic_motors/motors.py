@@ -14,12 +14,13 @@ from firmware.bionic_motors.commands import (
     set_zero_position,
 )
 from firmware.bionic_motors.responses import read_result, valid_message
+from firmware.motor_utils.motor_utils import MotorInterface, MotorParams
 
 SPECIAL_IDENTIFIER = 0x7FF
 
 
 @dataclass
-class ControlParams:
+class ControlParams(MotorParams):
     kp: float
     kd: float
 
@@ -37,7 +38,7 @@ class CanMessage:
     data: Any
 
 
-class BionicMotor:
+class BionicMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
 
     can_messages: List[Any] = []
@@ -50,11 +51,7 @@ class BionicMotor:
         control_params: The control parameters for the motor.
         can_bus: The CAN bus interface.
         """
-        self.motor_id = motor_id
-        self.control_params = control_params
-        self.can_bus = can_bus
-        self.position = 0  # don't care here, but NOTE should not always be 0 at the start
-        self.speed = 0  # don't care here, but NOTE should not always be 0 at the start
+        super().__init__(motor_id, control_params, can_bus)
         self.update_position()
 
     def send(self, can_id: int, data: bytes, length: int = 8) -> None:
@@ -71,9 +68,9 @@ class BionicMotor:
             data=data,
             is_extended_id=False,
         )
-        self.can_bus.bus.send(message)
+        self.communication_interface.bus.send(message)
 
-    def read(self, timeout: float = 0.25, read_data_only: bool = True) -> None:
+    def read(self, timeout: float = 0.001, read_data_only: bool = True) -> None:
         """Generic read can bus method that reads messages from the can bus.
 
         Args:
@@ -82,7 +79,7 @@ class BionicMotor:
         """
         start_time = time.time()
         while time.time() - start_time < timeout:
-            message = self.can_bus.channel.get_message(timeout=timeout)
+            message = self.communication_interface.channel.get_message(timeout=timeout)
             if message is not None:
                 if valid_message(message.data):
                     message_id = message.arbitration_id
@@ -95,58 +92,44 @@ class BionicMotor:
                 else:
                     pass
 
-    def _send(self, id: int, data: bytes, length: int = 8) -> None:
-        """Sends a CAN message to a motor.
-
-        Args:
-            id: The motor ID.
-            data: The data to send.
-            length: The length of the data.
-        """
-        can_id = id
-        assert len(data) == length, f"Data length must be {length} bytes"
-        message = can.Message(
-            arbitration_id=can_id,
-            data=data,
-            is_extended_id=False,
-        )
-        self.can_bus.bus.send(message)
-
-    def set_position(self, position: float, speed: float, torque: int) -> None:
+    def set_position(self, position: float, **kwargs: Any) -> None:
         """Sets the position of the motor using force position hybrid control.
 
         Args:
             position: The position to set the motor to (in degrees)
-            speed: The speed to set the motor to (in rpm)
-            torque: The torque to set the motor to (in Nm)
+            kwargs: Additional arguments to pass to the motor. (speed in rpm, torque in Nm)
         """
+        speed = kwargs.get("speed", 0)
+        torque = kwargs.get("torque", 0)
+
         command = force_position_hybrid_control(self.control_params.kp, self.control_params.kd, position, speed, torque)
-        self._send(self.motor_id, bytes(command))
+        self.send(self.motor_id, bytes(command))
 
-    def set_position_torque_control(self, torque: int) -> None:
-        """Sets the position of the motor using torque control.
-
-        Args:
-            torque: The torque to set the motor to (in Nm)
-        """
-        command = set_current_torque_control(motor_id=self.motor_id, value=torque, control_status=1)
-        self._send(self.motor_id, bytes(command), 3)
-
-    def set_position_current_control(self, current: int) -> None:
-        """Sets the position of the motor using current control.
+    def set_current(self, current: float) -> None:
+        """Sets the current of the motor.
 
         Args:
             current: The current to set the motor to (in A)
         """
-        command = set_current_torque_control(motor_id=self.motor_id, value=current, control_status=0)
-        self._send(self.motor_id, bytes(command), 3)
+        command = set_current_torque_control(motor_id=self.motor_id, value=int(current), control_status=0)
+        self.send(SPECIAL_IDENTIFIER, bytes(command), 3)
 
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
         command = set_zero_position(self.motor_id)
-        self._send(SPECIAL_IDENTIFIER, bytes(command), 4)
+        self.send(SPECIAL_IDENTIFIER, bytes(command), 4)
 
-    def update_position(self, wait_time: float = 0.1, read_only: bool = False) -> str:
+    def get_position(self) -> float:
+        """Gets the current position of the motor."""
+        self.update_position()
+        return self.position
+
+    def get_speed(self) -> float:
+        """Gets the current speed of the motor."""
+        self.update_speed()
+        return self.speed
+
+    def update_position(self, wait_time: float = 0.001) -> None:
         """Updates the value of the motor's position attribute.
 
         NOTE: Do NOT use this to access the motor's position value.
@@ -156,26 +139,21 @@ class BionicMotor:
         Args:
             wait_time: how long to wait for a response from the motor
             read_only: whether to read the position value or not
-        Returns:
-            "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_pos()
-        self._send(self.motor_id, bytes(command), 2)
+        self.send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 BionicMotor.can_messages.remove(message)
-                if read_only:
-                    return message.data["Data"]
-                else:
-                    self.position = message.data["Data"]
-                # Flushes out any previous messages and ensures that the next message is fresh
-                return "Valid"
+                self.position = message.data["Data"]
+                return
             else:
+                # Clear buffer of any non-position messages
+                BionicMotor.can_messages.remove(message)
                 continue
-        return "Valid"
 
-    def update_speed(self, wait_time: float = 0.1, read_only: bool = False) -> str:
+    def update_speed(self, wait_time: float = 0.001) -> str:
         """Updates the value of the motor's speed attribute.
 
         NOTE: Do NOT use this to access the motor's speed value.
@@ -189,15 +167,12 @@ class BionicMotor:
             "Valid" if the message is valid, "Invalid" otherwise
         """
         command = get_motor_speed(self.motor_id)
-        self._send(self.motor_id, bytes(command), 2)
+        self.send(self.motor_id, bytes(command), 2)
         self.read(wait_time)
         for message in BionicMotor.can_messages:
             if message.id == self.motor_id and message.data["Message Type"] == 5:
                 BionicMotor.can_messages.remove(message)
-                if read_only:
-                    return message.data["Data"]
-                else:
-                    self.speed = message.data["Data"]
+                self.speed = message.data["Data"]
                 # Flushes out any previous messages and ensures that the next message is fresh
                 return "Valid"
             else:
