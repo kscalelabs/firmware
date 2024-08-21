@@ -5,6 +5,7 @@ TODO: create a generic motor class that can work with any motor type.
 """
 
 from dataclasses import dataclass
+import time
 from typing import Any
 
 import firmware.robstride_motors.client as robstride
@@ -27,6 +28,8 @@ class RobstrideParams(MotorParams):
 
 class RobstrideMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
+
+    CALIBRATION_SPEED = 0.5 # rad/s
 
     def __init__(self, motor_id: int, control_params: RobstrideParams, client: robstride.Client) -> None:
         """Initializes the motor.
@@ -106,6 +109,20 @@ class RobstrideMotor(MotorInterface):
             self.speed = resp
         return self.speed
 
+    def get_current(self) -> float:
+        """Updates the value of the motor's current attribute.
+
+        Args:
+            wait_time: how long to wait for a response from the motor
+            read_only: whether to read the current value or not
+        Returns:
+            "Valid" if the message is valid, "Invalid" otherwise
+        """
+        resp = self.communication_interface.read_param(self.motor_id, "iq")
+        if type(resp) is float:
+            self.current = resp
+        return self.current
+
     def set_current(self, current: float) -> None:
         """Sets the current of the motor.
 
@@ -113,6 +130,64 @@ class RobstrideMotor(MotorInterface):
         current: The current to set the motor to.
         """
         self.communication_interface.write_param(self.motor_id, "iq_ref", current)
+
+    def set_speed(self, speed: float) -> None:
+        """Sets the speed of the motor.
+
+        Args:
+        speed: The speed to set the motor to in rad/s.
+        """
+        self.communication_interface.write_param(self.motor_id, "spd_ref", speed)
+
+    def calibrate(self, current_limit: float) -> None:
+        """Calibrates the motor assuming the existence of hard stops.
+
+        Args:
+        current_limit: The current limit to use during calibration.
+        """
+        print(f"Calibrating {self}...")
+
+        # Set run mode to speed
+        self.set_operation_mode(robstride.RunMode.Speed)
+
+        # Set speed and check for stall
+        self.set_speed(self.CALIBRATION_SPEED)
+        while self.get_current() < current_limit:
+            time.sleep(0.1)
+
+        # Set speed to 0
+        self.set_speed(0)
+
+        # Read position and set as high
+        high = self.get_position()
+        print(f"High: {high}")
+
+        # Set speed and check for stall
+        self.set_speed(-self.CALIBRATION_SPEED)
+        while self.get_current() < current_limit:
+            time.sleep(0.1)
+
+        # Set speed to 0
+        self.set_speed(0)
+
+        # Read position and set as low
+        low = self.get_position()
+        print(f"Low: {low}")
+
+        # Set run mode to position
+        self.set_operation_mode(robstride.RunMode.Position)
+
+        # Set zero position
+        self.set_position((high + low / 2))
+        print(f"Zeroing at {(high + low / 2)}")
+
+        while abs(self.get_position() - (high + low / 2)) > 0.01:
+            time.sleep(0.1)
+
+        self.set_zero_position()
+
+        print(f"{self} calibrated")
+
 
     def __str__(self) -> str:
         return f"RobstrideMotor ({self.motor_id})"

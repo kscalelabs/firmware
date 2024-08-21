@@ -78,6 +78,7 @@ params = [
     ("spd_kp", 0x701F),
     ("spd_ki", 0x7020),
     ("spd_filt_gain", 0x7021),
+    ("iq", 0x3020),
 ]
 
 param_ids_by_name = dict(params)
