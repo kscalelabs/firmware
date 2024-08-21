@@ -4,8 +4,8 @@ Modified to work with Robstride motors.
 TODO: create a generic motor class that can work with any motor type.
 """
 
-from dataclasses import dataclass
 import time
+from dataclasses import dataclass
 from typing import Any
 
 import firmware.robstride_motors.client as robstride
@@ -29,7 +29,7 @@ class RobstrideParams(MotorParams):
 class RobstrideMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
 
-    CALIBRATION_SPEED = 0.5 # rad/s
+    CALIBRATION_SPEED = 0.5  # rad/s
 
     def __init__(self, motor_id: int, control_params: RobstrideParams, client: robstride.Client) -> None:
         """Initializes the motor.
@@ -192,7 +192,6 @@ class RobstrideMotor(MotorInterface):
         self.set_zero_position()
 
         print(f"{self} calibrated")
-
 
     def __str__(self) -> str:
         return f"RobstrideMotor ({self.motor_id})"

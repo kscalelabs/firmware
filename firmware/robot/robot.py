@@ -285,7 +285,7 @@ class Robot:
             part: [motor.get_position() * sign for motor, sign in zip(config["motors"], config["signs"])]
             for part, config in self.motor_config.items()
         }
-    
+
     def calibrate_motors(self) -> None:
         """Calibrate all motors."""
         for part, config in self.motor_config.items():
