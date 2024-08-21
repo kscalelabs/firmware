@@ -79,6 +79,7 @@ params = [
     ("spd_ki", 0x7020),
     ("spd_filt_gain", 0x7021),
     ("iq", 0x3020),
+    ("iqf", 0x701A),
 ]
 
 param_ids_by_name = dict(params)
@@ -223,7 +224,7 @@ class Client:
             raise Exception("Invalid motor ID received", resp)
 
         return msg_type, msg_motor_id, host_id
-
+    
     def _parse_feedback_resp(self, resp: can.Message, motor_id: int, motor_model: int) -> FeedbackResp:
         self._parse_and_validate_resp_arbitration_id(resp, MotorMsg.Feedback.value, motor_id)
 

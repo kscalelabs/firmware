@@ -118,7 +118,7 @@ class RobstrideMotor(MotorInterface):
         Returns:
             "Valid" if the message is valid, "Invalid" otherwise
         """
-        resp = self.communication_interface.read_param(self.motor_id, "iq")
+        resp = self.communication_interface.read_param(self.motor_id, "iqf")
         if type(resp) is float:
             self.current = resp
         return self.current
@@ -139,7 +139,7 @@ class RobstrideMotor(MotorInterface):
         """
         self.communication_interface.write_param(self.motor_id, "spd_ref", speed)
 
-    def calibrate(self, current_limit: float) -> None:
+    def calibrate(self, current_limit: float = 10) -> None:
         """Calibrates the motor assuming the existence of hard stops.
 
         Args:
@@ -152,7 +152,8 @@ class RobstrideMotor(MotorInterface):
 
         # Set speed and check for stall
         self.set_speed(self.CALIBRATION_SPEED)
-        while self.get_current() < current_limit:
+        while abs(self.get_current()) < current_limit:
+            print(f"Current: {self.get_current()}")
             time.sleep(0.1)
 
         # Set speed to 0
@@ -164,7 +165,9 @@ class RobstrideMotor(MotorInterface):
 
         # Set speed and check for stall
         self.set_speed(-self.CALIBRATION_SPEED)
-        while self.get_current() < current_limit:
+        time.sleep(0.1)
+        while abs(self.get_current()) < current_limit:
+            print(f"Current: {self.get_current()}")
             time.sleep(0.1)
 
         # Set speed to 0
@@ -177,11 +180,13 @@ class RobstrideMotor(MotorInterface):
         # Set run mode to position
         self.set_operation_mode(robstride.RunMode.Position)
 
-        # Set zero position
-        self.set_position((high + low / 2))
-        print(f"Zeroing at {(high + low / 2)}")
+        setpoint = (high + low) / 2
 
-        while abs(self.get_position() - (high + low / 2)) > 0.01:
+        # Set zero position
+        self.set_position(setpoint)
+        print(f"Zeroing at {setpoint}")
+
+        while abs(self.get_position() - setpoint) > 0.01:
             time.sleep(0.1)
 
         self.set_zero_position()
