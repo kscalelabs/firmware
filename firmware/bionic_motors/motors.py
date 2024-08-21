@@ -180,5 +180,15 @@ class BionicMotor(MotorInterface):
                 # return "Invalid"
         return "Valid"
 
+    def calibrate(self, current_limit: float) -> None:
+        """Calibrates motor assuming the existence of hard stops.
+
+        TODO: Implement calibration method.
+
+        Args:
+            current_limit: The current limit to use for calibration.
+        """
+        pass
+
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"

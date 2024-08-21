@@ -45,5 +45,10 @@ class MotorInterface(ABC):
         """Gets the current speed of the motor."""
         pass
 
+    @abstractmethod
+    def calibrate(self, current_limit: float) -> None:
+        """Calibrates motor assuming the existence of hard stops."""
+        pass
+
     def __str__(self) -> str:
         return f"Motor ({self.motor_id})"
