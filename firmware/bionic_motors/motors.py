@@ -8,9 +8,11 @@ import can
 
 from firmware.bionic_motors.commands import (
     force_position_hybrid_control,
+    get_motor_current,
     get_motor_pos,
     get_motor_speed,
     set_current_torque_control,
+    set_speed_control,
     set_zero_position,
 )
 from firmware.bionic_motors.responses import read_result, valid_message
@@ -40,6 +42,9 @@ class CanMessage:
 
 class BionicMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
+
+    CALIBRATION_SPEED = 0.5
+    CALIBRATION_DELAY = 0.01
 
     can_messages: List[Any] = []
 
@@ -114,10 +119,25 @@ class BionicMotor(MotorInterface):
         command = set_current_torque_control(motor_id=self.motor_id, value=int(current), control_status=0)
         self.send(SPECIAL_IDENTIFIER, bytes(command), 3)
 
+    def set_speed(self, speed: float) -> None:
+        """Sets the speed of the motor.
+
+        Args:
+            speed: The speed to set the motor to
+        """
+        command = set_speed_control(self.motor_id, speed)
+        self.send(self.motor_id, bytes(command))
+
+
     def set_zero_position(self) -> None:
         """Sets the zero position of the motor."""
         command = set_zero_position(self.motor_id)
         self.send(SPECIAL_IDENTIFIER, bytes(command), 4)
+
+    def get_current(self) -> float:
+        """Gets the current of the motor."""
+        self.update_current()
+        return self.current
 
     def get_position(self) -> float:
         """Gets the current position of the motor."""
@@ -128,6 +148,29 @@ class BionicMotor(MotorInterface):
         """Gets the current speed of the motor."""
         self.update_speed()
         return self.speed
+
+    def update_current(self, wait_time: float = 0.001) -> None:
+        """Updates the value of the motor's current attribute.
+
+        NOTE: Do NOT use this to access the motor's current value.
+
+        Just use <motor>.current instead.
+
+        Args:
+            wait_time: how long to wait for a response from the motor
+        """
+        command = get_motor_current()
+        self.send(self.motor_id, bytes(command), 2)
+        self.read(wait_time)
+        for message in BionicMotor.can_messages:
+            if message.id == self.motor_id and message.data["Message Type"] == 5:
+                BionicMotor.can_messages.remove(message)
+                self.current = message.data["Data"]
+                return
+            else:
+                # Clear buffer of any non-current messages
+                BionicMotor.can_messages.remove(message)
+                continue
 
     def update_position(self, wait_time: float = 0.001) -> None:
         """Updates the value of the motor's position attribute.
@@ -180,15 +223,38 @@ class BionicMotor(MotorInterface):
                 # return "Invalid"
         return "Valid"
 
-    def calibrate(self, current_limit: float) -> None:
+    def calibrate(self, current_limit: float = 1.5) -> None:
         """Calibrates motor assuming the existence of hard stops.
-
-        TODO: Implement calibration method.
 
         Args:
             current_limit: The current limit to use for calibration.
         """
-        pass
+        print(f"Calibrating {self}...")
+        while abs(self.get_current()) < current_limit:
+            self.set_speed(BionicMotor.CALIBRATION_SPEED)
+            time.sleep(BionicMotor.CALIBRATION_DELAY)
+
+        high = self.get_position()
+        print(f"Calibration high: {high}")
+
+        while abs(self.get_current()) < current_limit:
+            self.set_speed(-BionicMotor.CALIBRATION_SPEED)
+            time.sleep(BionicMotor.CALIBRATION_DELAY)
+
+        low = self.get_position()
+        print(f"Calibration low: {low}")
+
+        setpoint = (high + low) / 2
+
+        while abs(setpoint - self.get_position()) > 0.1:
+            self.set_position(setpoint)
+            time.sleep(BionicMotor.CALIBRATION_DELAY)
+
+        self.set_zero_position()
+        self.update_position()
+
+        print(f"Calibrated {self} to {setpoint} degrees")
+
 
     def __str__(self) -> str:
         return f"BionicMotor ({self.motor_id})"
