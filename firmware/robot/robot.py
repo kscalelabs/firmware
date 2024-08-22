@@ -225,6 +225,7 @@ class Robot:
         for part, part_config in self.motor_config.items():
             for motor in part_config["motors"]:
                 motor.set_zero_position()
+                time.sleep(0.1)
 
     def disable_motors(self) -> None:
         """Disable all motors (only available for Robstride motors)."""
@@ -286,8 +287,8 @@ class Robot:
             for part, config in self.motor_config.items()
         }
 
-    def calibrate_motors(self) -> None:
+    def calibrate_motors(self, current_limit=10) -> None:
         """Calibrate all motors."""
         for part, config in self.motor_config.items():
             for motor in config["motors"]:
-                motor.calibrate()
+                motor.calibrate(current_limit=current_limit)

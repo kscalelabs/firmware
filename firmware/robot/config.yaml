@@ -30,13 +30,13 @@ robots:
     motor_type: "robstride"
     delta_change: 10
     body_parts:
-      right_leg:
-        start_id: 16
-        canbus_id: 0
-        dof: 5
       left_leg:
+        start_id: 16
+        canbus_id: 2
+        dof: 5
+      right_leg:
         start_id: 11
-        canbus_id: 1
+        canbus_id: 3
         dof: 5
     motor_config:
       leg:
@@ -46,16 +46,16 @@ robots:
         offsets: [0, 0, 0, 0, 0, 0]
     params:
       - motor_id: "default"
-        limit_torque: 10
-        cur_kp: 0.1
-        cur_ki: 0.1
+        limit_torque: 5
+        cur_kp: 0.2
+        cur_ki: 0.005 #0.012
         cur_fit_gain: 0.1
-        limit_spd: 100
+        limit_spd: 5
         limit_cur: 10
-        loc_kp: 3
-        spd_kp: 0.5
-        spd_ki: 0.4
+        loc_kp: 20
+        spd_kp: 2
+        spd_ki: 0.005
         spd_filt_gain: 0.1
-      - motor_id: 16
-        loc_kp: 10
-        spd_kp: 0.1
+      # - motor_id: 16
+      #   loc_kp: 10
+      #   spd_kp: 0.1

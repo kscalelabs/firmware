@@ -66,17 +66,10 @@ def main() -> None:
             time.sleep(0.1)
         print("DONE")
 
-    # position_test(top=5*2*3.14)
-    motor.set_zero_position()
-    print(motor.get_position())
-    motor.set_position(3.14 / 6)
-    time.sleep(7)
-    print(motor.get_position())
-    motor.set_zero_position()
-    motor.set_position(0)
-    print(motor.get_position())
-    motor.disable()
-    # torque_test(35)
+
+    motor.get_current()
+    motor.calibrate(current_limit=10)
+    time.sleep(100)
     print("DONE")
 
 
