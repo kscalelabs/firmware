@@ -1,6 +1,5 @@
 robots:
   - setup: "full_body"
-    motor_type: "bionic"
     delta_change: 10
     body_parts:
       left_arm:
@@ -22,40 +21,28 @@ robots:
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 60, 60]
         offsets: [0, 0, 0, 0, 0, 0]
-    params:
-      - motor_id: "default"
-        kp: 0.5
-        kd: 0.1
-  - setup: "mini_legs"
-    motor_type: "robstride"
+  - setup: "left_arm"
     delta_change: 10
     body_parts:
-      right_leg:
-        start_id: 16
-        canbus_id: 0
-        dof: 5
-      left_leg:
-        start_id: 11
-        canbus_id: 1
-        dof: 5
+      left_arm:
+        start_id: 1
     motor_config:
-      leg:
-        signs: [-1, 1, -1, -1, 1, 1]
+      arm:
+        signs: [1, -1, 1, -1, 1, 1]
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 0, 10]
         offsets: [0, 0, 0, 0, 0, 0]
-    params:
-      - motor_id: "default"
-        limit_torque: 10
-        cur_kp: 0.1
-        cur_ki: 0.1
-        cur_fit_gain: 0.1
-        limit_spd: 100
-        limit_cur: 10
-        loc_kp: 3
-        spd_kp: 0.5
-        spd_ki: 0.4
-        spd_filt_gain: 0.1
-      - motor_id: 16
-        loc_kp: 10
-        spd_kp: 0.1
+
+constants:
+  - motor_id: "default"
+    torque_limit: 50
+    cur_kp: 0.1
+    cur_ki: 0.1
+    cur_fit_gain: 0.1
+    speed_limit: 100
+    current_limit: 100
+    loc_kp: 0.1
+    spd_kp: 0.1
+    spd_ki: 0.1
+    spd_fit_gain: 0.1
+  # override the default values by specifiying them below with the motor id

@@ -106,7 +106,7 @@ def position_message(msg: bytes) -> dict:
 
     error = msg[0] & 0x1F
     motor_pos = struct.unpack("!f", msg[1:5])[0]
-    motor_current = int.from_bytes(msg[5:7])
+    motor_current = int.from_bytes(msg[5:7], "big")
     motor_temp = msg[7]
 
     return {
@@ -141,7 +141,7 @@ def speed_message(msg: bytes) -> dict:
 
     error = msg[0] & 0x1F
     motor_speed = struct.unpack("!f", msg[1:5])[0]
-    motor_current = int.from_bytes(msg[5:7])
+    motor_current = int.from_bytes(msg[5:7], "big")
     motor_temp = msg[7]
 
     return {
