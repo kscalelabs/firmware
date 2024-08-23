@@ -105,10 +105,13 @@ def test_torque_control(robot: Robot, config: Dict) -> None:
 
 def main() -> None:
     print("Initializing")
-    robot = Robot(config_path="../robot/config.yaml", setup="mini_legs")
+    robot = Robot(config_path="../robot/config.yaml", setup="stompy_mini_stiff")
     print("Initialized")
     robot.zero_out()
+    robot.disable_motors()
     time.sleep(4)
+    while True:
+        time.sleep(1)
     robot.calibrate_motors(current_limit=10)
     #robot.test_motors(low=0, high=30)
     #robot.motor_config["right_leg"]["motors"][0].set_position(3.14 / 4)

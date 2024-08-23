@@ -22,7 +22,7 @@ def main() -> None:
         spd_filt_gain=0.3,
     )
 
-    client = robstride.Client(can.interface.Bus(channel="can0", bustype="socketcan"))
+    client = robstride.Client(can.interface.Bus(channel="can2", bustype="socketcan"))
     motor = RobstrideMotor(16, param, client)
 
     def position_test(top: float = 5 * 2 * 3.14) -> None:
@@ -68,8 +68,10 @@ def main() -> None:
 
 
     motor.get_current()
-    motor.calibrate(current_limit=10)
-    time.sleep(100)
+    #motor.calibrate(current_limit=10)
+    motor.disable()
+    while True:
+        print(motor.get_position())
     print("DONE")
 
 
