@@ -15,7 +15,7 @@ import torch
 from firmware.imu.imu import IMUInterface
 from firmware.robot.robot import Robot
 
-RADIANS = False # Use radians for motor positions
+RADIANS = True # Use radians for motor positions
 
 class cmd:
     vx = 0.5
