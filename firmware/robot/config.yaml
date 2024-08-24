@@ -32,11 +32,11 @@ robots:
     body_parts:
       left_leg:
         start_id: 16
-        canbus_id: 2
+        canbus_id: 1
         dof: 5
       right_leg:
         start_id: 11
-        canbus_id: 3
+        canbus_id: 0
         dof: 5
     motor_config:
       leg:
@@ -59,3 +59,81 @@ robots:
       # - motor_id: 16
       #   loc_kp: 10
       #   spd_kp: 0.1
+  - setup: "stompy_mini"
+    motor_type: "robstride"
+    delta_change: 10
+    body_parts:
+      left_leg:
+        start_id: 16
+        canbus_id: 1
+        dof: 5
+      right_leg:
+        start_id: 11
+        canbus_id: 0
+        dof: 5
+      left_arm:
+        start_id: 6
+        canbus_id: 2
+        dof: 5
+      right_arm:
+        start_id: 1
+        canbus_id: 3
+        dof: 5
+    motor_config:
+      leg:
+        signs: [-1, 1, -1, -1, 1, 1]
+        increments: [4, 4, 4, 4, 4, 4]
+        maximum_values: [60, 60, 60, 60, 0, 10]
+        offsets: [0, 0, 0, 0, 0, 0]
+      arm:
+        signs: [1, 1, 1, 1, 1, 1]
+        increments: [4, 4, 4, 4, 4, 4]
+        maximum_values: [50, 50, 50, 50, 0, 10]
+        offsets: [0, 0, 0, 0, 0, 0]
+    params:
+      - motor_id: "default"
+        limit_torque: 5
+        cur_kp: 0.2
+        cur_ki: 0.005 #0.012
+        cur_fit_gain: 0.1
+        limit_spd: 5
+        limit_cur: 10
+        loc_kp: 20
+        spd_kp: 2
+        spd_ki: 0.005
+        spd_filt_gain: 0.1
+  - setup: "stompy_mini_stiff"
+    motor_type: "robstride"
+    delta_change: 10
+    body_parts:
+      left_leg:
+        start_id: 16
+        canbus_id: 1
+        dof: 5
+      right_leg:
+        start_id: 11
+        canbus_id: 0
+        dof: 4
+    motor_config:
+      leg:
+        signs: [-1, 1, -1, -1, 1, 1]
+        increments: [4, 4, 4, 4, 4, 4]
+        maximum_values: [60, 60, 60, 60, 0, 10]
+        offsets: [0, 0, 0, 0, 0, 0]
+      arm:
+        signs: [1, 1, 1, 1, 1, 1]
+        increments: [4, 4, 4, 4, 4, 4]
+        maximum_values: [50, 50, 50, 50, 0, 10]
+        offsets: [0, 0, 0, 0, 0, 0]
+    params:
+      - motor_id: "default" 
+        limit_torque: 10
+        cur_kp: 0.17
+        cur_ki: 0.017
+        cur_fit_gain: 0.1
+        limit_spd: 100
+        limit_cur: 10
+        loc_kp: 20
+        spd_kp: 2
+        spd_ki: 2
+        spd_filt_gain: 0.2
