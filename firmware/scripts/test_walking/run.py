@@ -13,9 +13,9 @@ import numpy as np
 import torch
 
 from firmware.imu.imu import IMUInterface
-from firmware.scripts.robot_controller import Robot
+from firmware.robot.robot import Robot
 
-RADIANS = True # Use radians for motor positions
+RADIANS = False # Use radians for motor positions
 
 class cmd:
     vx = 0.5
@@ -40,10 +40,10 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     count_level = 0
     action_scale = 0.25
     dt = 0.001
-    num_actions = 12
+    num_actions = 20
     clip_observations = 18.
     clip_actions = 18.
-    num_single_obs = 47
+    num_single_obs = 65+6
     frame_stack = 15
     num_observations = frame_stack * num_single_obs
     ang_vel = 1.0
@@ -67,7 +67,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
     # Initialize the robot
-    robot = Robot(args.robot_config, args.config_setup)
+    robot = Robot(config_path=args.robot_config,setup=args.config_setup)
     robot.zero_out()
     imu = IMUInterface(args.imu_bus)
 
@@ -125,23 +125,29 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         }
 
         q = np.concatenate(
-            remapped_pos["left_arm"],
+            (remapped_pos["left_arm"],
             remapped_pos["left_leg"],
             remapped_pos["right_leg"],
-            remapped_pos["right_arm"],
+            remapped_pos["right_arm"],)
         )
 
         dq = np.concatenate(
-            remapped_vel["left_arm"],
+            (remapped_vel["left_arm"],
             remapped_vel["left_leg"],
             remapped_vel["right_leg"],
-            remapped_vel["right_arm"],
+            remapped_vel["right_arm"],)
         )
         imu_data = imu.step(time.time() - imu_dt)
         imu_dt = time.time()
         eu_ang = imu_data[0]
 
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
+        
+        print(action)
+        print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
+        print(2*num_actions+5)
+        print(3*num_actions+5)
+        print(obs.shape)
 
         # TODO: Allen, Pfb30 - figure out phase dt logic
         obs[0, 0] = math.sin(2 * math.pi * count_level * dt / phase)
@@ -192,7 +198,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
         }
 
-        robot.set_positions(remapped_new_positions)
+        robot.set_position(remapped_new_positions)
 
         # Calculate how long to sleep
         loop_end_time = time.time()
@@ -208,7 +214,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Deployment script.")
     parser.add_argument("--load_model", type=str, required=True, help="Run to load from.")
-    parser.add_argument("--robot_config", type=str, default="../../robot/config.py", help="Path to the robot configuration file.")
+    parser.add_argument("--robot_config", type=str, default="../../robot/config.yaml", help="Path to the robot configuration file.")
     parser.add_argument("--imu_bus", type=int, default=1, help="The I2C bus number for the IMU.")
     parser.add_argument("--config_setup", type=str, default="stompy_mini", help="The setup configuration for the robot.")
     args = parser.parse_args()

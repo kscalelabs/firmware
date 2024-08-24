@@ -35,7 +35,7 @@ class IMUInterface:
         self.imu: IMU = IMU(bus)
         self.ahrs: imufusion.Ahrs = imufusion.Ahrs()
         self.offset: imufusion.Offset = imufusion.Offset(3300)
-        self.quatOffset: imufusion.Quaternion = imufusion.Quaternion(0, 0, 0, 0)
+        self.quatOffset: imufusion.Quaternion = imufusion.Quaternion(np.array([0, 0, 0, 0]))
         self.state: list[Any] = []
         self.ahrs.settings = imufusion.Settings(
             imufusion.CONVENTION_NWU,
