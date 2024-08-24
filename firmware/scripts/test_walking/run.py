@@ -7,6 +7,7 @@ import argparse
 import math
 import time
 from collections import deque
+from typing import Any
 
 import numpy as np
 import torch
@@ -14,6 +15,7 @@ import torch
 from firmware.imu.imu import IMUInterface
 from firmware.scripts.robot_controller import Robot
 
+RADIANS = True # Use radians for motor positions
 
 class cmd:
     vx = 0.5
@@ -21,28 +23,20 @@ class cmd:
     dyaw = 0.0
 
 
-# TODO: Add the correct imports
-robot = Robot("legs")
-robot.zero_out()
-imu = IMUInterface(1) # Bus = 1
-
-
 def pd_control(target_q, q, kp, dq, kd, default):
-    """Calculates torques from position commands"""
+    """Calculates torques from position commands."""
     return kp * (target_q + default - q) - kd * dq
 
 
-def run(policy):
-    """
-    Run the simple policy
-    
+def run(policy: Any, args: argparse.Namespace) -> None:
+    """Run the simple policy.
+
     Args:
         policy: The policy used for controlling the simulation.
 
     Returns:
         None
     """
-
     count_level = 0
     action_scale = 0.25
     dt = 0.001
@@ -72,22 +66,78 @@ def run(policy):
     target_frequency = 100  # Hz
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
-    while True: 
-        loop_start_time = time.time()
+    # Initialize the robot
+    robot = Robot(args.robot_config, args.config_setup)
+    robot.zero_out()
+    imu = IMUInterface(args.imu_bus)
 
-        # TODO:
-        # q = robot.get_positions()
-        # dq = robot.get_velocities()
-        # imu_data = imu.get_data()
+    # Calibrate the IMU
+    for _ in range(100):
+        time.sleep(0.01)
+        imu.step(0.01)
+        imu.calibrate_yaw()
+
+    imu_dt = time.time()
+
+    while True:
+        loop_start_time = time.time()
 
         # some constant values for the time being
         obs = np.zeros([1, num_single_obs], dtype=np.float32)
         q = default
         dq = np.zeros((num_actions), dtype=np.double)
         omega = np.array([0.15215212, 0.11281695, 0.24282128])
-        eu_ang = np.array([1.56999633e+00, 3.19999898e-07, 1.57159633e+00 ])
+        eu_ang = np.zeros((3), dtype=np.double)
+
+        # TODO:
+        cur_pos = robot.get_motor_positions()
+        cur_vel = robot.get_motor_speeds()
+
+        """
+        q order:
+            ankle pitch
+            hip pitch
+            hip roll
+            hip yaw
+            knee pitch
+        cur_pos / robot position order:
+            hip pitch
+            hip roll
+            hip yaw
+            knee pitch
+            ankle pitch
+      """
+
+        cur_pos = {key : np.array(cur_pos[key]) for key in cur_pos}
+        cur_vel = {key : np.array(cur_vel[key]) for key in cur_vel}
+
+        # Ignoring arms for now
+        remapped_pos = {
+            key : cur_pos[key][[4, 0, 1, 2, 3]] for key in cur_pos
+        }
+
+        remapped_vel = {
+            key : cur_vel[key][[4, 0, 1, 2, 3]] for key in cur_vel
+        }
+
+        q = np.concatenate(
+            remapped_pos["left_arm"],
+            remapped_pos["left_leg"],
+            remapped_pos["right_leg"],
+            remapped_pos["right_arm"],
+        )
+        dq = np.concatenate(
+            remapped_vel["left_arm"],
+            remapped_vel["left_leg"],
+            remapped_vel["right_leg"],
+            remapped_vel["right_arm"],
+        )
+        imu_data = imu.step(time.time() - imu_dt)
+        imu_dt = time.time()
+        eu_ang = imu_data[0]
+
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
-    
+
         # TODO: Allen, Pfb30 - figure out phase dt logic
         obs[0, 0] = math.sin(2 * math.pi * count_level * dt / phase)
         obs[0, 1] = math.cos(2 * math.pi * count_level * dt / phase)
@@ -99,7 +149,7 @@ def run(policy):
         obs[0, (2 * num_actions + 5) : (3 * num_actions + 5)] = action
         obs[0, (3 * num_actions + 5) : (3 * num_actions + 5) + 3] = omega
         obs[0, (3 * num_actions + 5) + 3 : (3 * num_actions + 5) + 2 * 3] = eu_ang
-    
+
         obs = np.clip(obs, -clip_observations, clip_observations)
 
         hist_obs.append(obs)
@@ -121,6 +171,24 @@ def run(policy):
 
         count_level += 1
 
+        new_positions = {
+            "left_arm": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "right_arm": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "left_leg": target_q[5:10],
+            "right_leg": target_q[15:20],
+        }
+
+        if RADIANS:
+            new_positions = {
+                key : np.radians(new_positions[key]) for key in new_positions
+            }
+
+        remapped_new_positions = {
+            key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
+        }
+
+        robot.set_positions(remapped_new_positions)
+
         # Calculate how long to sleep
         loop_end_time = time.time()
         loop_duration = loop_end_time - loop_start_time
@@ -135,7 +203,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Deployment script.")
     parser.add_argument("--load_model", type=str, required=True, help="Run to load from.")
+    parser.add_argument("--robot_config", type=str, default="../../robot/config.py", help="Path to the robot configuration file.")
+    parser.add_argument("--imu_bus", type=int, default=1, help="The I2C bus number for the IMU.")
+    parser.add_argument("--config_setup", type=str, default="stompy_mini", help="The setup configuration for the robot.")
     args = parser.parse_args()
 
     policy = torch.jit.load(args.load_model)
-    run(policy)
+    run(policy, args)
