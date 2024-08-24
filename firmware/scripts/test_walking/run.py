@@ -111,6 +111,10 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         cur_pos = {key : np.array(cur_pos[key]) for key in cur_pos}
         cur_vel = {key : np.array(cur_vel[key]) for key in cur_vel}
 
+        if RADIANS:
+            cur_pos = {key : np.degrees(cur_pos[key]) for key in cur_pos}
+            cur_vel = {key : np.degrees(cur_vel[key]) for key in cur_vel}
+
         # Ignoring arms for now
         remapped_pos = {
             key : cur_pos[key][[4, 0, 1, 2, 3]] for key in cur_pos
@@ -126,6 +130,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             remapped_pos["right_leg"],
             remapped_pos["right_arm"],
         )
+
         dq = np.concatenate(
             remapped_vel["left_arm"],
             remapped_vel["left_leg"],
