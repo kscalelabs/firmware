@@ -17,6 +17,7 @@ def main():
 if __name__ == "__main__":
     main()
 
+    TODO: Convert imufusion to local package and add math utils
 """
 
 from typing import Any
@@ -30,6 +31,15 @@ from firmware.cpp.imu.imu import IMU
 class IMUInterface:
     MAG_TO_MCRO_TSLA = 0.0001 * 1000000
     GYRO_YAW_THRESHOLD = 3
+
+    def quaternion_multiply(self, q1: imufusion.Quaternion, q2: imufusion.Quaternion) -> imufusion.Quaternion:
+        w1, x1, y1, z1 = q1.wxyz()
+        w2, x2, y2, z2 = q2.wxyz()
+        w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+        x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+        y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
+        z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
+        return imufusion.Quaternion(np.array([w, x, y, z]))
 
     def __init__(self, bus: int) -> None:
         self.imu: IMU = IMU(bus)
@@ -53,7 +63,7 @@ class IMUInterface:
     def step(self, dt: float) -> list[Any]:
         gyroscope, accelerometer, magnetometer = self.get_imu_data()
         self.ahrs.update(gyroscope, accelerometer, magnetometer, dt)
-        relative_quat = self.quatOffset * self.ahrs.quaternion
+        relative_quat = self.quaternion_multiply(self.quatOffset, self.ahrs.quaternion)
         self.state = [relative_quat.to_euler(), self.imu.gyr_rate()]
         return self.state
 
