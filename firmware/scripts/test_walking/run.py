@@ -142,7 +142,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         eu_ang = imu_data[0]
 
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
-        
+
         print(action)
         print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
         print(2*num_actions+5)
@@ -183,8 +183,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         count_level += 1
 
         new_positions = {
-            "left_arm": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
-            "right_arm": np.array([0, 0, 0, 0, 0, 0, 0, 0]),
+            "left_arm": np.array([0, 0, 0, 0, 0]),
+            "right_arm": np.array([0, 0, 0, 0, 0]),
             "left_leg": target_q[5:10],
             "right_leg": target_q[15:20],
         }
@@ -198,7 +198,16 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
         }
 
-        robot.set_position(remapped_new_positions)
+        # Add the new positions (as deltas) to the current positions
+        set_positions = {
+            key : remapped_new_positions[key] + cur_pos[key] for key in remapped_pos
+        }
+
+        # Clamp arms to 0
+        set_positions["left_arm"] = np.array([0, 0, 0, 0, 0])
+        set_positions["right_arm"] = np.array([0, 0, 0, 0, 0])
+
+        robot.set_position(set_positions)
 
         # Calculate how long to sleep
         loop_end_time = time.time()

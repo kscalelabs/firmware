@@ -21,7 +21,7 @@ def main() -> None:
         eu_ang = imu_data[0]
         eu_ang_rate = imu_data[1]
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
-        reading = [*eu_ang], eu_ang_rate.x, eu_ang_rate.y, eu_ang_rate.z
+        reading = [*eu_ang, eu_ang_rate.x, eu_ang_rate.y, eu_ang_rate.z]
         imu_readings.append(reading)
         print(eu_ang)
         time.sleep(0.01)
