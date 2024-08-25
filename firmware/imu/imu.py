@@ -53,7 +53,7 @@ class IMUInterface:
     def step(self, dt: float) -> list[Any]:
         gyroscope, accelerometer, magnetometer = self.get_imu_data()
         self.ahrs.update(gyroscope, accelerometer, magnetometer, dt)
-        relative_quat = self.quatOffset.conjugate * self.ahrs.quaternion
+        relative_quat = self.quatOffset * self.ahrs.quaternion
         self.state = [relative_quat.to_euler(), self.imu.gyr_rate()]
         return self.state
 

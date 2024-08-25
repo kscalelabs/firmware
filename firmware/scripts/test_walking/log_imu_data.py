@@ -11,6 +11,7 @@ def main() -> None:
     imu = IMUInterface(1)
     imu_dt = time.time()
     imu_readings = []
+    imu.step(0.01)
     for _ in range(10):
         imu.calibrate_yaw()
         time.sleep(0.1)
