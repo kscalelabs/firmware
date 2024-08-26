@@ -48,16 +48,19 @@ class Robot:
             for _ in self.config["body_parts"]:
                 client = robstride.Client(can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan"))
                 clients[canbus_id] = client
+            print(f"Clients: {clients}")
             for part in self.config["body_parts"]:
                 first_motor_id = self.config["body_parts"][part]["start_id"]
+                print(f"First motor id: {first_motor_id} for part {part}")
                 for canbus_id, client in clients.copy().items():
                     try:
-                        client.get_motor_info(first_motor_id)
+                        client.read_param(first_motor_id, "loc_ref")
                         self.config["body_parts"][part]["canbus_id"] = canbus_id
                         print(f"Identified canbus_id {canbus_id} for part {part}")
                         break
-                    except:
+                    except Exception as e:
                         continue
+                print(f"Could not identify canbus_id for part {part}")
             for client in clients.values():
                 client.bus.shutdown()
             print("Identified all canbus_ids")
