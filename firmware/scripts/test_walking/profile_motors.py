@@ -41,6 +41,7 @@ class ProfileConfig:
     id: int = 0 # canbus id
     dt: float = 0.01
     test_duration: float = 10.0
+    gait: float = 0.64
 
 @draccus.wrap()
 def main(cfg: ProfileConfig) -> None:
@@ -53,8 +54,7 @@ def main(cfg: ProfileConfig) -> None:
     motor.set_zero_position()
     print(f"Motor {cfg.motor_id} initialized")
 
-    sin_freq = 2 * math.pi / cfg.test_duration
-
+    sin_freq = (2 * math.pi / cfg.test_duration) / cfg.gait
     positions = []
 
     # Run sinusoidal position test
@@ -78,3 +78,5 @@ def main(cfg: ProfileConfig) -> None:
         for i, pos in enumerate(positions):
             f.write(f"{i},{pos}\n")
 
+if __name__ == "__main__":
+    main()

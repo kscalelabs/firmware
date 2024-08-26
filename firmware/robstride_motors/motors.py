@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import firmware.robstride_motors.client as robstride
-from firmware.motor_utils.motor_utils import MotorInterface, MotorParams
+from firmware.motor_utils.motor_utils import CalibrationMode, MotorInterface, MotorParams
 
 
 @dataclass
@@ -29,7 +29,7 @@ class RobstrideParams(MotorParams):
 class RobstrideMotor(MotorInterface):
     """A class to interface with a motor over a CAN bus."""
 
-    CALIBRATION_SPEED = 0.5  # rad/s
+    CALIBRATION_SPEED = 0.7  # rad/s
 
     def __init__(self, motor_id: int, control_params: RobstrideParams, client: robstride.Client) -> None:
         """Initializes the motor.
@@ -139,7 +139,7 @@ class RobstrideMotor(MotorInterface):
         """
         self.communication_interface.write_param(self.motor_id, "spd_ref", speed)
 
-    def calibrate(self, current_limit: float = 10) -> None:
+    def calibrate(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER) -> None:
         """Calibrates the motor assuming the existence of hard stops.
 
         Args:
@@ -180,7 +180,15 @@ class RobstrideMotor(MotorInterface):
         # Set run mode to position
         self.set_operation_mode(robstride.RunMode.Position)
 
-        setpoint = (high + low) / 2
+        # Calculate setpoint based on calibration mode
+        if mode == CalibrationMode.CENTER:
+            setpoint = (high + low) / 2
+        elif mode == CalibrationMode.FORWARD:
+            setpoint = high
+        elif mode == CalibrationMode.BACK:
+            setpoint = low
+        else:
+            raise ValueError(f"Invalid calibration mode: {mode}")
 
         # Set zero position
         self.set_position(setpoint)
