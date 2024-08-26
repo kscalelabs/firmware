@@ -10,7 +10,7 @@ import yaml
 import firmware.robstride_motors.client as robstride
 from firmware.bionic_motors.motors import CANInterface
 from firmware.motor_utils.motor_factory import MotorFactory
-from firmware.motor_utils.motor_utils import MotorInterface
+from firmware.motor_utils.motor_utils import CalibrationMode, MotorInterface
 from firmware.robot.model import Arm, Body, Leg
 
 
@@ -286,8 +286,8 @@ class Robot:
             for part, config in self.motor_config.items()
         }
 
-    def calibrate_motors(self) -> None:
+    def calibrate_motors(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER) -> None:
         """Calibrate all motors."""
         for part, config in self.motor_config.items():
-            for motor in config["motors"]:
-                motor.calibrate()
+            for motor, sign in zip(config["motors"], config["signs"]):
+                motor.calibrate(current_limit=current_limit, mode=mode, sign=sign)

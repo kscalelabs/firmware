@@ -13,9 +13,16 @@ import numpy as np
 import torch
 
 from firmware.imu.imu import IMUInterface
+from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robot.robot import Robot
 
 RADIANS = True # Use radians for motor positions
+SIM_TO_ROBOT_JOINTS = { # Conversion from sim joint position values to robot joint positions. Corresponds to "high" position in sim (0 in real)
+    "right_leg": [4.55, 2.24, 4.18, 0, 1.42],
+    "left_leg": [-1.28, 2.62, 0.5, 0, -2.8],
+    "right_arm": [0, 0, 0, 0, 0],
+    "left_arm": [0, 0, 0, 0, 0],
+}
 
 class cmd:
     vx = 0.5
@@ -69,6 +76,9 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     # Initialize the robot
     robot = Robot(config_path=args.robot_config,setup=args.config_setup)
     robot.zero_out()
+
+    robot.calibrate_motors(mode = CalibrationMode.FORWARD)
+
     imu = IMUInterface(args.imu_bus)
 
     # Calibrate the IMU
@@ -107,6 +117,11 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             knee pitch
             ankle pitch
       """
+
+        # Convert from robot joint positions to sim joint positions
+        cur_pos = {
+            key : np.array([SIM_TO_ROBOT_JOINTS[key][i] + cur_pos[key][i] for i in range(len(cur_pos[key]))]) for key in cur_pos
+        }
 
         cur_pos = {key : np.array(cur_pos[key]) for key in cur_pos}
         cur_vel = {key : np.array(cur_vel[key]) for key in cur_vel}

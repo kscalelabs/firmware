@@ -139,7 +139,7 @@ class RobstrideMotor(MotorInterface):
         """
         self.communication_interface.write_param(self.motor_id, "spd_ref", speed)
 
-    def calibrate(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER) -> None:
+    def calibrate(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER, sign: int = 1) -> None:
         """Calibrates the motor assuming the existence of hard stops.
 
         Args:
@@ -151,7 +151,7 @@ class RobstrideMotor(MotorInterface):
         self.set_operation_mode(robstride.RunMode.Speed)
 
         # Set speed and check for stall
-        self.set_speed(self.CALIBRATION_SPEED)
+        self.set_speed(self.CALIBRATION_SPEED * sign)
         while abs(self.get_current()) < current_limit:
             print(f"Current: {self.get_current()}")
             time.sleep(0.1)
@@ -164,7 +164,7 @@ class RobstrideMotor(MotorInterface):
         print(f"High: {high}")
 
         # Set speed and check for stall
-        self.set_speed(-self.CALIBRATION_SPEED)
+        self.set_speed(-self.CALIBRATION_SPEED * sign)
         time.sleep(0.1)
         while abs(self.get_current()) < current_limit:
             print(f"Current: {self.get_current()}")

@@ -6,8 +6,10 @@ from dataclasses import dataclass
 import can
 import draccus
 
+from firmware.motor_utils.motor_utils import CalibrationMode
 import firmware.robstride_motors.client as robstride
 from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
+from firmware.scripts.test_walking.run import SIM_TO_ROBOT_JOINTS
 
 SOFT_PARAMS: RobstrideParams = RobstrideParams(
     limit_torque=10,
@@ -42,6 +44,8 @@ class ProfileConfig:
     dt: float = 0.01
     test_duration: float = 10.0
     gait: float = 0.64
+    offset: float = 0.0 # position corresponding to motor high level
+    sign: int = -1 # direction of motor movement
 
 @draccus.wrap()
 def main(cfg: ProfileConfig) -> None:
@@ -54,6 +58,8 @@ def main(cfg: ProfileConfig) -> None:
     motor.set_zero_position()
     print(f"Motor {cfg.motor_id} initialized")
 
+    motor.calibrate(10, CalibrationMode.FORWARD, cfg.sign)
+
     sin_freq = (2 * math.pi / cfg.test_duration) / cfg.gait
     positions = []
 
@@ -62,7 +68,7 @@ def main(cfg: ProfileConfig) -> None:
     t0 = time.time()
     while time.time() - t0 < cfg.test_duration:
         t = time.time()
-        motor.set_position(math.sin(sin_freq * (time.time() - t0)))
+        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign - cfg.offset)
         print(f"Motor at {motor.get_position()}")
         positions.append(motor.get_position())
 
