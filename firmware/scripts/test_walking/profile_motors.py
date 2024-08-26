@@ -82,7 +82,7 @@ def main(cfg: ProfileConfig) -> None:
     t0 = time.time()
     while time.time() - t0 < cfg.test_duration:
         t = time.time()
-        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign)
+        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset))
         print(f"Motor at {motor.get_position()}")
         positions.append(motor.get_position())
 
@@ -96,7 +96,7 @@ def main(cfg: ProfileConfig) -> None:
     with open("robstride_position_test.csv", "w") as f:
         f.write("time,position,adjusted\n")
         for i, pos in enumerate(positions):
-            f.write(f"{i},{pos},{pos+cfg.offset+SIM_DEFAULT_STANDING[cfg.joint]}\n")
+            f.write(f"{i},{pos},{pos+cfg.offset}\n")
 
 if __name__ == "__main__":
     main()
