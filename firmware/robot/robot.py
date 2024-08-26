@@ -40,15 +40,17 @@ class Robot:
         self.motor_config = self._initialize_motor_config()
         self.prev_positions: dict = {part: [] for part in self.motor_config}
 
-    def _identify_and_set_canbus_ids(self) -> None:
+    def _identify_and_set_canbus_ids(self, verbose: bool = False) -> None:
         """Identify connected canbus_ids for each body part by querying all possible canbus_ids for the 1st motor in the part."""
         if self.config["motor_type"] == "robstride":
             clients = {}
             canbus_id = 0
+            new_ids = {}
             for _ in self.config["body_parts"]:
                 client = robstride.Client(can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan"))
                 clients[canbus_id] = client
-            print(f"Clients: {clients}")
+                canbus_id += 1
+            print(f"Initialized {len(clients)} clients")
             for part in self.config["body_parts"]:
                 first_motor_id = self.config["body_parts"][part]["start_id"]
                 print(f"First motor id: {first_motor_id} for part {part}")
@@ -56,14 +58,16 @@ class Robot:
                     try:
                         client.read_param(first_motor_id, "loc_ref")
                         self.config["body_parts"][part]["canbus_id"] = canbus_id
+                        new_ids[part] = canbus_id
                         print(f"Identified canbus_id {canbus_id} for part {part}")
                         break
                     except Exception as e:
+                        if verbose:
+                            print(f"Error reading param for canbus_id {canbus_id}: {e}")
                         continue
-                print(f"Could not identify canbus_id for part {part}")
             for client in clients.values():
                 client.bus.shutdown()
-            print("Identified all canbus_ids")
+            print(f"Identified canbus_ids: {new_ids}")
         elif self.config["motor_type"] == "bionic":
             raise ValueError("canbus_id identification is not supported for Bionic motors")
         else:
