@@ -55,6 +55,8 @@ def main(cfg: ProfileConfig) -> None:
 
     sin_freq = 2 * math.pi / cfg.test_duration
 
+    positions = []
+
     # Run sinusoidal position test
     print("Running sinusoidal position test")
     t0 = time.time()
@@ -62,10 +64,17 @@ def main(cfg: ProfileConfig) -> None:
         t = time.time()
         motor.set_position(math.sin(sin_freq * (time.time() - t0)))
         print(f"Motor at {motor.get_position()}")
+        positions.append(motor.get_position())
 
         time.sleep(max(0, cfg.dt - (time.time() - t)))
 
     print("Sinusoidal position test complete")
     time.sleep(1.0)
     motor.disable()
+
+    # Write data to file
+    with open("robstride_position_test.csv", "w") as f:
+        f.write("time,position\n")
+        for i, pos in enumerate(positions):
+            f.write(f"{i},{pos}\n")
 
