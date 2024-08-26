@@ -59,6 +59,7 @@ class ProfileConfig:
     gait: float = 0.64
     offset: float = 0.0 # position corresponding to motor high level
     sign: int = -1 # direction of motor movement
+    calibration_sign: int = 1 # direction of calibration
     joint: str = "left_knee_pitch"
 
 @draccus.wrap()
@@ -72,7 +73,7 @@ def main(cfg: ProfileConfig) -> None:
     motor.set_zero_position()
     print(f"Motor {cfg.motor_id} initialized")
 
-    motor.calibrate(10, CalibrationMode.FORWARD, cfg.sign)
+    motor.calibrate(10, CalibrationMode.FORWARD, cfg.calibration_sign)
 
     sin_freq = (2 * math.pi / cfg.test_duration) / cfg.gait
     positions = []
@@ -84,7 +85,7 @@ def main(cfg: ProfileConfig) -> None:
         t = time.time()
         motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset))
         print(f"Motor at {motor.get_position()}")
-        positions.append(motor.get_position())
+        positions.append(motor.get_position() * cfg.sign)
 
         time.sleep(max(0, cfg.dt - (time.time() - t)))
 
