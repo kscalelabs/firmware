@@ -24,6 +24,19 @@ SOFT_PARAMS: RobstrideParams = RobstrideParams(
     spd_filt_gain=0.1,
 )
 
+SIM_DEFAULT_STANDING = {
+    "left_hip_pitch": -0.28,
+    "left_hip_roll": 1.5,
+    "left_hip_yaw": 1.62,
+    "left_knee_pitch": 1,
+    "left_ankle_pitch": -2.2,
+    "right_hip_pitch": 3.55,
+    "right_hip_roll": 3.18,
+    "right_hip_yaw": 1.001,
+    "right_knee_pitch": -1,
+    "right_ankle_pitch": 0.42,
+}
+
 @dataclass
 class ProfileConfig:
     """Configuration for profiling."""
@@ -46,6 +59,7 @@ class ProfileConfig:
     gait: float = 0.64
     offset: float = 0.0 # position corresponding to motor high level
     sign: int = -1 # direction of motor movement
+    joint: str = "left_knee_pitch"
 
 @draccus.wrap()
 def main(cfg: ProfileConfig) -> None:
@@ -68,7 +82,7 @@ def main(cfg: ProfileConfig) -> None:
     t0 = time.time()
     while time.time() - t0 < cfg.test_duration:
         t = time.time()
-        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign - cfg.offset)
+        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign)
         print(f"Motor at {motor.get_position()}")
         positions.append(motor.get_position())
 
@@ -80,9 +94,9 @@ def main(cfg: ProfileConfig) -> None:
 
     # Write data to file
     with open("robstride_position_test.csv", "w") as f:
-        f.write("time,position\n")
+        f.write("time,position,adjusted\n")
         for i, pos in enumerate(positions):
-            f.write(f"{i},{pos}\n")
+            f.write(f"{i},{pos},{pos+cfg.offset+SIM_DEFAULT_STANDING[cfg.joint]}\n")
 
 if __name__ == "__main__":
     main()
