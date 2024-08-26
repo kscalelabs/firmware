@@ -6,8 +6,8 @@ from dataclasses import dataclass
 import can
 import draccus
 
-from firmware.motor_utils.motor_utils import CalibrationMode
 import firmware.robstride_motors.client as robstride
+from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
 from firmware.scripts.test_walking.run import SIM_TO_ROBOT_JOINTS
 
@@ -61,6 +61,7 @@ class ProfileConfig:
     sign: int = -1 # direction of motor movement
     calibration_sign: int = 1 # direction of calibration
     joint: str = "left_knee_pitch"
+    periods: int = 5 # number of periods to run
 
 @draccus.wrap()
 def main(cfg: ProfileConfig) -> None:
@@ -81,9 +82,9 @@ def main(cfg: ProfileConfig) -> None:
     # Run sinusoidal position test
     print("Running sinusoidal position test")
     t0 = time.time()
-    while time.time() - t0 < cfg.test_duration:
+    while time.time() - t0 < cfg.periods * cfg.test_duration:
         t = time.time()
-        motor.set_position(math.sin(sin_freq * (time.time() - t0)) * cfg.sign + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset))
+        motor.set_position(math.sin(sin_freq * (time.time() - t0)) + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset) * cfg.sign)
         print(f"Motor at {motor.get_position()}")
         positions.append(motor.get_position() * cfg.sign)
 

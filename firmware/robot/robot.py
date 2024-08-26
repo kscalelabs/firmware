@@ -23,7 +23,7 @@ def deg_to_rad(deg: float) -> float:
 
 
 class Robot:
-    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
+    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body", find_can: bool = False) -> None:
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
             self.config = next(robot for robot in config["robots"] if robot["setup"] == setup)
@@ -31,11 +31,40 @@ class Robot:
         self.setup = setup
         self.delta_change = self.config["delta_change"]
 
+        if find_can:
+            self._identify_and_set_canbus_ids()
+
         self.communication_interfaces = self._initialize_communication_interfaces()
         print("Initialized communication interfaces")
         self.body = self._initialize_body()
         self.motor_config = self._initialize_motor_config()
         self.prev_positions: dict = {part: [] for part in self.motor_config}
+
+    def _identify_and_set_canbus_ids(self) -> None:
+        """Identify connected canbus_ids for each body part by querying all possible canbus_ids for the 1st motor in the part."""
+        if self.config["motor_type"] == "robstride":
+            clients = {}
+            canbus_id = 0
+            for _ in self.config["body_parts"]:
+                client = robstride.Client(can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan"))
+                clients[canbus_id] = client
+            for part in self.config["body_parts"]:
+                first_motor_id = self.config["body_parts"][part]["start_id"]
+                for canbus_id, client in clients.copy().items():
+                    try:
+                        client.get_motor_info(first_motor_id)
+                        self.config["body_parts"][part]["canbus_id"] = canbus_id
+                        print(f"Identified canbus_id {canbus_id} for part {part}")
+                        break
+                    except:
+                        continue
+            for client in clients.values():
+                client.bus.shutdown()
+            print("Identified all canbus_ids")
+        elif self.config["motor_type"] == "bionic":
+            raise ValueError("canbus_id identification is not supported for Bionic motors")
+        else:
+            raise ValueError(f"Unsupported motor type: {self.config['motor_type']}")
 
     def _initialize_communication_interfaces(self) -> Dict[str, Any]:
         """Initialize communication interfaces for each body part.
