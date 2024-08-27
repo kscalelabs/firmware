@@ -157,7 +157,10 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         cur_pos = {key : np.array(cur_pos[key]) for key in cur_pos}
         cur_vel = {key : np.array(cur_vel[key]) for key in cur_vel}
-
+        cur_pos["left_arm"] = np.array([0,0,0,0,0])
+        cur_vel["left_arm"] = np.array([0,0,0,0,0])
+        cur_pos["right_arm"] = np.array([0,0,0,0,0])
+        cur_vel["right_arm"] = np.array([0,0,0,0,0])
         if RADIANS:
             cur_pos = {key : np.degrees(cur_pos[key]) for key in cur_pos}
             cur_vel = {key : np.degrees(cur_vel[key]) for key in cur_vel}
@@ -191,10 +194,10 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
         print(action)
-        print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
-        print(2*num_actions+5)
-        print(3*num_actions+5)
-        print(obs.shape)
+        #print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
+        #print(2*num_actions+5)
+        #print(3*num_actions+5)
+        #print(obs.shape)
 
         # TODO: Allen, Pfb30 - figure out phase dt logic
         obs[0, 0] = math.sin(2 * math.pi * count_level * dt / phase)
@@ -262,7 +265,11 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         # Clamp arms to 0
         set_positions["left_arm"] = np.array([0, 0, 0, 0, 0])
         set_positions["right_arm"] = np.array([0, 0, 0, 0, 0])
-
+        
+        set_positions.pop("left_arm")
+        set_positions.pop("right_arm")
+        
+        print(f"Set positions: {set_positions}")
         robot.set_position(set_positions)
 
         # Calculate how long to sleep

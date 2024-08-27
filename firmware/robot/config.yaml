@@ -71,18 +71,18 @@ robots:
         start_id: 11
         canbus_id: 0
         dof: 5
-      left_arm:
-        start_id: 6
-        canbus_id: 2
-        dof: 5
-      right_arm:
-        start_id: 1
-        canbus_id: 3
-        dof: 5
+        #left_arm:
+        #start_id: 6
+        #canbus_id: 2
+        #dof: 5
+        #right_arm:
+        #start_id: 1
+        #canbus_id: 3
+        #dof: 5
     motor_config:
       leg:
-        signs: [1, 1, 1, 1, 1, 1]
-        calibration_dir: [1, -1, 1, 1, 1]
+        signs: [-1, -1, -1, -1, -1, -1]
+        calibration_dir: [-1, 1, -1,-1, -1]
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 0, 10]
         offsets: [0, 0, 0, 0, 0, 0]
