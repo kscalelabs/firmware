@@ -23,13 +23,14 @@ def deg_to_rad(deg: float) -> float:
 
 
 class Robot:
-    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body", find_can: bool = False) -> None:
+    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body", find_can: bool = False, chiral=True) -> None:
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
             self.config = next(robot for robot in config["robots"] if robot["setup"] == setup)
         print("Loaded config")
         self.setup = setup
         self.delta_change = self.config["delta_change"]
+        self.chiral = chiral
 
         if find_can:
             self._identify_and_set_canbus_ids()
@@ -197,7 +198,7 @@ class Robot:
                 dof = part_config["dof"]
 
                 signs = self.config["motor_config"][part_type]["signs"][:dof]
-                if part.startswith("left"):
+                if self.chiral and part.startswith("left"):
                     signs = [-s for s in signs]
 
                 calibration_dir = self.config["motor_config"][part_type]["calibration_dir"]
