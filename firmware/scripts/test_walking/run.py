@@ -56,6 +56,50 @@ SIM_DEFAULT_STANDING = {
     "left_arm": [0, 0, 0, 0, 0],
 }
 
+"""
+        {'left ankle pitch': 9,
+        'left elbow pitch': 18,
+        'left hip pitch': 5,
+        'left hip roll': 7,
+        'left hip yaw': 6,
+        'left knee pitch': 8,
+        'left shoulder pitch': 15,
+        'left shoulder roll': 17,
+        'left shoulder yaw': 16,
+        'left wrist roll': 19,
+        'right ankle pitch': 14,
+        'right elbow pitch': 3,
+        'right hip pitch': 10,
+        'right hip roll': 12,
+        'right hip yaw': 11,
+        'right knee pitch': 13,
+        'right shoulder pitch': 0,
+        'right shoulder roll': 2,
+        'right shoulder yaw': 1,
+        'right wrist roll': 4}
+      """
+
+DOF_IDS = {
+    "left_hip_pitch": 5,
+    "left_hip_roll": 7,
+    "left_hip_yaw": 6,
+    "left_knee_pitch": 8,
+    "left_ankle_pitch": 9,
+    "right_hip_pitch": 10,
+    "right_hip_roll": 12,
+    "right_hip_yaw": 11,
+    "right_knee_pitch": 13,
+    "right_ankle_pitch": 14,
+}
+
+ROBOT_TO_ID_MAPPING = {
+    0: "hip_pitch",
+    1: "hip_yaw",
+    2: "hip_roll",
+    3: "knee_pitch",
+    4: "ankle_pitch",
+}
+
 class cmd:
     vx = 0.5
     vy = 0.0
@@ -165,28 +209,42 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             cur_pos = {key : np.degrees(cur_pos[key]) for key in cur_pos}
             cur_vel = {key : np.degrees(cur_vel[key]) for key in cur_vel}
 
-        # Ignoring arms for now
-        remapped_pos = {
-            key : cur_pos[key][[4, 0, 1, 2, 3]] for key in cur_pos
-        }
+        # # Ignoring arms for now
+        # remapped_pos = {
+        #     key : cur_pos[key][[4, 0, 1, 2, 3]] for key in cur_pos
+        # }
 
-        remapped_vel = {
-            key : cur_vel[key][[4, 0, 1, 2, 3]] for key in cur_vel
-        }
+        # remapped_vel = {
+        #     key : cur_vel[key][[4, 0, 1, 2, 3]] for key in cur_vel
+        # }
 
-        q = np.concatenate(
-            (remapped_pos["left_arm"],
-            remapped_pos["left_leg"],
-            remapped_pos["right_leg"],
-            remapped_pos["right_arm"],)
-        )
+        # q = np.concatenate(
+        #     (remapped_pos["left_arm"],
+        #     remapped_pos["left_leg"],
+        #     remapped_pos["right_leg"],
+        #     remapped_pos["right_arm"],)
+        # )
 
-        dq = np.concatenate(
-            (remapped_vel["left_arm"],
-            remapped_vel["left_leg"],
-            remapped_vel["right_leg"],
-            remapped_vel["right_arm"],)
-        )
+        # dq = np.concatenate(
+        #     (remapped_vel["left_arm"],
+        #     remapped_vel["left_leg"],
+        #     remapped_vel["right_leg"],
+        #     remapped_vel["right_arm"],)
+        # )
+
+        q = np.zeros((num_actions), dtype=np.double)
+        dq = np.zeros((num_actions), dtype=np.double)
+
+        for i in range(cur_pos["left_leg"].shape[0]):
+            q[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] = cur_pos["left_leg"][i]
+            dq[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] = cur_vel["left_leg"][i]
+
+        for i in range(cur_pos["right_leg"].shape[0]):
+            q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] = cur_pos["right_leg"][i]
+            dq[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] = cur_vel["right_leg"][i]
+
+
+
         imu_data = imu.step(time.time() - imu_dt)
         imu_dt = time.time()
         eu_ang = imu_data[0]
@@ -232,11 +290,41 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         count_level += 1
 
+        """
+        {'left ankle pitch': 9,
+        'left elbow pitch': 18,
+        'left hip pitch': 5,
+        'left hip roll': 7,
+        'left hip yaw': 6,
+        'left knee pitch': 8,
+        'left shoulder pitch': 15,
+        'left shoulder roll': 17,
+        'left shoulder yaw': 16,
+        'left wrist roll': 19,
+        'right ankle pitch': 14,
+        'right elbow pitch': 3,
+        'right hip pitch': 10,
+        'right hip roll': 12,
+        'right hip yaw': 11,
+        'right knee pitch': 13,
+        'right shoulder pitch': 0,
+        'right shoulder roll': 2,
+        'right shoulder yaw': 1,
+        'right wrist roll': 4}
+      """
+
+        # new_positions = {
+        #     "left_arm": np.array([0, 0, 0, 0, 0]),
+        #     "right_arm": np.array([0, 0, 0, 0, 0]),
+        #     "left_leg": target_q[5:10],
+        #     "right_leg": target_q[15:20],
+        # }
+
         new_positions = {
             "left_arm": np.array([0, 0, 0, 0, 0]),
             "right_arm": np.array([0, 0, 0, 0, 0]),
-            "left_leg": target_q[5:10],
-            "right_leg": target_q[15:20],
+            "left_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] for i in range(5)]),
+            "right_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] for i in range(5)],
         }
 
         if RADIANS:
@@ -244,9 +332,11 @@ def run(policy: Any, args: argparse.Namespace) -> None:
                 key : np.radians(new_positions[key]) for key in new_positions
             }
 
-        remapped_new_positions = {
-            key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
-        }
+        # remapped_new_positions = {
+        #     key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
+        # }
+
+        remapped_new_positions = new_positions
 
         # # Add the new positions (as deltas) to the current positions
         # set_positions = {
@@ -265,10 +355,10 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         # Clamp arms to 0
         set_positions["left_arm"] = np.array([0, 0, 0, 0, 0])
         set_positions["right_arm"] = np.array([0, 0, 0, 0, 0])
-        
+
         set_positions.pop("left_arm")
         set_positions.pop("right_arm")
-        
+
         print(f"Set positions: {set_positions}")
         robot.set_position(set_positions)
 
