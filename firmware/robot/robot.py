@@ -200,9 +200,14 @@ class Robot:
                 if part.startswith("left"):
                     signs = [-s for s in signs]
 
+                calibration_dir = self.config["motor_config"][part_type]["calibration_dir"]
+                if part.startswith("left"):
+                    calibration_dir = [-d for d in calibration_dir]
+
                 motor_config[part] = {
                     "motors": getattr(self.body, part).motors,
                     "signs": signs,
+                    "calibration_dir": calibration_dir,
                     "increments": self.config["motor_config"][part_type]["increments"][:dof],
                     "maximum_values": self.config["motor_config"][part_type]["maximum_values"][:dof],
                     "offsets": self.config["motor_config"][part_type]["offsets"][:dof],
@@ -325,5 +330,5 @@ class Robot:
     def calibrate_motors(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER) -> None:
         """Calibrate all motors."""
         for part, config in self.motor_config.items():
-            for motor, sign in zip(config["motors"], config["signs"]):
+            for motor, sign in zip(config["motors"], config["calibration_dir"]):
                 motor.calibrate(current_limit=current_limit, mode=mode, sign=sign)

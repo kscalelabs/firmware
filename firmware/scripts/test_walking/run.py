@@ -106,7 +106,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
     # Initialize the robot
-    robot = Robot(config_path=args.robot_config,setup=args.config_setup)
+    robot = Robot(config_path=args.robot_config,setup=args.config_setup, find_can=True)
     robot.zero_out()
 
     robot.calibrate_motors(mode = CalibrationMode.FORWARD)
