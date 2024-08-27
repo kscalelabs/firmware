@@ -24,6 +24,38 @@ SIM_TO_ROBOT_JOINTS = { # Conversion from sim joint position values to robot joi
     "left_arm": [0, 0, 0, 0, 0],
 }
 
+SIM_DEFAULT_STANDING_DICT = {
+    "left_hip_pitch": -0.28,
+    "left_hip_roll": 1.5,
+    "left_hip_yaw": 1.62,
+    "left_knee_pitch": 1,
+    "left_ankle_pitch": -2.2,
+    "right_hip_pitch": 3.55,
+    "right_hip_roll": 3.18,
+    "right_hip_yaw": 3.23,
+    "right_knee_pitch": -1,
+    "right_ankle_pitch": 0.42,
+}
+
+SIM_DEFAULT_STANDING = {
+    "right_leg": [
+        SIM_DEFAULT_STANDING_DICT["right_hip_pitch"],
+        SIM_DEFAULT_STANDING_DICT["right_hip_roll"],
+        SIM_DEFAULT_STANDING_DICT["right_hip_yaw"],
+        SIM_DEFAULT_STANDING_DICT["right_knee_pitch"],
+        SIM_DEFAULT_STANDING_DICT["right_ankle_pitch"],
+    ],
+    "left_leg": [
+        SIM_DEFAULT_STANDING_DICT["left_hip_pitch"],
+        SIM_DEFAULT_STANDING_DICT["left_hip_roll"],
+        SIM_DEFAULT_STANDING_DICT["left_hip_yaw"],
+        SIM_DEFAULT_STANDING_DICT["left_knee_pitch"],
+        SIM_DEFAULT_STANDING_DICT["left_ankle_pitch"],
+    ],
+    "right_arm": [0, 0, 0, 0, 0],
+    "left_arm": [0, 0, 0, 0, 0],
+}
+
 class cmd:
     vx = 0.5
     vy = 0.0
@@ -213,9 +245,18 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
         }
 
-        # Add the new positions (as deltas) to the current positions
+        # # Add the new positions (as deltas) to the current positions
+        # set_positions = {
+        #     key : remapped_new_positions[key] + cur_pos[key] for key in remapped_pos
+        # }
+
         set_positions = {
-            key : remapped_new_positions[key] + cur_pos[key] for key in remapped_pos
+            key : remapped_new_positions[key] for key in remapped_new_positions
+        }
+
+        # Subtract the SIM_TO_ROBOT_JOINTS values to get the actual motor positions
+        set_positions = {
+            key : np.array([set_positions[key][i] - SIM_TO_ROBOT_JOINTS[key][i] + SIM_DEFAULT_STANDING[key][i] for i in range(len(set_positions[key]))]) for key in set_positions
         }
 
         # Clamp arms to 0

@@ -32,7 +32,7 @@ SIM_DEFAULT_STANDING = {
     "left_ankle_pitch": -2.2,
     "right_hip_pitch": 3.55,
     "right_hip_roll": 3.18,
-    "right_hip_yaw": 1.001,
+    "right_hip_yaw": 3.23,
     "right_knee_pitch": -1,
     "right_ankle_pitch": 0.42,
 }
