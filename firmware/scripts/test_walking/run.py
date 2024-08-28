@@ -16,10 +16,10 @@ from firmware.imu.imu import IMUInterface
 from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robot.robot import Robot
 
-RADIANS = True # Use radians for motor positions
+RADIANS = False # Use radians for motor positions
 SIM_TO_ROBOT_JOINTS = { # Conversion from sim joint position values to robot joint positions. Corresponds to "high" position in sim (0 in real)
-    "right_leg": [4.55, 2.24, 4.18, 0, 1.42],
-    "left_leg": [-1.28, 2.62, 0.5, 0, -2.8],
+    "right_leg": [4.55, 2.24, 4.18, 0, 0.83],
+    "left_leg": [-1.28, 2.62, 0.5, 0, -2.3],
     "right_arm": [0, 0, 0, 0, 0],
     "left_arm": [0, 0, 0, 0, 0],
 }
@@ -40,15 +40,15 @@ SIM_DEFAULT_STANDING_DICT = {
 SIM_DEFAULT_STANDING = {
     "right_leg": [
         SIM_DEFAULT_STANDING_DICT["right_hip_pitch"],
-        SIM_DEFAULT_STANDING_DICT["right_hip_roll"],
         SIM_DEFAULT_STANDING_DICT["right_hip_yaw"],
+        SIM_DEFAULT_STANDING_DICT["right_hip_roll"],
         SIM_DEFAULT_STANDING_DICT["right_knee_pitch"],
         SIM_DEFAULT_STANDING_DICT["right_ankle_pitch"],
     ],
     "left_leg": [
         SIM_DEFAULT_STANDING_DICT["left_hip_pitch"],
-        SIM_DEFAULT_STANDING_DICT["left_hip_roll"],
         SIM_DEFAULT_STANDING_DICT["left_hip_yaw"],
+        SIM_DEFAULT_STANDING_DICT["left_hip_roll"],
         SIM_DEFAULT_STANDING_DICT["left_knee_pitch"],
         SIM_DEFAULT_STANDING_DICT["left_ankle_pitch"],
     ],
@@ -155,13 +155,13 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
     robot.calibrate_motors(mode = CalibrationMode.FORWARD)
 
-    imu = IMUInterface(args.imu_bus)
+#    imu = IMUInterface(args.imu_bus)
 
     # Calibrate the IMU
     for _ in range(100):
         time.sleep(0.01)
-        imu.step(0.01)
-        imu.calibrate_yaw()
+#        imu.step(0.01)
+#        imu.calibrate_yaw()
 
     imu_dt = time.time()
 
@@ -236,25 +236,20 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         dq = np.zeros((num_actions), dtype=np.double)
 
         for i in range(cur_pos["left_leg"].shape[0]):
-            q[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] = cur_pos["left_leg"][i]
-            dq[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] = cur_vel["left_leg"][i]
+            q[DOF_IDS[f"left_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_pos["left_leg"][i]
+            dq[DOF_IDS[f"left_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_vel["left_leg"][i]
 
         for i in range(cur_pos["right_leg"].shape[0]):
-            q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] = cur_pos["right_leg"][i]
-            dq[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] = cur_vel["right_leg"][i]
+            q[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_pos["right_leg"][i]
+            dq[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_vel["right_leg"][i]
 
 
 
-        imu_data = imu.step(time.time() - imu_dt)
-        imu_dt = time.time()
-        eu_ang = imu_data[0]
-
+  #      imu_data = imu.step(time.time() - imu_dt)
+  #      imu_dt = time.time()
+  #      eu_ang = imu_data[0]
+        eu_ang = np.zeros((3), dtype=np.double)
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
-
-        #print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
-        #print(2*num_actions+5)
-        #print(3*num_actions+5)
-        #print(obs.shape)
 
         # TODO: Allen, Pfb30 - figure out phase dt logic
         obs[0, 0] = math.sin(2 * math.pi * count_level * dt / phase)
@@ -314,33 +309,17 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         'right wrist roll': 4}
       """
 
-        # new_positions = {
-        #     "left_arm": np.array([0, 0, 0, 0, 0]),
-        #     "right_arm": np.array([0, 0, 0, 0, 0]),
-        #     "left_leg": target_q[5:10],
-        #     "right_leg": target_q[15:20],
-        # }
-
         new_positions = {
             "left_arm": np.array([0, 0, 0, 0, 0]),
             "right_arm": np.array([0, 0, 0, 0, 0]),
-            "left_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] for i in range(5)]),
-            "right_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] for i in range(5)]),
+            "left_leg": np.array([target_q[DOF_IDS[f"left_{ROBOT_TO_ID_MAPPING[i]}"]] for i in range(5)]),
+            "right_leg": np.array([target_q[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] for i in range(5)]),
         }
 
         if RADIANS:
             new_positions = {
                 key : np.radians(new_positions[key]) for key in new_positions
             }
-
-        # remapped_new_positions = {
-        #     key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
-        # }
-
-        # # Add the new positions (as deltas) to the current positions
-        # set_positions = {
-        #     key : remapped_new_positions[key] + cur_pos[key] for key in remapped_pos
-        # }
 
         set_positions = {
             key : new_positions[key] for key in new_positions
@@ -350,6 +329,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         set_positions = {
             key : np.array([set_positions[key][i] - SIM_TO_ROBOT_JOINTS[key][i] + SIM_DEFAULT_STANDING[key][i] for i in range(len(set_positions[key]))]) for key in set_positions
         }
+        
+        print(f"Set positions: {set_positions}")
 
         # Clamp arms to 0
         set_positions["left_arm"] = np.array([0, 0, 0, 0, 0])
@@ -358,7 +339,6 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         set_positions.pop("left_arm")
         set_positions.pop("right_arm")
 
-        print(f"Set positions: {set_positions}")
         robot.set_position(set_positions)
 
         # Calculate how long to sleep
@@ -368,7 +348,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         # Sleep for the remaining time to achieve 250 Hz
         time.sleep(sleep_time)
-        print("Sleep time: ", sleep_time)
+        #print("Sleep time: ", sleep_time)
 
 
 if __name__ == "__main__":

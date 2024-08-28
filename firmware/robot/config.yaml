@@ -63,6 +63,14 @@ robots:
     motor_type: "robstride"
     delta_change: 10
     body_parts:
+      # left_arm:
+      #   start_id: 6
+      #   canbus_id: 2
+      #   dof: 5
+      # right_arm:
+      #   start_id: 1
+      #   canbus_id: 3
+      #   dof: 5
       left_leg:
         start_id: 16
         canbus_id: 1
@@ -71,18 +79,10 @@ robots:
         start_id: 11
         canbus_id: 0
         dof: 5
-        #left_arm:
-        #start_id: 6
-        #canbus_id: 2
-        #dof: 5
-        #right_arm:
-        #start_id: 1
-        #canbus_id: 3
-        #dof: 5
     motor_config:
       leg:
         signs: [-1, -1, -1, -1, -1, -1]
-        calibration_dir: [-1, 1, -1,-1, -1]
+        calibration_dir: [-1, 1, -1,-1, 1]
         increments: [4, 4, 4, 4, 4, 4]
         maximum_values: [60, 60, 60, 60, 0, 10]
         offsets: [0, 0, 0, 0, 0, 0]
@@ -98,7 +98,7 @@ robots:
         cur_kp: 0.2
         cur_ki: 0.005 #0.012
         cur_fit_gain: 0.1
-        limit_spd: 5
+        limit_spd: 2
         limit_cur: 10
         loc_kp: 20
         spd_kp: 2
