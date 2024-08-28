@@ -251,7 +251,6 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
-        print(action)
         #print(obs[0, (2*num_actions + 5) : (3 * num_actions + 5)])
         #print(2*num_actions+5)
         #print(3*num_actions+5)
@@ -282,6 +281,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         action = np.clip(action, -clip_actions, clip_actions)
 
         target_q = action * action_scale
+
+        print(target_q)
 
         # Generate PD control
         tau = pd_control(target_q, q, kps, dq, kds, default)
@@ -324,7 +325,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             "left_arm": np.array([0, 0, 0, 0, 0]),
             "right_arm": np.array([0, 0, 0, 0, 0]),
             "left_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i]]] for i in range(5)]),
-            "right_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] for i in range(5)],
+            "right_leg": np.array([target_q[DOF_IDS[ROBOT_TO_ID_MAPPING[i + 5]]] for i in range(5)]),
         }
 
         if RADIANS:
@@ -336,15 +337,13 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         #     key : new_positions[key][[1, 2, 3, 4, 0]].tolist() for key in new_positions
         # }
 
-        remapped_new_positions = new_positions
-
         # # Add the new positions (as deltas) to the current positions
         # set_positions = {
         #     key : remapped_new_positions[key] + cur_pos[key] for key in remapped_pos
         # }
 
         set_positions = {
-            key : remapped_new_positions[key] for key in remapped_new_positions
+            key : new_positions[key] for key in new_positions
         }
 
         # Subtract the SIM_TO_ROBOT_JOINTS values to get the actual motor positions
