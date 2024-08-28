@@ -53,7 +53,7 @@ class MotorInterface(ABC):
         pass
 
     @abstractmethod
-    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int) -> None:
+    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int, timeout: float) -> None:
         """Calibrates motor assuming the existence of hard stops."""
         pass
 

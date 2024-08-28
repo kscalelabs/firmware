@@ -180,7 +180,7 @@ class BionicMotor(MotorInterface):
                 # return "Invalid"
         return "Valid"
 
-    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int) -> None:
+    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int, timeout: float = 10) -> None:
         """Calibrates motor assuming the existence of hard stops.
 
         TODO: Implement calibration method.
