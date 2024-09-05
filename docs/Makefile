@@ -31,3 +31,6 @@ clean:
 	rm -rf _build/*
 	rm -f firmware.rst
 	rm -f firmware.*.rst
+
+.PHONY: all
+all: clean docs

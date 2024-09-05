@@ -14,6 +14,8 @@ release = '0.0.1'
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
+highlight_language = 'python'
+
 extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.napoleon',
@@ -29,3 +31,5 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 
 html_theme = 'furo'
 html_static_path = ['_static']
+
+html_title = "K-Scale Firmware"

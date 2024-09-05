@@ -3,23 +3,34 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to firmware's documentation!
-====================================
+Welcome to the K-Scale Firmware Docs!
+=====================================
+
+This is the official documentation for our core robot firmware.
 
 .. toctree::
    :maxdepth: 3
-   :caption: Contents:
+   :caption: Getting Started:
+
+   getting_started
+   testing_debugging
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Architecture:
+
+   robot_controller
+   motor_model
+   imu
+
+.. toctree::
+   :maxdepth: 3
+   :caption: Examples:
+
+   scripts
+
+.. toctree::
+   :maxdepth: 3
+   :caption: API Docs:
 
    modules
-
-Indices and tables
-==================
-
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
-
-.. automodule:: firmware
-   :members:
-   :undoc-members:
-   :show-inheritance:
