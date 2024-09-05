@@ -1,12 +1,12 @@
-"""Script to identify Robstride motors on bus"""
+"""Script to identify Robstride motors on bus."""
 
-import time
+import argparse
 
 import can
 
 import firmware.robstride_motors.client as robstride
 from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
-import argparse
+
 
 def main() -> None:
     argparser = argparse.ArgumentParser(description="Identify Robstride motors on bus")

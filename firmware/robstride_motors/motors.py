@@ -139,11 +139,20 @@ class RobstrideMotor(MotorInterface):
         """
         self.communication_interface.write_param(self.motor_id, "spd_ref", speed)
 
-    def calibrate(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER, sign: int = 1, timeout: float = 15) -> None:
+    def calibrate(
+        self,
+        current_limit: float = 10,
+        mode: CalibrationMode = CalibrationMode.CENTER,
+        sign: int = 1,
+        timeout: float = 15,
+    ) -> None:
         """Calibrates the motor assuming the existence of hard stops.
 
         Args:
         current_limit: The current limit to use during calibration.
+        mode: The calibration mode to use.
+        sign: The sign of the speed to use during calibration.
+        timeout: The timeout for the calibration.
         """
         print(f"Calibrating {self}...")
 

@@ -8,9 +8,11 @@ from typing import Any
 
 class CalibrationMode(IntEnum):
     """Calibration mode for motors."""
+
     CENTER: int = 0
     FORWARD: int = 1
     BACK: int = 2
+
 
 @dataclass
 class MotorParams:

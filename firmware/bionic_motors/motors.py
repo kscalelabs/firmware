@@ -187,6 +187,9 @@ class BionicMotor(MotorInterface):
 
         Args:
             current_limit: The current limit to use for calibration.
+            mode: The calibration mode to use.
+            sign: The sign of the speed to use during calibration.
+            timeout: The timeout for the calibration.
         """
         pass
 

@@ -23,7 +23,14 @@ def deg_to_rad(deg: float) -> float:
 
 
 class Robot:
-    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body", find_can: bool = False, chiral=True) -> None:
+    def __init__(
+        self,
+        config_path: str = "config.yaml",
+        setup: str = "full_body",
+        find_can: bool = False,
+        chiral: bool = True,
+        verbose: bool = False,
+    ) -> None:
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
             self.config = next(robot for robot in config["robots"] if robot["setup"] == setup)
@@ -42,7 +49,10 @@ class Robot:
         self.prev_positions: dict = {part: [] for part in self.motor_config}
 
     def _identify_and_set_canbus_ids(self, verbose: bool = False) -> None:
-        """Identify connected canbus_ids for each body part by querying all possible canbus_ids for the 1st motor in the part."""
+        """Identify connected canbus_ids for each body part.
+
+        Queries all possible canbus_ids for the 1st motor in the part.
+        """
         if self.config["motor_type"] == "robstride":
             clients = {}
             canbus_id = 0

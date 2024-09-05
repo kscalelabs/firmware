@@ -1,4 +1,5 @@
 """Script to profile Robstride motor parameters and match to sim."""
+
 import math
 import time
 from dataclasses import dataclass
@@ -9,7 +10,6 @@ import draccus
 import firmware.robstride_motors.client as robstride
 from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robstride_motors.motors import RobstrideMotor, RobstrideParams
-from firmware.scripts.test_walking.run import SIM_TO_ROBOT_JOINTS
 
 SOFT_PARAMS: RobstrideParams = RobstrideParams(
     limit_torque=10,
@@ -37,9 +37,11 @@ SIM_DEFAULT_STANDING = {
     "right_ankle_pitch": 0.42,
 }
 
+
 @dataclass
 class ProfileConfig:
     """Configuration for profiling."""
+
     motor_id: int = 0
     control_params: RobstrideParams = RobstrideParams(
         limit_torque=10,
@@ -53,15 +55,16 @@ class ProfileConfig:
         spd_ki=0.005,
         spd_filt_gain=0.1,
     )
-    id: int = 0 # canbus id
+    id: int = 0  # canbus id
     dt: float = 0.01
     test_duration: float = 10.0
     gait: float = 0.64
-    offset: float = 0.0 # position corresponding to motor high level
-    sign: int = -1 # direction of motor movement
-    calibration_sign: int = 1 # direction of calibration
+    offset: float = 0.0  # position corresponding to motor high level
+    sign: int = -1  # direction of motor movement
+    calibration_sign: int = 1  # direction of calibration
     joint: str = "left_knee_pitch"
-    periods: int = 5 # number of periods to run
+    periods: int = 5  # number of periods to run
+
 
 @draccus.wrap()
 def main(cfg: ProfileConfig) -> None:
@@ -84,7 +87,9 @@ def main(cfg: ProfileConfig) -> None:
     t0 = time.time()
     while time.time() - t0 < cfg.periods * cfg.test_duration:
         t = time.time()
-        motor.set_position(math.sin(sin_freq * (time.time() - t0)) + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset) * cfg.sign)
+        motor.set_position(
+            math.sin(sin_freq * (time.time() - t0)) + (SIM_DEFAULT_STANDING[cfg.joint] - cfg.offset) * cfg.sign
+        )
         print(f"Motor at {motor.get_position()}")
         positions.append(motor.get_position() * cfg.sign)
 
@@ -99,6 +104,7 @@ def main(cfg: ProfileConfig) -> None:
         f.write("time,position,adjusted\n")
         for i, pos in enumerate(positions):
             f.write(f"{i},{pos},{pos+cfg.offset}\n")
+
 
 if __name__ == "__main__":
     main()

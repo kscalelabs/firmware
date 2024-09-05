@@ -3,6 +3,7 @@
 Run:
     python firmware/scripts/test_walking --load_model policy.pt
 """
+
 import argparse
 import math
 import time
@@ -12,12 +13,13 @@ from typing import Any
 import numpy as np
 import torch
 
-from firmware.imu.imu import IMUInterface
 from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robot.robot import Robot
 
-RADIANS = False # Use radians for motor positions
-SIM_TO_ROBOT_JOINTS = { # Conversion from sim joint position values to robot joint positions. Corresponds to "high" position in sim (0 in real)
+RADIANS = False  # Use radians for motor positions
+SIM_TO_ROBOT_JOINTS = {
+    # Conversion from sim joint position values to robot joint positions.
+    # Corresponds to "high" position in sim (0 in real)
     "right_leg": [4.55, 2.24, 4.18, 0, 0.83],
     "left_leg": [-1.28, 2.62, 0.5, 0, -2.3],
     "right_arm": [0, 0, 0, 0, 0],
@@ -100,13 +102,16 @@ ROBOT_TO_ID_MAPPING = {
     4: "ankle_pitch",
 }
 
-class cmd:
+
+class CMD:
     vx = 0.5
     vy = 0.0
     dyaw = 0.0
 
 
-def pd_control(target_q, q, kp, dq, kd, default):
+def pd_control(
+    target_q: np.ndarray, q: np.ndarray, kp: np.ndarray, dq: np.ndarray, kd: np.ndarray, default: np.ndarray
+) -> np.ndarray:
     """Calculates torques from position commands."""
     return kp * (target_q + default - q) - kd * dq
 
@@ -116,6 +121,7 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
     Args:
         policy: The policy used for controlling the simulation.
+        args: The arguments passed to the script.
 
     Returns:
         None
@@ -124,9 +130,9 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     action_scale = 0.25
     dt = 0.001
     num_actions = 20
-    clip_observations = 18.
-    clip_actions = 18.
-    num_single_obs = 65+6
+    clip_observations = 18.0
+    clip_actions = 18.0
+    num_single_obs = 65 + 6
     frame_stack = 15
     num_observations = frame_stack * num_single_obs
     ang_vel = 1.0
@@ -134,11 +140,34 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     lin_vel = 2.0
     dof_vel = 0.05
     phase = 0.64
-    default = np.array([3.12, -1.98 ,-1.38, 1.32, 0 ,-0.28, 1.5, 1.62, 1, -2.2,   3.55, 3.18, 3.24 ,-1, 0.42,  -1.02, 1.38, -3.24, 1.2, 0])
-    kps = tau_limit= np.array([212.5 , 212.5 , 127.5 , 212.5 , 127.5 , 127.5 ,  38.25,  38.25,
-        38.25,  38.25, 212.5 , 212.5 , 127.5 , 212.5 , 127.5 , 127.5 ,
-        38.25,  38.25,  38.25,  38.25])
-    kds = np.array([[10, 10, 10, 10, 10, 10, 10,  5,  5,  5, 10, 10, 10, 10, 10, 10, 10, 5,  5,  5]])
+    default = np.array(
+        [3.12, -1.98, -1.38, 1.32, 0, -0.28, 1.5, 1.62, 1, -2.2, 3.55, 3.18, 3.24, -1, 0.42, -1.02, 1.38, -3.24, 1.2, 0]
+    )
+    kps = tau_limit = np.array(
+        [
+            212.5,
+            212.5,
+            127.5,
+            212.5,
+            127.5,
+            127.5,
+            38.25,
+            38.25,
+            38.25,
+            38.25,
+            212.5,
+            212.5,
+            127.5,
+            212.5,
+            127.5,
+            127.5,
+            38.25,
+            38.25,
+            38.25,
+            38.25,
+        ]
+    )
+    kds = np.array([[10, 10, 10, 10, 10, 10, 10, 5, 5, 5, 10, 10, 10, 10, 10, 10, 10, 5, 5, 5]])
     target_q = np.zeros((num_actions), dtype=np.double)
     action = np.zeros((num_actions), dtype=np.double)
 
@@ -150,20 +179,20 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
     # Initialize the robot
-    robot = Robot(config_path=args.robot_config,setup=args.config_setup, find_can=True, chiral=False)
+    robot = Robot(config_path=args.robot_config, setup=args.config_setup, find_can=True, chiral=False)
     robot.zero_out()
 
-    robot.calibrate_motors(mode = CalibrationMode.FORWARD)
+    robot.calibrate_motors(mode=CalibrationMode.FORWARD)
 
-#    imu = IMUInterface(args.imu_bus)
+    #    imu = IMUInterface(args.imu_bus)
 
     # Calibrate the IMU
     for _ in range(100):
         time.sleep(0.01)
-#        imu.step(0.01)
-#        imu.calibrate_yaw()
+    #        imu.step(0.01)
+    #        imu.calibrate_yaw()
 
-    imu_dt = time.time()
+    # imu_dt = time.time()
 
     while True:
         loop_start_time = time.time()
@@ -196,18 +225,19 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         # Convert from robot joint positions to sim joint positions
         cur_pos = {
-            key : np.array([SIM_TO_ROBOT_JOINTS[key][i] + cur_pos[key][i] for i in range(len(cur_pos[key]))]) for key in cur_pos
+            key: np.array([SIM_TO_ROBOT_JOINTS[key][i] + cur_pos[key][i] for i in range(len(cur_pos[key]))])
+            for key in cur_pos
         }
 
-        cur_pos = {key : np.array(cur_pos[key]) for key in cur_pos}
-        cur_vel = {key : np.array(cur_vel[key]) for key in cur_vel}
-        cur_pos["left_arm"] = np.array([0,0,0,0,0])
-        cur_vel["left_arm"] = np.array([0,0,0,0,0])
-        cur_pos["right_arm"] = np.array([0,0,0,0,0])
-        cur_vel["right_arm"] = np.array([0,0,0,0,0])
+        cur_pos = {key: np.array(cur_pos[key]) for key in cur_pos}
+        cur_vel = {key: np.array(cur_vel[key]) for key in cur_vel}
+        cur_pos["left_arm"] = np.array([0, 0, 0, 0, 0])
+        cur_vel["left_arm"] = np.array([0, 0, 0, 0, 0])
+        cur_pos["right_arm"] = np.array([0, 0, 0, 0, 0])
+        cur_vel["right_arm"] = np.array([0, 0, 0, 0, 0])
         if RADIANS:
-            cur_pos = {key : np.degrees(cur_pos[key]) for key in cur_pos}
-            cur_vel = {key : np.degrees(cur_vel[key]) for key in cur_vel}
+            cur_pos = {key: np.degrees(cur_pos[key]) for key in cur_pos}
+            cur_vel = {key: np.degrees(cur_vel[key]) for key in cur_vel}
 
         # # Ignoring arms for now
         # remapped_pos = {
@@ -243,20 +273,18 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             q[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_pos["right_leg"][i]
             dq[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_vel["right_leg"][i]
 
-
-
-  #      imu_data = imu.step(time.time() - imu_dt)
-  #      imu_dt = time.time()
-  #      eu_ang = imu_data[0]
+        #      imu_data = imu.step(time.time() - imu_dt)
+        #      imu_dt = time.time()
+        #      eu_ang = imu_data[0]
         eu_ang = np.zeros((3), dtype=np.double)
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
         # TODO: Allen, Pfb30 - figure out phase dt logic
         obs[0, 0] = math.sin(2 * math.pi * count_level * dt / phase)
         obs[0, 1] = math.cos(2 * math.pi * count_level * dt / phase)
-        obs[0, 2] = cmd.vx * lin_vel
-        obs[0, 3] = cmd.vy * lin_vel
-        obs[0, 4] = cmd.dyaw * ang_vel
+        obs[0, 2] = CMD.vx * lin_vel
+        obs[0, 3] = CMD.vy * lin_vel
+        obs[0, 4] = CMD.dyaw * ang_vel
         obs[0, 5 : (num_actions + 5)] = (q - default) * dof_pos
         obs[0, (num_actions + 5) : (2 * num_actions + 5)] = dq * dof_vel
         obs[0, (2 * num_actions + 5) : (3 * num_actions + 5)] = action
@@ -317,19 +345,21 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         }
 
         if RADIANS:
-            new_positions = {
-                key : np.radians(new_positions[key]) for key in new_positions
-            }
+            new_positions = {key: np.radians(new_positions[key]) for key in new_positions}
 
-        set_positions = {
-            key : new_positions[key] for key in new_positions
-        }
+        set_positions = {key: new_positions[key] for key in new_positions}
 
         # Subtract the SIM_TO_ROBOT_JOINTS values to get the actual motor positions
         set_positions = {
-            key : np.array([set_positions[key][i] - SIM_TO_ROBOT_JOINTS[key][i] + SIM_DEFAULT_STANDING[key][i] for i in range(len(set_positions[key]))]) for key in set_positions
+            key: np.array(
+                [
+                    set_positions[key][i] - SIM_TO_ROBOT_JOINTS[key][i] + SIM_DEFAULT_STANDING[key][i]
+                    for i in range(len(set_positions[key]))
+                ]
+            )
+            for key in set_positions
         }
-        
+
         print(f"Set positions: {set_positions}")
 
         # Clamp arms to 0
@@ -348,16 +378,19 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
         # Sleep for the remaining time to achieve 250 Hz
         time.sleep(sleep_time)
-        #print("Sleep time: ", sleep_time)
+        # print("Sleep time: ", sleep_time)
 
 
 if __name__ == "__main__":
-
     parser = argparse.ArgumentParser(description="Deployment script.")
     parser.add_argument("--load_model", type=str, required=True, help="Run to load from.")
-    parser.add_argument("--robot_config", type=str, default="../../robot/config.yaml", help="Path to the robot configuration file.")
+    parser.add_argument(
+        "--robot_config", type=str, default="../../robot/config.yaml", help="Path to the robot configuration file."
+    )
     parser.add_argument("--imu_bus", type=int, default=1, help="The I2C bus number for the IMU.")
-    parser.add_argument("--config_setup", type=str, default="stompy_mini", help="The setup configuration for the robot.")
+    parser.add_argument(
+        "--config_setup", type=str, default="stompy_mini", help="The setup configuration for the robot."
+    )
     args = parser.parse_args()
 
     policy = torch.jit.load(args.load_model)

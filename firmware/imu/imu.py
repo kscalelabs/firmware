@@ -40,7 +40,7 @@ class IMUInterface:
         y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
         z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
         return imufusion.Quaternion(np.array([w, x, y, z]))
-    
+
     def quaternion_conjugate(self, q: imufusion.Quaternion) -> imufusion.Quaternion:
         w, x, y, z = q.wxyz
         return imufusion.Quaternion(np.array([w, -x, -y, -z]))
@@ -63,7 +63,6 @@ class IMUInterface:
     def calibrate_yaw(self) -> None:
         if self.state[1].z < self.GYRO_YAW_THRESHOLD:
             self.quatOffset = self.quaternion_conjugate(self.ahrs.quaternion)
-
 
     def step(self, dt: float) -> list[Any]:
         gyroscope, accelerometer, magnetometer = self.get_imu_data()
