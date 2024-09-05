@@ -27,6 +27,7 @@ This is the official documentation for our core robot firmware.
    :maxdepth: 3
    :caption: Examples:
 
+   legs_example
    scripts
 
 .. toctree::
