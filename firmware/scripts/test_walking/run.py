@@ -179,8 +179,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
     target_loop_time = 1.0 / target_frequency  # 4 ms
 
     # Initialize the robot
-    robot = Robot(config_path=args.robot_config, setup=args.config_setup, find_can=True, chiral=False)
-    robot.zero_out()
+    robot = Robot(config_path=args.robot_config,setup=args.config_setup, find_can=True, chiral=False)
+    #robot.zero_out()
 
     robot.calibrate_motors(mode=CalibrationMode.FORWARD)
 
@@ -236,31 +236,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         cur_pos["right_arm"] = np.array([0, 0, 0, 0, 0])
         cur_vel["right_arm"] = np.array([0, 0, 0, 0, 0])
         if RADIANS:
-            cur_pos = {key: np.degrees(cur_pos[key]) for key in cur_pos}
-            cur_vel = {key: np.degrees(cur_vel[key]) for key in cur_vel}
-
-        # # Ignoring arms for now
-        # remapped_pos = {
-        #     key : cur_pos[key][[4, 0, 1, 2, 3]] for key in cur_pos
-        # }
-
-        # remapped_vel = {
-        #     key : cur_vel[key][[4, 0, 1, 2, 3]] for key in cur_vel
-        # }
-
-        # q = np.concatenate(
-        #     (remapped_pos["left_arm"],
-        #     remapped_pos["left_leg"],
-        #     remapped_pos["right_leg"],
-        #     remapped_pos["right_arm"],)
-        # )
-
-        # dq = np.concatenate(
-        #     (remapped_vel["left_arm"],
-        #     remapped_vel["left_leg"],
-        #     remapped_vel["right_leg"],
-        #     remapped_vel["right_arm"],)
-        # )
+            cur_pos = {key : np.degrees(cur_pos[key]) for key in cur_pos}
+            cur_vel = {key : np.degrees(cur_vel[key]) for key in cur_vel}
 
         q = np.zeros((num_actions), dtype=np.double)
         dq = np.zeros((num_actions), dtype=np.double)
@@ -366,8 +343,13 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         set_positions["left_arm"] = np.array([0, 0, 0, 0, 0])
         set_positions["right_arm"] = np.array([0, 0, 0, 0, 0])
 
-        set_positions.pop("left_arm")
-        set_positions.pop("right_arm")
+        # Clamp arms to defualt standing
+
+        set_positions["left_arm"] = np.array([1, 3.3, 1.6, 1.5, 2])
+        set_positions["right_arm"] = np.array([-1, -3.3, -1.6, -1.5, -2])
+
+        # set_positions.pop("left_arm")
+        # set_positions.pop("right_arm")
 
         robot.set_position(set_positions)
 

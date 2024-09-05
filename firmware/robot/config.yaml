@@ -63,14 +63,14 @@ robots:
     motor_type: "robstride"
     delta_change: 10
     body_parts:
-      # left_arm:
-      #   start_id: 6
-      #   canbus_id: 2
-      #   dof: 5
-      # right_arm:
-      #   start_id: 1
-      #   canbus_id: 3
-      #   dof: 5
+      left_arm:
+        start_id: 6
+        canbus_id: 2
+        dof: 5
+      right_arm:
+        start_id: 1
+        canbus_id: 3
+        dof: 5
       left_leg:
         start_id: 16
         canbus_id: 1
