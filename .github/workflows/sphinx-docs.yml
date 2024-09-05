@@ -43,10 +43,7 @@ jobs:
     - name: Generate documentation
       run: |
         cd docs
-        make clean
-        make docs SPHINXOPTS="-vvv"
-
-
+        make all
         
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v1
