@@ -13,7 +13,7 @@ from ahrs.filters import Madgwick  # type: ignore[import-not-found]
 
 from firmware.cpp.imu.imu import IMU
 
-imu: IMU = IMU(0)  # type: ignore[import-not-found]
+imu: IMU = None  # type: ignore[import-not-found]
 madgwick: Madgwick = None  # type: ignore[import-not-found]
 q: np.ndarray = None
 start: float = 0
