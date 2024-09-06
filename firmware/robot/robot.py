@@ -212,7 +212,7 @@ class Robot:
                     signs = [-s for s in signs]
 
                 calibration_dir = self.config["motor_config"][part_type]["calibration_dir"]
-                if part.startswith("left"):
+                if self.chiral and part.startswith("left"):
                     calibration_dir = [-d for d in calibration_dir]
 
                 motor_config[part] = {
