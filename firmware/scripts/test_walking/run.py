@@ -17,11 +17,92 @@ from firmware.motor_utils.motor_utils import CalibrationMode
 from firmware.robot.robot import Robot
 
 RADIANS = False  # Use radians for motor positions
+
+# Eyeballed values
+# SIM_TO_ROBOT_JOINTS = {
+#     # Conversion from sim joint position values to robot joint positions.
+#     # Corresponds to "high" position in sim (0 in real)
+#     # Ordering is: hip pitch, hip yaw, hip roll, knee pitch, ankle pitch
+#     "right_leg": [4.55, 2.24, 4.18, 0, 0.83],
+#     "left_leg": [-1.28, 2.62, 0.5, 0, -2.3],
+#     "right_arm": [0, 0, 0, 0, 0],
+#     "left_arm": [0, 0, 0, 0, 0],
+# }
+
+# Values pasted from sim calibration script.
+# RESULTS IN:
+# Calibrating joint: left ankle pitch
+# Position HIGH 0.8200000476837159
+# Position LOW -0.9800000834465026
+# Calibrating joint: left elbow pitch
+# Position HIGH 0.5299999570846559
+# Position LOW -0.4499999427795409
+# Calibrating joint: left hand gripper
+# Position HIGH 2.170000171661377
+# Position LOW -0.4000000596046448
+# Calibrating joint: left hand roll
+# Position HIGH 0.48000007629394537
+# Position LOW -0.5000001811981201
+# Calibrating joint: left hip pitch
+# Position HIGH 1.309984130859375
+# Position LOW -1.9651845264434815
+# Calibrating joint: left hip roll
+# Position HIGH 2.5199998807907105
+# Position LOW -2.479999761581421
+# Calibrating joint: left hip yaw
+# Position HIGH 0.4464770126342774
+# Position LOW -1.8952986431121825
+# Calibrating joint: left knee pitch
+# Position HIGH 1.1099946951866149
+# Position LOW -1.4686135196685792
+# Calibrating joint: left shoulder pitch
+# Position HIGH 0.7910313606262207
+# Position LOW 0.027525663375854492
+# Calibrating joint: left shoulder roll
+# Position HIGH 0.5000046348571776
+# Position LOW -0.5099998855590822
+# Calibrating joint: left shoulder yaw
+# Position HIGH 0.41598587512969964
+# Position LOW -2.569994993209839
+# Calibrating joint: right ankle pitch
+# Position HIGH 1.239999988079071
+# Position LOW -0.96
+# Calibrating joint: right elbow pitch
+# Position HIGH 1.955767651796341
+# Position LOW -2.119290599822998
+# Calibrating joint: right hand gripper
+# Position HIGH 1.733071231842041
+# Position LOW -0.6000000596046448
+# Calibrating joint: right hand roll
+# Position HIGH 0.5009999871253967
+# Position LOW -0.5009999871253967
+# Calibrating joint: right hip pitch
+# Position HIGH 1.0660742187499999
+# Position LOW -2.859999999254942
+# Calibrating joint: right hip roll
+# Position HIGH 1.2499997711181638
+# Position LOW -0.9900000000000002
+# Calibrating joint: right hip yaw
+# Position HIGH 1.5199997711181639
+# Position LOW 1.520000247955322
+# Calibrating joint: right knee pitch
+# Position HIGH 1.387862777709961
+# Position LOW -1.15
+# Calibrating joint: right shoulder pitch
+# Position HIGH 0.04297881126403791
+# Position LOW -0.8310000419616701
+# Calibrating joint: right shoulder roll
+# Position HIGH 0.13099907398223887
+# Position LOW -0.2709999227523803
+# Calibrating joint: right shoulder yaw
+# Position HIGH 1.1000001192092896
+# Position LOW -0.26007389426231386
+
+# Operates purely on motor relative calibration, e.g. left vs right joints go opposite dirs
+# Offset is the HIGH value for the corresponding joint in SIM_DEFAULT_STANDING_DICT
 SIM_TO_ROBOT_JOINTS = {
-    # Conversion from sim joint position values to robot joint positions.
-    # Corresponds to "high" position in sim (0 in real)
-    "right_leg": [4.55, 2.24, 4.18, 0, 0.83],
-    "left_leg": [-1.28, 2.62, 0.5, 0, -2.3],
+    "right_leg": [1.0660742187499999, 1.5199997711181639, 1.2499997711181638, 1.387862777709961, 1.239999988079071],
+    "left_leg": [1.309984130859375, 0.4464770126342774, 2.5199998807907105, 1.1099946951866149, 0.8200000476837159],
     "right_arm": [0, 0, 0, 0, 0],
     "left_arm": [0, 0, 0, 0, 0],
 }
@@ -184,15 +265,15 @@ def run(policy: Any, args: argparse.Namespace) -> None:
 
     robot.calibrate_motors(mode=CalibrationMode.FORWARD)
 
-    #    imu = IMUInterface(args.imu_bus)
+    imu = IMUInterface(args.imu_bus)
 
     # Calibrate the IMU
     for _ in range(100):
         time.sleep(0.01)
-    #        imu.step(0.01)
-    #        imu.calibrate_yaw()
+        imu.step(0.01)
+        imu.calibrate_yaw()
 
-    # imu_dt = time.time()
+    imu_dt = time.time()
 
     while True:
         loop_start_time = time.time()
@@ -250,10 +331,11 @@ def run(policy: Any, args: argparse.Namespace) -> None:
             q[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_pos["right_leg"][i]
             dq[DOF_IDS[f"right_{ROBOT_TO_ID_MAPPING[i]}"]] = cur_vel["right_leg"][i]
 
-        #      imu_data = imu.step(time.time() - imu_dt)
-        #      imu_dt = time.time()
-        #      eu_ang = imu_data[0]
-        eu_ang = np.zeros((3), dtype=np.double)
+        imu_data = imu.step(time.time() - imu_dt)
+        imu_dt = time.time()
+        eu_ang = imu_data[0]
+
+        # eu_ang = np.zeros((3), dtype=np.double)
         eu_ang[eu_ang > math.pi] -= 2 * math.pi
 
         # TODO: Allen, Pfb30 - figure out phase dt logic
@@ -348,8 +430,8 @@ def run(policy: Any, args: argparse.Namespace) -> None:
         set_positions["left_arm"] = np.array([1, 3.3, 1.6, 1.5, 2])
         set_positions["right_arm"] = np.array([-1, -3.3, -1.6, -1.5, -2])
 
-        # set_positions.pop("left_arm")
-        # set_positions.pop("right_arm")
+        set_positions.pop("left_arm")
+        set_positions.pop("right_arm")
 
         robot.set_position(set_positions)
 
