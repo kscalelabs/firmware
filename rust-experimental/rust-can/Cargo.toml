@@ -1,0 +1,8 @@
+[package]
+name = "rust-can"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+neli = "0.6.4"
+socketcan = "3.3.0"

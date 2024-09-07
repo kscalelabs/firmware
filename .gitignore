@@ -25,3 +25,6 @@ venv/
 
 # MacOS
 .DS_Store
+
+# Rust
+rust-experimental/rust-can/target/
