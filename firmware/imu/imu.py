@@ -60,9 +60,9 @@ class IMUInterface:
             0,  # recovery trigger period
         )
 
-    def calibrate_yaw(self) -> None:
-        if self.state[1].z < self.GYRO_YAW_THRESHOLD:
-            self.quatOffset = self.quaternion_conjugate(self.ahrs.quaternion)
+    def calibrate(self) -> None:
+        # if self.state[1].z < self.GYRO_YAW_THRESHOLD:
+        self.quatOffset = self.quaternion_conjugate(self.ahrs.quaternion)
 
     def step(self, dt: float) -> list[Any]:
         gyroscope, accelerometer, magnetometer = self.get_imu_data()
