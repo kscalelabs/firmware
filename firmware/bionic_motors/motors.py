@@ -14,7 +14,7 @@ from firmware.bionic_motors.commands import (
     set_zero_position,
 )
 from firmware.bionic_motors.responses import read_result, valid_message
-from firmware.motor_utils.motor_utils import MotorInterface, MotorParams
+from firmware.motor_utils.motor_utils import CalibrationMode, MotorInterface, MotorParams
 
 SPECIAL_IDENTIFIER = 0x7FF
 
@@ -180,13 +180,16 @@ class BionicMotor(MotorInterface):
                 # return "Invalid"
         return "Valid"
 
-    def calibrate(self, current_limit: float) -> None:
+    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int, timeout: float = 10) -> None:
         """Calibrates motor assuming the existence of hard stops.
 
         TODO: Implement calibration method.
 
         Args:
             current_limit: The current limit to use for calibration.
+            mode: The calibration mode to use.
+            sign: The sign of the speed to use during calibration.
+            timeout: The timeout for the calibration.
         """
         pass
 

@@ -10,7 +10,7 @@ import yaml
 import firmware.robstride_motors.client as robstride
 from firmware.bionic_motors.motors import CANInterface
 from firmware.motor_utils.motor_factory import MotorFactory
-from firmware.motor_utils.motor_utils import MotorInterface
+from firmware.motor_utils.motor_utils import CalibrationMode, MotorInterface
 from firmware.robot.model import Arm, Body, Leg
 
 
@@ -23,19 +23,66 @@ def deg_to_rad(deg: float) -> float:
 
 
 class Robot:
-    def __init__(self, config_path: str = "config.yaml", setup: str = "full_body") -> None:
+    def __init__(
+        self,
+        config_path: str = "config.yaml",
+        setup: str = "full_body",
+        find_can: bool = False,
+        chiral: bool = True,
+        verbose: bool = False,
+    ) -> None:
         with open(config_path, "r") as config_file:
             config = yaml.safe_load(config_file)
             self.config = next(robot for robot in config["robots"] if robot["setup"] == setup)
         print("Loaded config")
         self.setup = setup
         self.delta_change = self.config["delta_change"]
+        self.chiral = chiral
+
+        if find_can:
+            self._identify_and_set_canbus_ids()
 
         self.communication_interfaces = self._initialize_communication_interfaces()
         print("Initialized communication interfaces")
         self.body = self._initialize_body()
         self.motor_config = self._initialize_motor_config()
         self.prev_positions: dict = {part: [] for part in self.motor_config}
+
+    def _identify_and_set_canbus_ids(self, verbose: bool = False) -> None:
+        """Identify connected canbus_ids for each body part.
+
+        Queries all possible canbus_ids for the 1st motor in the part.
+        """
+        if self.config["motor_type"] == "robstride":
+            clients = {}
+            canbus_id = 0
+            new_ids = {}
+            for _ in self.config["body_parts"]:
+                client = robstride.Client(can.interface.Bus(channel=f"can{canbus_id}", bustype="socketcan"))
+                clients[canbus_id] = client
+                canbus_id += 1
+            print(f"Initialized {len(clients)} clients")
+            for part in self.config["body_parts"]:
+                first_motor_id = self.config["body_parts"][part]["start_id"]
+                print(f"First motor id: {first_motor_id} for part {part}")
+                for canbus_id, client in clients.copy().items():
+                    try:
+                        client.read_param(first_motor_id, "loc_ref")
+                        self.config["body_parts"][part]["canbus_id"] = canbus_id
+                        new_ids[part] = canbus_id
+                        print(f"Identified canbus_id {canbus_id} for part {part}")
+                        break
+                    except Exception as e:
+                        if verbose:
+                            print(f"Error reading param for canbus_id {canbus_id}: {e}")
+                        continue
+            for client in clients.values():
+                client.bus.shutdown()
+            print(f"Identified canbus_ids: {new_ids}")
+        elif self.config["motor_type"] == "bionic":
+            raise ValueError("canbus_id identification is not supported for Bionic motors")
+        else:
+            raise ValueError(f"Unsupported motor type: {self.config['motor_type']}")
 
     def _initialize_communication_interfaces(self) -> Dict[str, Any]:
         """Initialize communication interfaces for each body part.
@@ -161,12 +208,17 @@ class Robot:
                 dof = part_config["dof"]
 
                 signs = self.config["motor_config"][part_type]["signs"][:dof]
-                if part.startswith("left"):
+                if self.chiral and part.startswith("left"):
                     signs = [-s for s in signs]
+
+                calibration_dir = self.config["motor_config"][part_type]["calibration_dir"]
+                if self.chiral and part.startswith("left"):
+                    calibration_dir = [-d for d in calibration_dir]
 
                 motor_config[part] = {
                     "motors": getattr(self.body, part).motors,
                     "signs": signs,
+                    "calibration_dir": calibration_dir,
                     "increments": self.config["motor_config"][part_type]["increments"][:dof],
                     "maximum_values": self.config["motor_config"][part_type]["maximum_values"][:dof],
                     "offsets": self.config["motor_config"][part_type]["offsets"][:dof],
@@ -286,8 +338,8 @@ class Robot:
             for part, config in self.motor_config.items()
         }
 
-    def calibrate_motors(self) -> None:
+    def calibrate_motors(self, current_limit: float = 10, mode: CalibrationMode = CalibrationMode.CENTER) -> None:
         """Calibrate all motors."""
         for part, config in self.motor_config.items():
-            for motor in config["motors"]:
-                motor.calibrate()
+            for motor, sign in zip(config["motors"], config["calibration_dir"]):
+                motor.calibrate(current_limit=current_limit, mode=mode, sign=sign)

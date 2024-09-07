@@ -2,7 +2,16 @@
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from enum import IntEnum
 from typing import Any
+
+
+class CalibrationMode(IntEnum):
+    """Calibration mode for motors."""
+
+    CENTER: int = 0
+    FORWARD: int = 1
+    BACK: int = 2
 
 
 @dataclass
@@ -46,7 +55,7 @@ class MotorInterface(ABC):
         pass
 
     @abstractmethod
-    def calibrate(self, current_limit: float) -> None:
+    def calibrate(self, current_limit: float, mode: CalibrationMode, sign: int, timeout: float) -> None:
         """Calibrates motor assuming the existence of hard stops."""
         pass
 
