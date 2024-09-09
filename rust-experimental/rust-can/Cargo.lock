@@ -155,7 +155,7 @@ dependencies = [
 name = "rust-can"
 version = "0.1.0"
 dependencies = [
- "neli",
+ "hex",
  "socketcan",
 ]
 

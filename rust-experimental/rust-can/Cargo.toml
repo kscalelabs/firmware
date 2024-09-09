@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-neli = "0.6.4"
+hex = "0.4.3"
 socketcan = "3.3.0"
