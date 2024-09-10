@@ -40,7 +40,7 @@ def check_microphone():
             period_size = inp.periodsize()
         except AttributeError:
             # If auto-detection fails, set parameters manually for the ReSpeaker v2
-            channels = 6
+            channels = 4  # Corrected to 4 channels
             rate = 16000
             format = alsaaudio.PCM_FORMAT_S16_LE
             period_size = 1024
