@@ -30,16 +30,25 @@ def check_microphone():
     print("Checking microphone...")
     try:
         # Set up the microphone for recording
-        inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NONBLOCK)
+        inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NONBLOCK, device='default')
         
-        # Get the current hardware parameters
-        params = inp.polldescriptors()
-        
-        # Use the device's default settings
-        channels = inp.channels()
-        rate = inp.rate()
-        format = inp.format()
-        period_size = inp.periodsize()
+        # Try to get the current hardware parameters
+        try:
+            channels = inp.channels()
+            rate = inp.rate()
+            format = inp.format()
+            period_size = inp.periodsize()
+        except AttributeError:
+            # If auto-detection fails, set parameters manually for the ReSpeaker v2
+            channels = 6
+            rate = 16000
+            format = alsaaudio.PCM_FORMAT_S16_LE
+            period_size = 1024
+            
+            inp.setchannels(channels)
+            inp.setrate(rate)
+            inp.setformat(format)
+            inp.setperiodsize(period_size)
         
         print(f"Microphone settings: {channels} channels, {rate} Hz, format {format}, period size {period_size}")
 
