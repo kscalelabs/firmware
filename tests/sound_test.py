@@ -30,25 +30,18 @@ def check_microphone():
     print("Checking microphone...")
     try:
         # Set up the microphone for recording
-        inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NONBLOCK, device='default')
+        inp = alsaaudio.PCM(alsaaudio.PCM_CAPTURE, alsaaudio.PCM_NONBLOCK, 
+                            channels=4,
+                            rate=16000,
+                            format=alsaaudio.PCM_FORMAT_S16_LE,
+                            periodsize=1024,
+                            device='default')
         
-        # Try to get the current hardware parameters
-        try:
-            channels = inp.channels()
-            rate = inp.rate()
-            format = inp.format()
-            period_size = inp.periodsize()
-        except AttributeError:
-            # If auto-detection fails, set parameters manually for the ReSpeaker v2
-            channels = 4  # Corrected to 4 channels
-            rate = 16000
-            format = alsaaudio.PCM_FORMAT_S16_LE
-            period_size = 1024
-            
-            inp.setchannels(channels)
-            inp.setrate(rate)
-            inp.setformat(format)
-            inp.setperiodsize(period_size)
+        # Get the current hardware parameters
+        channels = inp.channels
+        rate = inp.rate
+        format = inp.format
+        period_size = inp.periodsize
         
         print(f"Microphone settings: {channels} channels, {rate} Hz, format {format}, period size {period_size}")
 
@@ -72,7 +65,7 @@ def check_microphone():
         # Save the recorded audio to a WAV file for verification
         with wave.open('recorded_audio.wav', 'wb') as wf:
             wf.setnchannels(channels)
-            wf.setsampwidth(alsaaudio.PCM_FORMAT_TO_WIDTH(format))
+            wf.setsampwidth(2)  # 2 bytes for S16_LE format
             wf.setframerate(rate)
             wf.writeframes(b''.join(frames))
 
