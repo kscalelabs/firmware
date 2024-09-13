@@ -1,21 +1,9 @@
-# This is an implementation of the Waveshare 1.28" LCD RP2040 Board
-# https://www.waveshare.com/wiki/1.28inch_LCD_RP2040_Board
-# It uses the CircuitPython libraries and the GC9A01 display driver
-# https://circuitpython.readthedocs.io/projects/gc9a01/en/latest/
-# I had to implement my own battery and IMU classes because the
-# existing ones didn't work with CircuitPython.  
-# @author: Jesse R. Castro
-# @TODO: Add menu class
-# @TODO: Record accelerometer data to a file for calibration
-
 import random
 import time
 from math import floor
 
 
 from circuitrunner import wsRP2040128
-
-
 
 # Additional functionality for eyes. Subclass from wsRP2040128 
 class EyesDisplay(wsRP2040128):
