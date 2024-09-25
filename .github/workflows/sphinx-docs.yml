@@ -1,7 +1,6 @@
 name: Deploy Sphinx documentation to Pages
 
 on:
-  workflow_dispatch:
   push:
     branches: [docs]  # Set a branch to deploy when pushed
   pull_request:
