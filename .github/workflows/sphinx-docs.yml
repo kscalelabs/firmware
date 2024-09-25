@@ -1,11 +1,12 @@
 name: Deploy Sphinx documentation to Pages
 
 on:
+  workflow_dispatch:
   push:
     branches: [docs]  # Set a branch to deploy when pushed
   pull_request:
     branches: [docs]  # Set a branch to deploy when a PR is made
-  workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
+
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
 permissions:
