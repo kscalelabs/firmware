@@ -1,0 +1,13 @@
+[package]
+name = "robstride"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serialport = "4.0"
+pyo3 = { version = "0.22.3", features = ["extension-module"] }
+
+[lib]
+crate-type = ["cdylib"]
+path = "src/robstride.rs"
+

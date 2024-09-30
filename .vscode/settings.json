@@ -1,4 +1,7 @@
 {
+  "rust-analyzer.linkedProjects": [
+    "${workspaceFolder}/firmware/rust/Cargo.toml"
+  ],
   "cmake.sourceDirectory": "${workspaceFolder}/firmware/cpp",
   "files.associations": {
     "compare": "cpp",

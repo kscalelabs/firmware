@@ -13,6 +13,7 @@ from pathlib import Path
 
 from setuptools import Extension, setup
 from setuptools.command.build_ext import build_ext
+from setuptools_rust import RustExtension
 
 PLAT_TO_CMAKE = {
     "win32": "Win32",
@@ -195,7 +196,7 @@ setup(
     version=version,
     description="The firmware project",
     author="Benjamin Bolte",
-    url="https///github.com/kscalelabs/firmware",
+    url="https://github.com/kscalelabs/firmware",
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.9",
@@ -205,6 +206,7 @@ setup(
     extras_require={"dev": requirements_dev},
     ext_modules=[CMakeExtension("firmware/cpp")],
     cmdclass={"build_ext": CMakeBuild},
+    rust_extensions=[RustExtension("firmware.rust.robstride", "firmware/rust/Cargo.toml")],
     exclude_package_data={
         "firmware": [
             "cpp/**/*.cpp",

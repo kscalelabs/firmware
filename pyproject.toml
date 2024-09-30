@@ -15,6 +15,11 @@ markers = [
     "has_mps: Marks test as requiring an MPS device to run",
 ]
 
+[build-system]
+
+requires = ["setuptools", "setuptools-rust", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [tool.mypy]
 
 pretty = true

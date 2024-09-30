@@ -23,5 +23,8 @@ out*/
 # Virtual environments.
 venv/
 
+# Rust
+target/
+
 # MacOS
 .DS_Store
