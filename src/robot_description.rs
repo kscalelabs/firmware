@@ -13,6 +13,22 @@ pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     qpos
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
+pub enum JoystickCommandType {
+    XVel,
+    YVel,
+    Height,
+    Yaw,
+    Pitch,
+    Roll,
+    YawRate,
+}
+
+#[derive(Debug, Default)]
+pub struct JoystickCommand {
+    pub cmd_map: EnumMap<JoystickCommandType, f64>,
+}
+
 #[derive(Debug, Default)]
 pub struct ActuatorFeedback {
     pub qpos:   f64, // Position
@@ -317,6 +333,7 @@ pub struct Args {
 pub struct RobotDescription {
     pub actuators: ActuatorStateStore,
     pub imu: ImuData,
+    pub joystick: JoystickCommand,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
@@ -331,6 +348,7 @@ impl RobotDescription {
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),
+            joystick: JoystickCommand::default(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
@@ -399,7 +417,8 @@ impl RobotDescription {
             | DataType::JointAngularVelocities => self.actuators.len(),
 
 
-            // Input to polidy
+            // Input to policy
+            // TODO: this is not a fixed dimension
             DataType::Command => 4,
 
             // Imu
