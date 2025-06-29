@@ -13,23 +13,6 @@ pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     qpos
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Enum)]
-pub enum JoystickCommandType {
-    XVel,
-    YVel,
-    YawRate,
-    Yaw,
-    Height,
-    Pitch,
-    Roll,
-    KeyframeIndex,
-}
-
-#[derive(Debug, Default)]
-pub struct JoystickCommand {
-    pub cmd_map: EnumMap<JoystickCommandType, f64>,
-}
-
 #[derive(Debug, Default)]
 pub struct ActuatorFeedback {
     pub qpos:   f64, // Position
