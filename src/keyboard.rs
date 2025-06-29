@@ -82,6 +82,18 @@ impl KeyboardManager {
                                 *cmd = 0.0;
                             }
                         }
+                        event::KeyCode::Char('6') => {
+                            update[JoystickCommandType::KeyframeIndex] = 6.0;
+                        }
+                        event::KeyCode::Char('7') => {
+                            update[JoystickCommandType::KeyframeIndex] = 7.0;
+                        }
+                        event::KeyCode::Char('8') => {
+                            update[JoystickCommandType::KeyframeIndex] = 8.0;
+                        }
+                        event::KeyCode::Char('9') => {
+                            update[JoystickCommandType::KeyframeIndex] = 9.0;
+                        }
                         _ => {}
                     }
                 } else if key.kind == event::KeyEventKind::Release {

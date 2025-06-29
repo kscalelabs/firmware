@@ -17,11 +17,12 @@ pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
 pub enum JoystickCommandType {
     XVel,
     YVel,
-    Height,
+    YawRate,
     Yaw,
+    Height,
     Pitch,
     Roll,
-    YawRate,
+    KeyframeIndex,
 }
 
 #[derive(Debug, Default)]
