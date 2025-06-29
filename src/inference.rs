@@ -216,11 +216,13 @@ use crate::state_machine;
 state_machine!(Reset, Operate);
 
 use crate::robot_description::DataType;
+use crate::policy_control::CommandType;
 
-impl TryFrom<String> for DataType {
+impl TryFrom<&ort::session::Input> for DataType {
     type Error = std::io::Error;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
+    fn try_from(input: &ort::session::Input) -> Result<Self, Self::Error> {
+
+        match input.name.as_str() {
             "joint_angles" => Ok(DataType::JointAngles),
             "joint_angular_velocities" => Ok(DataType::JointAngularVelocities),
             "initial_heading" => Ok(DataType::InitialHeading),
@@ -228,29 +230,48 @@ impl TryFrom<String> for DataType {
             "projected_gravity" => Ok(DataType::ProjectedGravity),
             "accelerometer" => Ok(DataType::Accelerometer),
             "gyroscope" => Ok(DataType::Gyroscope),
-            "command" => Ok(DataType::Command),
             "time" => Ok(DataType::Time),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
-                format!("Unknown data type: {}", value),
+                format!("Unknown data type: {:?}", input),
             )),
         }
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum ModelInputType {
     DataType(DataType),
+    Command(CommandType),
     Carry,
 }
 
-impl TryFrom<String> for ModelInputType {
+impl TryFrom<&ort::session::Input> for ModelInputType {
     type Error = std::io::Error;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
+    fn try_from(input: &ort::session::Input) -> Result<Self, Self::Error> {
+        match input.name.as_str() {
             "carry" => Ok(ModelInputType::Carry),
+            "command" => {
+                if input.input_type.tensor_shape().is_none() {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Command input must have a tensor shape",
+                    ));
+                }
+
+                let dims = input.input_type.tensor_shape().unwrap();
+                if dims.len() != 1 {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Command input must have a 1D tensor shape",
+                    ));
+                }
+
+                let dims = dims[0];
+                Ok(ModelInputType::Command(CommandType::from_dims(dims as usize)?))
+            }
             _ => {
-                let data_type = DataType::try_from(value)?;
+                let data_type = DataType::try_from(input)?;
                 Ok(ModelInputType::DataType(data_type))
             }
         }
@@ -306,7 +327,7 @@ impl Store {
             let dims = input.input_type.tensor_shape().expect("step_fn input should have a tensor shape");
             info!("input :{:?}", input);
 
-            if let Ok(model_input_type) = ModelInputType::try_from(name.clone()) {
+            if let Ok(model_input_type) = ModelInputType::try_from(input) {
                 match model_input_type {
                     ModelInputType::DataType(data_type) => {
                         let target = ort::tensor::Shape::try_from(robot_description.dimensions(data_type))
@@ -316,6 +337,11 @@ impl Store {
                             return Err(Error::new(std::io::ErrorKind::InvalidInput, format!("step_fn input {} shape ({:?}) does not match robot description ({:?})",
                                 name, dims, target)));
                         }
+                    }
+                    ModelInputType::Command(_) => {
+                        // input shape is implictly validated during the conversion from input_type
+                        // to ModelInputType::Command
+                        // here we can cross check against the metadata if needed
                     }
                     ModelInputType::Carry => {
                         step_input_carry_shape = Some(dims.clone());
@@ -438,7 +464,7 @@ impl Store {
             robot_description,
         )?;
 
-        // crate the session inputs
+        // create the session inputs
         let mut step_input_vec = vec![];
         let mut step_input_types = vec![];
 
@@ -449,8 +475,8 @@ impl Store {
             debug!("input name: {}", input.name);
             debug!("input type: {:?}", input.input_type);
             let name = input.name.clone();
-            let model_input_type = ModelInputType::try_from(name)?;
-            step_input_types.push(model_input_type.clone());
+            let model_input_type = ModelInputType::try_from(input)?;
+            step_input_types.push(model_input_type);
 
             // allocate and push tensors
             step_input_vec.push(
@@ -463,7 +489,7 @@ impl Store {
                 )
             );
 
-            if let ModelInputType::Carry = model_input_type {
+            if let ModelInputType::Carry = step_input_types.last().unwrap() {
                 // seed the carry state
                 let Some(ort::session::SessionInputValue::Owned(dst)) = step_input_vec.last_mut() else {
                     panic!("Expected a mutable reference to a DynTensor");
@@ -564,7 +590,6 @@ impl State for Reset
     }
 }
 
-
 pub struct Operate {
     shared_state: Pin<Box<Store>>,
     creation_time: std::time::Instant,
@@ -592,10 +617,25 @@ impl Operate {
             ..
         } = self.shared_state.as_mut().project(); 
 
-        for (input_type, input_val) in step_input_types.iter().zip(step_input_vec.iter_mut()) {
+        for (input_type, input_val) in step_input_types.iter_mut().zip(step_input_vec.iter_mut()) {
             match input_type {
                 ModelInputType::Carry => {
                     // carry input is the output of the previous step
+                }
+                ModelInputType::Command(cmd) => {
+
+                    // set the command input to zero
+                    let ort::session::SessionInputValue::Owned(arr) = input_val else {
+                        return Err(std::io::Error::new(
+                            std::io::ErrorKind::InvalidInput,
+                            "Expected a mutable reference to a DynTensor",
+                        ));
+                    };
+
+                    let arr = arr.try_extract_array_mut::<f32>().map_err(std::io::Error::other)?;
+                    let arr = arr.into_dimensionality::<ndarray::Dim<[usize; 1]>>().expect("Failed to convert to 1D array");
+                    use crate::policy_control::InputState;
+                    cmd.extract(arr);
                 }
                 ModelInputType::DataType(data_type) => {
                     // extract data from robot description
