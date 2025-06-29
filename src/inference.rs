@@ -296,6 +296,7 @@ pub struct Store {
     cmd_idx_to_actuator_id: Vec<ActuatorId>,
     actuator_id_to_cmd_idx: enum_map::EnumMap<ActuatorId, usize>,
     step_description: PolicyStepDescriptor,
+    kb_manager: crate::keyboard::KeyboardManager,
 }
 
 impl Store {
@@ -515,7 +516,7 @@ impl Store {
         }
 
         // create the output to actuator id map
-
+        // TODO: read from metadata to create this
         let mut cmd_idx_to_actuator_id = vec![
 
             ActuatorId::Rsp,
@@ -556,6 +557,7 @@ impl Store {
             cmd_idx_to_actuator_id,
             actuator_id_to_cmd_idx,
             step_description,
+            kb_manager: crate::keyboard::KeyboardManager::new()?,
         })
     }
 }
@@ -614,6 +616,7 @@ impl Operate {
             cmd_idx_to_actuator_id,
             actuator_id_to_cmd_idx,
             step_description,
+            kb_manager,
             ..
         } = self.shared_state.as_mut().project(); 
 
@@ -623,6 +626,8 @@ impl Operate {
                     // carry input is the output of the previous step
                 }
                 ModelInputType::Command(cmd) => {
+                    // get feedback from the keyboard manager
+                    kb_manager.process_feedback(cmd)?;
 
                     // set the command input to zero
                     let ort::session::SessionInputValue::Owned(arr) = input_val else {
