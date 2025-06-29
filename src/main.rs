@@ -17,6 +17,7 @@ pub mod robot_description;
 pub mod imu;
 pub mod inference;
 pub mod telemetry;
+pub mod keyboard;
 
 use std::task::{Context, Poll};
 
