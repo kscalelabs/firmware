@@ -1,6 +1,8 @@
 use enum_map::{Enum, EnumMap, enum_map};
 use nalgebra as na;
 use tracing::info;
+use heapless::Deque;
+use crossterm::event::KeyEvent;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
@@ -316,6 +318,7 @@ pub struct Args {
 pub struct RobotDescription {
     pub actuators: ActuatorStateStore,
     pub imu: ImuData,
+    pub kb_pending_events: Deque<KeyEvent, 16>,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
@@ -330,6 +333,7 @@ impl RobotDescription {
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),
+            kb_pending_events: Deque::new(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
