@@ -6,6 +6,7 @@ use crate::actuator_manager::{
 };
 use pin_project::pin_project;
 use std::{
+    io,
     pin::Pin,
     future::Future,
     task::{Context, Poll, ready},
@@ -27,22 +28,7 @@ use crate::inference::{
     ModelManager,
 };
 
-use crate::state_machine;
-
-use tokio::io::{self, AsyncBufReadExt};
-
-/// Waits until the user presses Enter (i.e. reads one line) in an async context.
-pub async fn wait_for_enter() -> io::Result<()> {
-    // Wrap stdin in a buffered reader and take its `lines()` stream
-    let mut lines = io::BufReader::new(io::stdin()).lines();
-
-    // `.next_line().await` resolves when the user hits Enter (or EOF).
-    // We ignore the contents of the line entirely.
-    let _ = lines.next_line().await?;
-    Ok(())
-}
-
-state_machine!(Reset, Ready, Home, Policy);
+crate::state_machine!(Reset, Ready, Home, Policy);
 
 impl std::fmt::Debug for Store {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -61,6 +47,7 @@ pub struct Store {
     imu_manager: ImuManager,
     #[pin]
     model_manager: ModelManager,
+    kb_manager: crate::keyboard::KeyboardManager,
 }
 
 impl Store {
@@ -77,6 +64,7 @@ impl Store {
             actuator_manager: ActuatorManager::new(),
             imu_manager: ImuManager::new(),
             model_manager,
+            kb_manager: crate::keyboard::KeyboardManager::new(),
         }
     }
 }
@@ -205,7 +193,7 @@ impl State for Ready
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
             debug!("IMU state: {:#?}", ss.robot_description.imu);
             info!("Press Enter to continue..");
-            wait_for_enter().await;
+            ss.kb_manager.wait_for_enter().await;
 
             // drive actuator manager to the operate state
             let target = actuator_manager::StateTag::Ready;
@@ -287,7 +275,8 @@ impl State for Ready
             };
 
             warn!("Press Enter to drive the buses...");
-            wait_for_enter().await;
+            ss.kb_manager.wait_for_enter().await;
+
             rdy_act_manager.enable().await;
             return StateTransitionResult {
                 state: StateStore::Home(Home::new(shared_state)),
@@ -403,7 +392,8 @@ impl State for Home
                 // can go to next state
                 info!("error to home: {}", err);
                 info!("Home position reached, press enter to run policy");
-                wait_for_enter().await;
+                ss.kb_manager.wait_for_enter().await;
+
                 return StateTransitionResult {
                     state: StateStore::Policy(Policy {
                         shared_state: self.shared_state,
@@ -429,6 +419,12 @@ impl State for Policy
         async move {
             let mut shared_state = &mut self.shared_state;
             let mut ss = shared_state.as_mut().project();
+
+            // Note we need to do this only once when we enter raw mode. However, our current
+            // transition function is simply a return. This can be fixed by refactoring this
+            // function to be a loop instead of returning to Policy State
+            ss.kb_manager.enable_raw_mode().expect("Failed to enable raw mode");
+            ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
             let actuator_manager::StateStore::Operate(op_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()

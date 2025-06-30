@@ -626,8 +626,11 @@ impl Operate {
                     // carry input is the output of the previous step
                 }
                 ModelInputType::Command(cmd) => {
+
                     // get feedback from the keyboard manager
-                    kb_manager.process_feedback(cmd)?;
+                    while let Some(key_event) = robot_description.kb_pending_events.pop_front() {
+                        cmd.update(key_event);
+                    }
 
                     // set the command input to zero
                     let ort::session::SessionInputValue::Owned(arr) = input_val else {
@@ -792,9 +795,9 @@ impl Operate {
                 start_time.elapsed().as_secs_f32();
             }
             _ => {
-                return Err(ort::Error::new(
-                    "Unsupported data type",
-                ))
+                // unsupported data type, we just continue
+                // commented as this will spam:
+                // log::warn!("Skipping unsupported data type: {:?}", data_type);
             }
         }
 
