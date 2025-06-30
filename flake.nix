@@ -24,7 +24,7 @@
             pkg-config
 
             # A rust toolchain locked to a new enough version for type_alias_impl_trait
-            (pkgs.rust-bin.nightly.latest.default.override {
+            (rust-bin.nightly.latest.default.override {
               extensions = [ "rust-analyzer" "rust-src" "clippy" ];
             })
           ];
