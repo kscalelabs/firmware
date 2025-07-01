@@ -8,6 +8,7 @@ use std::io;
 
 use std::task::{Context, Poll};
 use futures::{
+    Future,
     Stream,
     StreamExt,
 };
@@ -16,7 +17,8 @@ use std::pin::Pin;
 use std::task::ready;
 use pin_project::pin_project;
 
-use crate::state_machine;
+use infrastructure::state_machine;
+
 state_machine!(Reset, Operate);
 
 #[repr(u32)]

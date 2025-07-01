@@ -1,0 +1,26 @@
+[package]
+name = "actuators"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+# anyhow = { workspace = true }
+log = { workspace = true }
+bytemuck = { workspace = true }
+futures = { workspace = true }
+chrono = { workspace = true }
+nalgebra = { workspace = true }
+pin-project = { workspace = true }
+enum-map = { workspace = true }
+paste = { workspace = true }
+futures-enum = { workspace = true }
+
+# Internal workspace dependencies
+robot-description = { path = "../../robot-description" }
+infrastructure = { path = "../../infrastructure" }
+communication = { path = "../../communication" }
+
+[features]
+default = ["nightly"]
+nightly = ["infrastructure/nightly"]

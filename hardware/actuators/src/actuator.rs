@@ -1,20 +1,21 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use crate::typestate_socket2::{
+use communication::typestate_socket2::{
     SocketGraph,
     SocketState,
     SocketStorage,
     Socket,
 };
-use crate::socketcan2::{
+use communication::socketcan2::{
     SocketCanConfigurator,
     SocketCanOperator,
 };
 
 use std::fmt::Debug;
-use crate::socketcan::CanFrame;
+use communication::socketcan::CanFrame;
 
 use futures::{
+    Future,
     Stream,
     StreamExt,
 };
@@ -28,7 +29,7 @@ use crate::robstride::{
     mux_from_can_frame,
 };
 
-use crate::robot_description::{
+use robot_description::{
     ActuatorId,
     ActuatorFeedbackUpdate,
     ActuatorFeedback,
@@ -40,7 +41,7 @@ use crate::robot_description::{
 use pin_project::pin_project;
 use std::task::ready;
 
-use crate::state_machine;
+use infrastructure::state_machine;
 
 state_machine!(Reset, Configure, Ready, Operate);
 
@@ -192,7 +193,7 @@ impl State for Operate
 
 async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std::io::Result<()> {
     let mut ss = ss.project();
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -222,7 +223,7 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
 
 async fn send_request(ss: Pin<&mut Store> , params: &ActuatorRequestParams) -> std::io::Result<()> {
     let mut ss = ss.project();
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -254,7 +255,7 @@ async fn read_responses(ss: Pin<&mut Store>) -> std::io::Result<()> {
 async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut [ActuatorState]>) -> std::io::Result<()> {
     let mut ss = ss.project();
 
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,

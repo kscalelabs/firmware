@@ -5,18 +5,20 @@ use std::pin::Pin;
 use std::task::{Context, Poll};
 use pin_project::pin_project;
 use futures_enum::Future;            // derive macro for enums
+use std::future::Future as StdFuture; // trait for Future bounds
 use std::task::ready;
+
+
+use infrastructure::state_machine;
 
 
 use std::fmt::Debug;
 
-use std::future::Future as StdFuture;
-
 #[derive(Future)]  // from `futures-enum`
 pub enum SocketStateFut<C,O>
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     Reset(ResetStateFut<C,O>),
     Configure(ConfigureStateFut<C,O>),
@@ -25,8 +27,8 @@ where
 
 impl<C,O> Debug for SocketStateFut<C,O> 
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -40,8 +42,8 @@ where
 #[derive(Debug)]
 pub enum SocketState<C,O> 
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     Reset(String),
     Configure(Socket<C>),
@@ -50,10 +52,10 @@ where
     Error,
 }
 
-struct StateTransitionResult<C, O> 
+pub struct StateTransitionResult<C, O> 
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     state: SocketState<C, O>,
     result: std::io::Result<()>,
@@ -64,7 +66,7 @@ macro_rules! state_fn_type {
         #[allow(non_camel_case_types)]
         pub type $name<C, O>
         where
-            C: SocketConfigurator + Unpin,
+            C: SocketConfigurator,
             O: SocketOperator     + Unpin,
         = impl StdFuture<Output = StateTransitionResult<C, O>>;
     };
@@ -76,8 +78,8 @@ state_fn_type!(ResetStateFut);
 
 impl<C, O> SocketState<C, O> 
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
 
     pub fn transition_fut(self) -> SocketStateFut<C,O> {
@@ -145,20 +147,23 @@ where
     }
 }
 
-#[pin_project]
+
+
+#[pin_project(project = SocketGraphProj)]
 pub struct SocketGraph<C,O>
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
-{
-    pub state: Option<SocketState<C, O>>,
-    #[pin] pending_fut: Option<SocketStateFut<C, O>>,
-}
+        C: SocketConfigurator,
+        O: SocketOperator,
+    {
+        pub state: Option<SocketState<C, O>>,
+        #[pin] 
+        pub pending_fut: Option<SocketStateFut<C, O>>,
+    }
 
 impl<C, O> SocketGraph<C, O>
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     pub fn new(ifname: &str) -> Self {
         SocketGraph {
@@ -170,17 +175,22 @@ where
         }
     }
 
+    pub fn pub_project(self: Pin<&mut Self>) -> SocketGraphProj<'_, C, O> {
+        self.project()
+    }
+
     // pub fn tage_configure(&mut self) {
     //     // swap current state to InTransition
     //     let cur_state = std::mem::replace(&mut self.cur_state, SocketState::InTransition);
     //     self.pending_fut = SocketStateFut::Configure(cur_state.to_configure());
     // }
+
 }
 
 impl<C,O> StdFuture for SocketGraph<C,O>
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     type Output = std::io::Result<()>;
 
@@ -279,8 +289,8 @@ where
 
 impl<C,O> Debug for SocketGraph<C,O>
 where
-    C: SocketConfigurator + Unpin + Debug,
-    O: SocketOperator + Unpin + Debug,
+    C: SocketConfigurator + Debug,
+    O: SocketOperator + Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "SocketGraph {{ state: {:?} }}", self.state)
@@ -289,18 +299,18 @@ where
 
 pub enum SocketStorage<C,O> 
 where
-    C: SocketConfigurator + Unpin,
-    O: SocketOperator + Unpin,
+    C: SocketConfigurator,
+    O: SocketOperator,
 {
     Configure(Socket<C>),
-    ConfigureToOperate(Pin<Box<dyn Future<Output = io::Result<Socket<O>>> + Send>>),
+    ConfigureToOperate(Pin<Box<dyn StdFuture<Output = io::Result<Socket<O>>> + Send>>),
     Operate(Socket<O>),
 }
 
 impl<C,O> std::fmt::Debug for SocketStorage<C,O> 
 where
-    C: SocketConfigurator + Unpin + std::fmt::Debug,
-    O: SocketOperator + Unpin + std::fmt::Debug,
+    C: SocketConfigurator + std::fmt::Debug,
+    O: SocketOperator + std::fmt::Debug,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -325,18 +335,18 @@ pub struct Socket<State: Unpin> {
 
 // impl<State> Unpin for Socket<State> 
 // where
-//     State: SocketConfigurator + Unpin,
+//     State: SocketConfigurator,
 // {
 // }
 
-pub trait SocketConfigurator : Default + std::fmt::Debug {
+pub trait SocketConfigurator : Default + std::fmt::Debug + Unpin {
     fn get_domain() -> socket2::Domain;
     fn get_type() -> socket2::Type;
     fn get_protocol() -> Option<socket2::Protocol>;
     fn get_sockaddr(ifname: &str) -> std::io::Result<socket2::SockAddr>;
 }
 
-pub trait SocketOperator : std::fmt::Debug {
+pub trait SocketOperator : std::fmt::Debug + Unpin {
     type MsgType;
     fn new(bytestream_fd: ByteStreamFd) -> Self;
     // async fn write(&mut self, msg: &Self::MsgType) -> io::Result<usize>;
@@ -348,7 +358,7 @@ pub trait SocketOperator : std::fmt::Debug {
 
 impl<State> Socket<State> 
 where
-    State: SocketConfigurator + Unpin,
+    State: SocketConfigurator,
 {
     pub fn new(ifname: &str) -> io::Result<Self> {
         let socket = socket2::Socket::new(
@@ -370,7 +380,7 @@ where
 
     pub async fn establish<Operator>(self) -> std::io::Result<Socket<Operator>> 
     where
-        Operator: SocketOperator + Unpin,
+        Operator: SocketOperator,
     {
         let bytestream_fd = ByteStreamFd::new(
             self.socket.as_raw_fd(),
@@ -391,7 +401,7 @@ where
 
 impl <State> Socket<State>
 where 
-    State: SocketOperator + Unpin,
+    State: SocketOperator,
 {
     pub async fn write(&mut self, msg: &State::MsgType) -> io::Result<usize> {
         self.state.write(msg).await

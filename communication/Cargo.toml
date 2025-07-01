@@ -1,0 +1,25 @@
+[package]
+name = "communication"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+socket2 = { workspace = true }
+tokio = { workspace = true }
+tokio-serial = { workspace = true }
+anyhow = { workspace = true }
+libc = { workspace = true }
+log = { workspace = true }
+bytemuck = { workspace = true }
+futures = { workspace = true }
+pin-project = { workspace = true }
+futures-enum = { workspace = true }
+nix = { workspace = true }
+paste = { workspace = true }
+
+# Internal dependencies
+infrastructure = { path = "../infrastructure" }
+
+[features]
+default = ["nightly"]
+nightly = ["infrastructure/nightly"]

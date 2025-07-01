@@ -1,5 +1,3 @@
-use futures_enum::Future;
-
 /// Defines both the state-machine enum, its `Future` store, `StateTag`, and transition result.
 #[macro_export]
 macro_rules! state_machine {
@@ -7,7 +5,7 @@ macro_rules! state_machine {
         paste::paste! {
             // 1) Combined future enum with per-state generic futures
             #[derive(::futures_enum::Future)]
-            enum StateFutStore<$( [<$variant StateFut>] ),+> {
+            pub enum StateFutStore<$( [<$variant StateFut>] ),+> {
                 $( $variant([<$variant StateFut>]), )+
             }
 

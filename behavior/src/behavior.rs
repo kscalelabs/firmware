@@ -1,5 +1,5 @@
 use futures::{Stream, StreamExt, TryStream, TryStreamExt};
-use crate::actuator_manager::{
+use actuators::actuator_manager::{
     self,
     ActuatorManager,
 };
@@ -10,23 +10,22 @@ use std::{
     task::{Context, Poll, ready},
 };
 
-use crate::imu::{
+use imu::{
     self,
     ImuManager,
 };
 
-use crate::robot_description::{
-    self,
+use robot_description::{
     RobotDescription,
     ActuatorId,
 };
 
-use crate::inference::{
+use inference::{
     self,
     ModelManager,
 };
 
-use crate::state_machine;
+use infrastructure::state_machine;
 
 use tokio::io::{self, AsyncBufReadExt};
 

@@ -2,25 +2,21 @@ use std::pin::Pin;
 use std::task::ready;
 use pin_project::pin_project;
 
-use crate::behavior::wait_for_enter;
 use std::task::{Context, Poll};
 use futures::{
     Stream,
-    StreamExt,
-    TryStream,
     TryStreamExt
 };
 
-use crate::typestate_serial::{
-    self,
-};
+use communication::typestate_serial;
 
 use crate::hiwonder::HiwonderImu;
+use futures::Future;
 
-use crate::state_machine;
+use infrastructure::state_machine;
 state_machine!(Reset, Scanning, Operate);
 
-use crate::robot_description::ImuData;
+use robot_description::ImuData;
 
 #[derive(Debug)]
 #[pin_project]
@@ -81,7 +77,7 @@ impl State for Reset
 
 impl Scanning {
     async fn verify_imu(op_port: &mut typestate_serial::Operate) -> std::io::Result<()> {
-        op_port.clear(tokio_serial::ClearBuffer::Input);
+        op_port.clear(tokio_serial::ClearBuffer::Input)?;
         let mut buf128 = [0u8; 128];
         // read data from the serial port
         let to = tokio::time::timeout(
@@ -112,7 +108,7 @@ impl State for Scanning
 {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
-            let mut shared_state = &mut self.shared_state;
+            let shared_state = &mut self.shared_state;
             let mut ss = shared_state.as_mut().project();
             let target = typestate_serial::StateTag::Operate;
             ss.port.as_mut().set_target_pinned(target);
@@ -120,13 +116,13 @@ impl State for Scanning
                 match ss.port.try_next().await {
                     Ok(Some(typestate_serial::StateTag::Operate)) => break,
                     Ok(_) => continue,
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, 
-                            "serial port imu stream ended unexpectedly")),
-                    },
+                    // Ok(None) => return StateTransitionResult { 
+                    //     state: StateStore::Reset(Reset {
+                    //         shared_state: self.shared_state,
+                    //     }),
+                    //     result: Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, 
+                    //         "serial port imu stream ended unexpectedly")),
+                    // },
                     Err(e) => {
                         return StateTransitionResult { 
                             state: StateStore::Reset(Reset {
@@ -203,7 +199,7 @@ impl State for Scanning
 impl Operate {
 
     pub async fn process_feedback(&mut self, imu_data: &mut ImuData) -> std::io::Result<()> {
-        let mut shared_state = &mut self.shared_state;
+        let shared_state = &mut self.shared_state;
         let mut ss = shared_state.as_mut().project();
 
         // get operational serial port
@@ -222,7 +218,7 @@ impl Operate {
 
 impl State for Operate
 {
-    fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
+    fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
                 state: StateStore::Operate(Operate {

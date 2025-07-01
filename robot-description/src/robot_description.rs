@@ -293,6 +293,27 @@ pub enum DataType {
     Time,
 }
 
+impl TryFrom<String> for DataType {
+    type Error = std::io::Error;
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "joint_angles" => Ok(DataType::JointAngles),
+            "joint_angular_velocities" => Ok(DataType::JointAngularVelocities),
+            "initial_heading" => Ok(DataType::InitialHeading),
+            "quaternion" => Ok(DataType::Quaternion),
+            "projected_gravity" => Ok(DataType::ProjectedGravity),
+            "accelerometer" => Ok(DataType::Accelerometer),
+            "gyroscope" => Ok(DataType::Gyroscope),
+            "command" => Ok(DataType::Command),
+            "time" => Ok(DataType::Time),
+            _ => Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown data type: {}", value),
+            )),
+        }
+    }
+}
+
 use clap::Parser;
 #[derive(Debug, Parser)]
 #[command(

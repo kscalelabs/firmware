@@ -1,0 +1,12 @@
+[package]
+name = "robot-description"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+nalgebra = { workspace = true }
+enum-map = { workspace = true }
+clap = { workspace = true }

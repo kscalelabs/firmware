@@ -1,0 +1,18 @@
+[package]
+name = "behavior"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+futures = { workspace = true }
+pin-project = { workspace = true }
+
+# Internal workspace dependencies
+actuators = { path = "../hardware/actuators" }
+imu = { path = "../hardware/sensors/imu" }
+robot-description = { path = "../robot-description" }
+inference = { path = "../inference" }
+infrastructure = { path = "../infrastructure" }

@@ -1,7 +1,7 @@
-use crate::robot_description::{
-    self,
+use robot_description::{
     RobotDescription,
     ActuatorId,
+    DataType,
 };
 
 use std::{
@@ -9,38 +9,16 @@ use std::{
     future::Future,
     task::{Context, Poll, ready},
 };
-use futures::{Stream, StreamExt, TryStream, TryStreamExt};
+use futures::Stream;
 
 use std::io::Read;
 
 use pin_project::pin_project;
 use ort::session::Session;
 
-use crate::state_machine;
+use infrastructure::state_machine;
 state_machine!(Reset, Operate);
 
-use crate::robot_description::DataType;
-
-impl TryFrom<String> for DataType {
-    type Error = std::io::Error;
-    fn try_from(value: String) -> Result<Self, Self::Error> {
-        match value.as_str() {
-            "joint_angles" => Ok(DataType::JointAngles),
-            "joint_angular_velocities" => Ok(DataType::JointAngularVelocities),
-            "initial_heading" => Ok(DataType::InitialHeading),
-            "quaternion" => Ok(DataType::Quaternion),
-            "projected_gravity" => Ok(DataType::ProjectedGravity),
-            "accelerometer" => Ok(DataType::Accelerometer),
-            "gyroscope" => Ok(DataType::Gyroscope),
-            "command" => Ok(DataType::Command),
-            "time" => Ok(DataType::Time),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Unknown data type: {}", value),
-            )),
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 enum ModelInputType {
@@ -90,10 +68,10 @@ impl Store {
 
         use std::io::{Error, ErrorKind};
         if !init_fn.inputs.is_empty() {
-            return Err(Error::new(std::io::ErrorKind::InvalidInput, "init_fn should not have any inputs"));
+            return Err(Error::new(ErrorKind::InvalidInput, "init_fn should not have any inputs"));
         }
         if init_fn.outputs.len() != 1 {
-            return Err(Error::new(std::io::ErrorKind::InvalidInput, "init_fn should have exactly one output"));
+            return Err(Error::new(ErrorKind::InvalidInput, "init_fn should have exactly one output"));
         }
 
         let init_carry_shape = init_fn.outputs[0]
@@ -290,8 +268,7 @@ impl Store {
         }
 
         // create the output to actuator id map
-
-        let mut cmd_idx_to_actuator_id = vec![
+        let cmd_idx_to_actuator_id = vec![
 
             ActuatorId::Rsp,
             ActuatorId::Rsr,
@@ -351,7 +328,7 @@ impl State for Reset
 {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
-            let mut shared_state = self.shared_state;
+            let shared_state = self.shared_state;
             StateTransitionResult {
                 state: StateStore::Operate(Operate {
                     shared_state,
@@ -527,7 +504,7 @@ impl Operate {
                 });
             }
             DataType::Time => {
-                start_time.elapsed().as_secs_f32();
+                arr[0] = start_time.elapsed().as_secs_f32();
             }
             _ => {
                 return Err(ort::Error::new(
@@ -544,7 +521,7 @@ impl State for Operate
 {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
-            let mut shared_state = self.shared_state;
+            let shared_state = self.shared_state;
             StateTransitionResult {
                 state: StateStore::Operate(Operate {
                     shared_state,

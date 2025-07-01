@@ -1,32 +1,25 @@
 // #![allow(unused)]
 
-use crate::actuator::ActuatorBus;
-use crate::state_machine;
+use crate::actuator::{self, ActuatorBus};
+use infrastructure::state_machine;
 
 use std::{
     pin::Pin,
     future::Future,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
 };
 use pin_project::pin_project;
-use futures::Stream;
-use futures::StreamExt;
-use futures::TryStream;
-use futures::TryStreamExt;
+use futures::{Stream, StreamExt, TryStream, TryStreamExt};
 
 use enum_map::{
     EnumMap,
     Enum,
 };
 
-use crate::robot_description::{
+use robot_description::{
     BusTag,
     ActuatorStateStore,
 };
-
-use std::task::ready;
-
-use crate::actuator;
 
 state_machine!(Reset, Scanning, Ready, Operate);
 

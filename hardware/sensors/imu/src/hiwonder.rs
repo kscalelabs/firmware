@@ -14,9 +14,8 @@ const PAYLOAD_SIZE: usize = 8; // payload size in bytes
 
 
 
-use crate::robot_description::ImuFeedback;
-use crate::typestate_serial::Operate as OperationalPort;
-use crate::typestate_serial::SerialBaudRate;
+use robot_description::ImuFeedback;
+use communication::typestate_serial::{Operate as OperationalPort, SerialBaudRate};
 
 #[derive(Debug)]
 pub struct HiwonderImu {
@@ -58,7 +57,7 @@ impl HiwonderImu {
         cmd = CommandType::set_frequency(ImuFrequency::Hz100).into();
         port.write(&cmd).await?;
 
-        cmd = CommandType::set_baud_rate(SerialBaudRate::B230400)?.into();
+        cmd = CommandType::set_baud_rate(SerialBaudRate::B230400.into())?.into();
         port.write(&cmd).await?;
 
         // must save to take effect
@@ -116,13 +115,13 @@ impl HiwonderImu {
         
         let mut fdbk: ImuFeedback = ImuFeedback::default();
         // now we parse this data
-        buf.chunks_exact(PACKET_SIZE).for_each(|chunk| {
+        for chunk in buf.chunks_exact(PACKET_SIZE) {
             let frame: &HiwonderRawFrame = bytemuck::from_bytes(chunk);
             if frame.checksum() != frame.checksum {
-                return;
+                continue; // skip invalid frames
             }
-            Self::merge_frame(frame, &mut fdbk);
-        });
+            Self::merge_frame(frame, &mut fdbk)?;
+        }
         Ok(fdbk)
     }
 
@@ -135,10 +134,10 @@ impl HiwonderImu {
                 fdbk.accelerometer = Some([x.into(), y.into(), z.into()]);
                 fdbk.temperature = Some(temp.into());
             }
-            ReadFrame::Gyro { x, y, z, voltage } => {
+            ReadFrame::Gyro { x, y, z, voltage: _ } => {
                 fdbk.gyroscope = Some([x.into(), y.into(), z.into()]);
             }
-            ReadFrame::Angle { roll, pitch, yaw, version } => {
+            ReadFrame::Angle { roll, pitch, yaw, version: _ } => {
                 fdbk.euler = Some([roll.into(), pitch.into(), yaw.into()]);
             }
             ReadFrame::Quaternion { w, x, y, z } => {
@@ -185,7 +184,7 @@ impl CommandType {
         CommandType::SetFusionAlgorithm(Command::new(Register::Axis6, data))
     }
 
-    pub fn enable_output(output: enumflags2::BitFlags<OutputType, u16>) -> Self {
+    fn enable_output(output: enumflags2::BitFlags<OutputType, u16>) -> Self {
         let bits = output.bits();
         let data = [bits as u8, (bits >> 8) as u8];
         // let data = [ 0, 0xff];
@@ -213,7 +212,8 @@ impl CommandType {
     }
 
     pub fn set_baud_rate(baud_rate: SerialBaudRate) -> std::io::Result<Self> {
-        Ok(CommandType::SetBaudRate(Command::new(Register::Baud, baud_rate.try_into()?)))
+        let hw_baud_rate: HiwonderSerialBaudRate = baud_rate.into();
+        Ok(CommandType::SetBaudRate(Command::new(Register::Baud, hw_baud_rate.try_into()?)))
     }
 }
 
@@ -608,11 +608,22 @@ impl From<ImuFrequency> for [u8; 2] {
     }
 }
 
-impl TryFrom<SerialBaudRate> for [u8; 2] {
+
+impl From<SerialBaudRate> for HiwonderSerialBaudRate {
+    fn from(baud: SerialBaudRate) -> Self {
+        HiwonderSerialBaudRate { baud }
+    }
+}
+
+struct HiwonderSerialBaudRate {
+    baud: SerialBaudRate,
+}
+
+impl TryFrom<HiwonderSerialBaudRate> for [u8; 2] {
     type Error = io::Error;
 
-    fn try_from(value: SerialBaudRate) -> Result<Self, Self::Error> {
-        Ok(match value {
+    fn try_from(value: HiwonderSerialBaudRate) -> Result<Self, Self::Error> {
+        Ok(match value.baud {
             SerialBaudRate::B4800     => [0x01, 0x00],
             SerialBaudRate::B9600     => [0x02, 0x00],
             SerialBaudRate::B19200    => [0x03, 0x00],
@@ -622,7 +633,6 @@ impl TryFrom<SerialBaudRate> for [u8; 2] {
             SerialBaudRate::B230400   => [0x07, 0x00],
             SerialBaudRate::B460800   => [0x08, 0x00],
             SerialBaudRate::B921600   => [0x09, 0x00],
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid baud rate")),
         })
     }
 }

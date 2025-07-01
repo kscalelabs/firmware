@@ -1,0 +1,23 @@
+[package]
+name = "inference"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+ndarray = { workspace = true }
+ort = { workspace = true }
+flate2 = { workspace = true }
+tar = { workspace = true }
+futures = { workspace = true }
+pin-project = { workspace = true }
+enum-map = { workspace = true }
+nalgebra = { workspace = true }
+paste = { workspace = true }
+futures-enum = { workspace = true }
+
+# Internal workspace dependencies
+robot-description = { path = "../robot-description" }
+infrastructure = { path = "../infrastructure" }

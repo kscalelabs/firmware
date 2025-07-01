@@ -1,47 +1,17 @@
 #![feature(type_alias_impl_trait)]
 #![allow(unused)]
 
-// use std::os::unix::io::AsRawFd;
-// use tokio::io::{AsyncReadExt, Interest};
-// use tokio::io::unix::AsyncFd;
-// use tokio_serial::{SerialPortBuilderExt, SerialStream, SerialPort};
-// use tokio::net::{TcpListener, TcpStream};
-// use std::io::Result as IoResult;
-// use std::time::Duration;
-// use tokio::time::sleep;
-// use std::pin::Pin;
-// use std::io::ErrorKind;
-
-pub mod typestate_serial;
-pub mod hiwonder;
-
-pub mod typestate_socket;
-pub mod typestate_socket2;
-pub mod socketcan2;
-pub mod socketcan;
-pub mod bytestream_fd;
-pub mod actuator;
-pub mod actuator_manager;
-pub mod behavior;
-pub mod state_machine_utils;
-pub mod robot_description;
-pub mod imu;
-pub mod inference;
-
 use std::task::{Context, Poll};
+use std::pin::Pin;
 
-use crate::robstride::{
+use futures::stream::{Stream, StreamExt};
+
+// Import workspace crates
+use actuators::robstride::{
     ObtainIdRequest,
     ObtainIdResponse,
 };
-
-use socketcan::CanFrame;
-pub mod robstride;
-pub mod robstride_utils;
-use std::pin::Pin;
-
-use futures::stream::Stream;
-use futures::stream::StreamExt;
+use communication::socketcan::CanFrame;
 
 
 async fn get_one() -> std::io::Result<()> {

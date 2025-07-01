@@ -1,0 +1,18 @@
+[package]
+name = "infrastructure"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+paste = { workspace = true }
+num_enum = { workspace = true }
+enum-map = { workspace = true }
+enumflags2 = { workspace = true }
+futures-enum = { workspace = true }
+
+[features]
+default = []
+nightly = []

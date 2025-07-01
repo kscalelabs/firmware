@@ -1,8 +1,8 @@
-use crate::socketcan::CAN_MAX_DLEN;
+use communication::socketcan::CAN_MAX_DLEN;
 
-use crate::socketcan::CanFrame;
+use communication::socketcan::CanFrame;
 
-use crate::robot_description::{
+use robot_description::{
     ActuatorFeedbackUpdate,
     ActuatorCommand,
     ActuatorId,
@@ -10,31 +10,43 @@ use crate::robot_description::{
 
 use crate::robstride_utils::*;
 
-impl<T> From<T> for crate::socketcan::CanFrame 
+pub trait IntoCanFrame {
+    fn into_can_frame(self) -> communication::socketcan::CanFrame;
+}
+
+impl<T> IntoCanFrame for T
 where
-    T: RobstrideActuatorFrame + bytemuck::Pod + bytemuck::Zeroable,
+    T: RobstrideActuatorFrame,
 {
-    fn from(req: T) -> Self {
-        let mut ret = bytemuck::must_cast::<T, Self>(req);
+    fn into_can_frame(self) -> communication::socketcan::CanFrame {
+        let mut ret = bytemuck::cast::<T, communication::socketcan::CanFrame>(self);
         ret.can_id |= 0x8000_0000; // EFF FLAG
         ret
     }
 }
 
-impl From<ActuatorRequest> for crate::socketcan::CanFrame 
-{
+trait RobstrideActuatorFrame: bytemuck::Pod + bytemuck::Zeroable {}
+impl RobstrideActuatorFrame for ObtainIdRequest {}
+impl RobstrideActuatorFrame for ObtainIdResponse {}
+impl RobstrideActuatorFrame for ControlCommandRequest {}
+impl RobstrideActuatorFrame for FeedbackRequest {}
+impl RobstrideActuatorFrame for FeedbackResponse {}
+impl RobstrideActuatorFrame for ReadParamRequest {}
+impl RobstrideActuatorFrame for MotorEnableRequest {}
+
+impl From<ActuatorRequest> for communication::socketcan::CanFrame {
     fn from(req: ActuatorRequest) -> Self {
         match req {
-            ActuatorRequest::ObtainId(req) => req.into(),
-            ActuatorRequest::Control(req) => req.into(),
-            ActuatorRequest::ReadParam(req) => req.into(),
-            ActuatorRequest::MotorEnable(req) => req.into(),
-            ActuatorRequest::Feedback(req) => req.into(),
+            ActuatorRequest::ObtainId(req) => req.into_can_frame(),
+            ActuatorRequest::Control(req) => req.into_can_frame(),
+            ActuatorRequest::ReadParam(req) => req.into_can_frame(),
+            ActuatorRequest::MotorEnable(req) => req.into_can_frame(),
+            ActuatorRequest::Feedback(req) => req.into_can_frame(),
         }
     }
 }
 
-impl Into<ActuatorResponse> for crate::socketcan::CanFrame 
+impl Into<ActuatorResponse> for communication::socketcan::CanFrame 
 {
     fn into(mut self) -> ActuatorResponse {
         self.can_id ^= 0x8000_0000; // remove EFF FLAG
@@ -47,7 +59,7 @@ impl Into<ActuatorResponse> for crate::socketcan::CanFrame
     }
 }
 
-impl Into<ActuatorRequest> for crate::socketcan::CanFrame 
+impl Into<ActuatorRequest> for communication::socketcan::CanFrame 
 {
     fn into(mut self) -> ActuatorRequest {
         self.can_id &= !0x80; // clear EFF FLAG
@@ -64,14 +76,7 @@ impl Into<ActuatorRequest> for crate::socketcan::CanFrame
     }
 }
 
-pub trait RobstrideActuatorFrame {}
-impl RobstrideActuatorFrame for ObtainIdRequest {}
-impl RobstrideActuatorFrame for ObtainIdResponse {}
-impl RobstrideActuatorFrame for ControlCommandRequest {}
-impl RobstrideActuatorFrame for FeedbackRequest {}
-impl RobstrideActuatorFrame for FeedbackResponse {}
-impl RobstrideActuatorFrame for ReadParamRequest {}
-impl RobstrideActuatorFrame for MotorEnableRequest {}
+
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable)]
@@ -316,18 +321,18 @@ impl ActuatorResponse {
     }
 }
 
-pub fn mux_from_can_frame(frame: &crate::socketcan::CanFrame) -> u8 {
+pub fn mux_from_can_frame(frame: &communication::socketcan::CanFrame) -> u8 {
     // SAFETY: CanFrame is POD and has the same size as [u8; std::mem::size_of::<CanFrame>()].
-    let frame: &[u8; std::mem::size_of::<crate::socketcan::CanFrame>()] = bytemuck::cast_ref(frame);
+    let frame: &[u8; std::mem::size_of::<communication::socketcan::CanFrame>()] = bytemuck::cast_ref(frame);
     frame[3] & 0x1F // Mask to get the mux (5 bits)
 }
 
 
-pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
+pub fn actuator_can_id_from_response(frame: &communication::socketcan::CanFrame) -> u8 {
     let mux = mux_from_can_frame(frame);
     match mux {
-        0x00 => bytemuck::must_cast::<crate::socketcan::CanFrame, ObtainIdResponse>(*frame).actuator_can_id as u8,
-        0x02 => bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame).actuator_can_id as u8,
+        0x00 => bytemuck::must_cast::<communication::socketcan::CanFrame, ObtainIdResponse>(*frame).actuator_can_id as u8,
+        0x02 => bytemuck::must_cast::<communication::socketcan::CanFrame, FeedbackResponse>(*frame).actuator_can_id as u8,
         _ => {
             log::warn!("Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F", mux);
             0x7F // Return a default value if the mux is unknown
