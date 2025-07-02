@@ -794,6 +794,13 @@ impl Operate {
             DataType::Time => {
                 start_time.elapsed().as_secs_f32();
             }
+            DataType::InitialHeading => {
+                let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
+                    robot_description.initial_imu.quaternion
+                );
+                let (_, _, yaw) = unit_quat.euler_angles();
+                arr[0] = yaw as f32;
+            }
             _ => {
                 // unsupported data type, we just continue
                 // commented as this will spam:

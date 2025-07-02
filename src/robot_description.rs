@@ -318,6 +318,7 @@ pub struct Args {
 pub struct RobotDescription {
     pub actuators: ActuatorStateStore,
     pub imu: ImuData,
+    pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
@@ -333,6 +334,7 @@ impl RobotDescription {
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),
+            initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
