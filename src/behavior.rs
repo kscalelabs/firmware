@@ -392,6 +392,10 @@ impl State for Home
                 // can go to next state
                 info!("error to home: {}", err);
                 info!("Home position reached, press enter to run policy");
+                // we need to arm the imu with the initial value. Again, this needs to be done once
+                // when we transition to Policy state.
+                op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+                ss.robot_description.initial_imu = ss.robot_description.imu.clone();
                 ss.kb_manager.wait_for_enter().await;
 
                 return StateTransitionResult {
