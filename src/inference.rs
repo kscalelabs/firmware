@@ -423,6 +423,7 @@ impl Store {
                 "metadata.json" => {
                     let mut contents = String::new();
                     entry.read_to_string(&mut contents)?;
+                    log::info!("Loaded metadata: {}", contents);
                     _metadata = Some(contents);
                 }
                 "init_fn.onnx" => {
@@ -766,9 +767,16 @@ impl Operate {
                 });
             }
             DataType::Quaternion => {
-                robot_description.imu.quaternion.coords.iter().enumerate().for_each(|(i, q)| {
-                    arr[i] = *q as f32;
-                });
+                // store in w, x, y, z order
+                let quat = robot_description.imu.quaternion;
+
+                // scalar part is w
+                arr[0] = quat.scalar() as f32; // this is w 
+                
+                // the vector part is x, y, z
+                arr[1] = quat.vector()[0] as f32;
+                arr[2] = quat.vector()[1] as f32;
+                arr[3] = quat.vector()[2] as f32;
             }
             DataType::ProjectedGravity => {
 
