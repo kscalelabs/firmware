@@ -769,14 +769,18 @@ impl Operate {
             DataType::Quaternion => {
                 // store in w, x, y, z order
                 let quat = robot_description.imu.quaternion;
-
+                let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
+                    robot_description.initial_imu.quaternion
+                );
                 // scalar part is w
-                arr[0] = quat.scalar() as f32; // this is w 
+                arr[0] = unit_quat.scalar() as f32; // this is w 
                 
                 // the vector part is x, y, z
-                arr[1] = quat.vector()[0] as f32;
-                arr[2] = quat.vector()[1] as f32;
-                arr[3] = quat.vector()[2] as f32;
+                arr[1] = unit_quat.vector()[0] as f32;
+                arr[2] = unit_quat.vector()[1] as f32;
+                arr[3] = unit_quat.vector()[2] as f32;
+                let (_, _, yaw) = unit_quat.euler_angles();
+                log::warn!("Current heading yaw: {}", yaw);
             }
             DataType::ProjectedGravity => {
 
@@ -807,6 +811,7 @@ impl Operate {
                     robot_description.initial_imu.quaternion
                 );
                 let (_, _, yaw) = unit_quat.euler_angles();
+                log::warn!("Initial heading yaw: {}", yaw);
                 arr[0] = yaw as f32;
             }
             _ => {
