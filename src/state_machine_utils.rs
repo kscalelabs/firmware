@@ -5,20 +5,19 @@ use futures_enum::Future;
 macro_rules! state_machine {
     ( $( $variant:ident ),+ $(,)? ) => {
         paste::paste! {
-            // 1) Combined future enum with per-state generic futures
-            #[derive(::futures_enum::Future)]
-            enum StateFutStore<$( [<$variant StateFut>] ),+> {
-                $( $variant([<$variant StateFut>]), )+
-            }
+
 
             // 2) Transition result
-            struct StateTransitionResult {
-                state: StateStore,
-                result: ::std::io::Result<()>,
-            }
 
             // 3) Opaque future alias
-            type StateFut = impl ::std::future::Future<Output = StateTransitionResult>;
+            // type StateFut = impl ::std::future::Future<Output = StateTransitionResult>;
+
+            // enum StateFut< $( $variant, )+ > 
+            // where
+            //     $( $variant: ::std::future::Future<Output = StateTransitionResult>, )+
+            // {
+            //     $( $variant([<$variant StateFut>]), )+
+            // }
 
             // 4) Tag enum
             #[derive(::std::fmt::Debug, ::std::cmp::PartialEq, ::std::marker::Copy, ::std::clone::Clone)]
@@ -43,6 +42,20 @@ macro_rules! state_machine {
                 fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult>;
             }
 
+            struct StateTransitionResult {
+                state: StateStore,
+                result: ::std::io::Result<()>,
+            }
+            // 1) Combined future enum with per-state generic futures
+            #[derive(::futures_enum::Future)]
+            enum StateFutStore<$( [<$variant StateFut>], )+> 
+            where
+                $( [<$variant StateFut>]: ::std::future::Future<Output = StateTransitionResult>, )+
+            {
+                $( $variant([<$variant StateFut>]), )+
+            }
+
+            type StateFut = StateFutStore<$( [<$variant StateFut>], )+>;
             // 7) Store enum
             #[derive(::std::fmt::Debug)]
             pub enum StateStore {
@@ -54,10 +67,11 @@ macro_rules! state_machine {
             where
                 $( $variant: State ),+
             {
-                #[define_opaque(StateFut)]
-                fn transition_fut(self) -> StateFut {
+                // #[define_opaque(StateFut)]
+                pub fn transition_fut(self) -> impl ::std::future::Future<Output = StateTransitionResult> {
+                // fn transition_fut(self) -> StateFut {
                     match self {
-                        $( StateStore::$variant(st) => StateFutStore::$variant(st.transition_fut()), )+
+                        $( Self::$variant(st) => StateFutStore::$variant(st.transition_fut()), )+
                     }
                 }
 
