@@ -32,7 +32,6 @@ flate2 = "1.0"
 tar = "0.4"
 clap = { version = "4", features = ["derive"] }
 
-heapless = "0.8.0"
 io-uring = "0.7.8"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
