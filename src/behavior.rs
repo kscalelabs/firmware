@@ -427,8 +427,8 @@ impl State for Policy
             // Note we need to do this only once when we enter raw mode. However, our current
             // transition function is simply a return. This can be fixed by refactoring this
             // function to be a loop instead of returning to Policy State
-            ss.kb_manager.enable_raw_mode().expect("Failed to enable raw mode");
-            ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
+            // ss.kb_manager.enable_raw_mode().expect("Failed to enable raw mode");
+            // ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
             let actuator_manager::StateStore::Operate(op_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()
@@ -468,6 +468,13 @@ impl State for Policy
             }
 
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+            // log::info!("IMU state: {:#?}", ss.robot_description.imu);
+            // let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
+            //     ss.robot_description.imu.quaternion
+            // );
+            // let projected = unit_quat.conjugate() * nalgebra::Vector3::new(0.0, 0.0, -9.81);
+            // log::info!("Project gravity: {}", projected.transpose());
+
             let inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
                 .expect("Model Manager should be in operate state") else {
                 return StateTransitionResult {
