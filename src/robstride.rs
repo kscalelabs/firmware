@@ -78,7 +78,8 @@ impl RobstrideActuatorFrame for MotorEnableRequest {}
 #[repr(C, packed)]
 pub struct ObtainIdRequest {
     pub actuator_can_id: u8,
-    pub host_id: u16,
+    pub host_id: u8,
+    res_id: u8, // reserved, should be 0x00
     mux: u8, /* 0x00 */
 
     len: u8,
@@ -89,7 +90,7 @@ pub struct ObtainIdRequest {
 }
 
 impl ObtainIdRequest {
-    pub fn new(host_id: u16, actuator_can_id: u8) -> Self {
+    pub fn new(host_id: u8, actuator_can_id: u8) -> Self {
         Self {
             mux: 0x00,
             host_id,
@@ -162,7 +163,8 @@ impl ControlCommandRequest {
 #[repr(C, packed)]
 pub struct MotorEnableRequest {
     pub actuator_can_id: u8,
-    pub host_id: u16,
+    pub host_id: u8,
+    res_id: u8, // reserved, should be 0x00
     mux: u8, /* 0x03 */
 
     len: u8,
@@ -173,7 +175,7 @@ pub struct MotorEnableRequest {
 }
 
 impl MotorEnableRequest {
-    pub fn new(host_id: u16, actuator_can_id: u8) -> Self {
+    pub fn new(host_id: u8, actuator_can_id: u8) -> Self {
         Self {
             mux: 0x03,
             host_id,
@@ -212,7 +214,8 @@ pub struct FeedbackRequest {
      * NOTE: this is not in Robstride Docs! I don't know if this is safe
      */
     pub actuator_can_id: u8,
-    pub host_id: u16,
+    pub host_id: u8,
+    res_id: u8, // reserved, should be 0x00
     mux: u8, /* 0x02 */
 
     len: u8,
@@ -223,7 +226,7 @@ pub struct FeedbackRequest {
 }
 
 impl FeedbackRequest {
-    pub fn new(host_id: u16, actuator_can_id: u8) -> Self {
+    pub fn new(host_id: u8, actuator_can_id: u8) -> Self {
         Self {
             mux: 0x02,
             host_id,
@@ -239,7 +242,8 @@ impl FeedbackRequest {
 #[repr(C, packed)]
 pub struct ReadParamRequest {
     pub actuator_can_id: u8,
-    pub host_id: u16,
+    pub host_id: u8,
+    pub res_id: u8,
     mux: u8, /* 0x11 */
 
     len: u8,
@@ -253,7 +257,7 @@ pub struct ReadParamRequest {
 
 impl ReadParamRequest {
     pub fn new(
-        host_id: u16,
+        host_id: u8,
         actuator_can_id: u8,
         index: u16,
     ) -> Self {
@@ -261,7 +265,7 @@ impl ReadParamRequest {
             mux: 0x11,
             index: index.to_le(),
             actuator_can_id,
-            host_id: host_id as u16,
+            host_id,
             len: 8,
             .. Default::default()
         }
@@ -359,7 +363,7 @@ enum ActuatorClientState {
 // should basically be part of robsstride crate, but for now we keep it here
 #[derive(Debug)]
 pub struct ActuatorCanClient {
-    host_id: u16, // Host ID for the actuator
+    host_id: u8, // Host ID for the actuator
     pub actuator_can_id: u8,
     last_request: Option<ActuatorRequest>, // (expected response mux, request)
     state: ActuatorClientState,
