@@ -21,6 +21,7 @@
 
 use std::ops::{Add, Sub, Mul, Div};
 use std::f64::consts::PI;
+use enum_map::Enum;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Range<T> {
@@ -115,4 +116,13 @@ impl RobstrideActuatorType {
         }
     }
 }
+
+// #[derive(Debug, Clone, Copy, Enum)]
+// enum RobstrideParams {
+// }
+
+
+
+
+
 

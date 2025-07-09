@@ -28,6 +28,7 @@ impl From<ActuatorRequest> for crate::socketcan::CanFrame
             ActuatorRequest::ObtainId(req) => req.into(),
             ActuatorRequest::Control(req) => req.into(),
             ActuatorRequest::ReadParam(req) => req.into(),
+            ActuatorRequest::ReadAllParams(req) => req.into(),
             ActuatorRequest::MotorEnable(req) => req.into(),
             ActuatorRequest::Feedback(req) => req.into(),
         }
@@ -42,6 +43,7 @@ impl Into<ActuatorResponse> for crate::socketcan::CanFrame
         match mux {
             0x00 => ActuatorResponse::ObtainId(bytemuck::must_cast::<Self, ObtainIdResponse>(self)),
             0x02 => ActuatorResponse::Feedback(bytemuck::must_cast::<Self, FeedbackResponse>(self)),
+            0x13 => ActuatorResponse::ReadAllParams(bytemuck::must_cast::<Self, ReadAllParamsResponse>(self)),
             _ => panic!("Unknown mux value: {}", mux),
         }
     }
@@ -57,6 +59,7 @@ impl Into<ActuatorRequest> for crate::socketcan::CanFrame
             0x00 => ActuatorRequest::ObtainId(bytemuck::must_cast::<Self, ObtainIdRequest>(self)),
             0x01 => ActuatorRequest::Control(bytemuck::must_cast::<Self, ControlCommandRequest>(self)),
             0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<Self, ReadParamRequest>(self)),
+            0x13 => ActuatorRequest::ReadAllParams(bytemuck::must_cast::<Self, ReadAllParamsRequest>(self)),
             0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<Self, MotorEnableRequest>(self)),
             0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<Self, FeedbackRequest>(self)),
             _ => panic!("Unknown mux value: {}", mux),
@@ -71,6 +74,7 @@ impl RobstrideActuatorFrame for ControlCommandRequest {}
 impl RobstrideActuatorFrame for FeedbackRequest {}
 impl RobstrideActuatorFrame for FeedbackResponse {}
 impl RobstrideActuatorFrame for ReadParamRequest {}
+impl RobstrideActuatorFrame for ReadAllParamsRequest {}
 impl RobstrideActuatorFrame for MotorEnableRequest {}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
@@ -272,11 +276,60 @@ impl ReadParamRequest {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+pub struct ReadAllParamsRequest {
+    pub actuator_can_id: u8,
+    pub host_id: u8,
+    pub res_id: u8,
+    mux: u8, /* 0x13 */
+
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    mcu_uid: u64, /* payload */
+}
+
+impl ReadAllParamsRequest {
+    pub fn new(host_id: u8, actuator_can_id: u8, mcu_uid: u64) -> Self {
+        Self {
+            mux: 0x13,
+            actuator_can_id,
+            host_id,
+            len: 8,
+            mcu_uid,
+            .. Default::default()
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+pub struct ReadAllParamsResponse {
+    pub host_id: u8,
+    pub actuator_can_id: u8,
+    // 0x0 => 0, 0x1 => 1, 0x2 => 2, 0x6 => 3, 0x7 => 4 0x8 => 5, currently
+    // this is unused
+    pub byte_marker: u8, 
+
+    mux: u8, /* 0x13 */
+
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    can_data: [u8; CAN_MAX_DLEN],
+}
+
 #[derive(Debug, Clone)]
 pub enum ActuatorRequest {
     ObtainId(ObtainIdRequest),
     Control(ControlCommandRequest),
     ReadParam(ReadParamRequest),
+    ReadAllParams(ReadAllParamsRequest),
     MotorEnable(MotorEnableRequest),
     Feedback(FeedbackRequest),
 }
@@ -285,6 +338,7 @@ pub enum ActuatorRequest {
 pub enum ActuatorRequestParams {
     ObtainId,
     ReadParam,
+    ReadAllParams,
     MotorEnable,
     Control(ActuatorCommand),
     Feedback,
@@ -297,9 +351,9 @@ impl ActuatorRequest {
             Self::ObtainId(_) => 0x0, // Obtain Id mux
             Self::Control(_) => 0x2, // feedback mux
             Self::ReadParam(_) => 0x11, // read param mux
+            Self::ReadAllParams(_) => 0x13, // read all params mux
             Self::MotorEnable(_) => 0x02, // feedback mux
             Self::Feedback(_) => 0x02, // feedback mux
-            
         }
     }
 }
@@ -308,6 +362,16 @@ impl ActuatorRequest {
 pub enum ActuatorResponse {
     ObtainId(ObtainIdResponse),
     Feedback(FeedbackResponse),
+    ReadAllParams(ReadAllParamsResponse),
+}
+
+struct RobstrideParams {
+}
+
+impl RobstrideParams {
+    pub fn append(&mut self, resp: &ReadAllParamsResponse) {
+        log::debug!("Appending params from response: {:?}", resp);
+    }
 }
 
 #[allow(dead_code)]
@@ -316,6 +380,7 @@ impl ActuatorResponse {
         match self {
             ActuatorResponse::ObtainId(req) => req.mux,
             ActuatorResponse::Feedback(req) => req.mux,
+            ActuatorResponse::ReadAllParams(req) => req.mux,
         }
     }
 }
@@ -358,6 +423,9 @@ enum ActuatorClientState {
 
     AwaitingReadParamRequest,
     AwaitingReadParamResponse,
+
+    AwaitingReadAllParamsRequest,
+    AwaitingReadAllParamsResponse,
 }
 
 // should basically be part of robsstride crate, but for now we keep it here
@@ -365,6 +433,7 @@ enum ActuatorClientState {
 pub struct ActuatorCanClient {
     host_id: u8, // Host ID for the actuator
     pub actuator_can_id: u8,
+    actuator_uuid: Option<u64>,
     last_request: Option<ActuatorRequest>, // (expected response mux, request)
     state: ActuatorClientState,
     actuator_ranges: RangeSet<f64>,
@@ -378,6 +447,7 @@ impl ActuatorCanClient {
         ActuatorCanClient {
             host_id: 0xFD,
             actuator_can_id,
+            actuator_uuid: None,
             state: ActuatorClientState::Reset,
             last_request: None,
             actuator_ranges: RobstrideActuatorType::from(actuator_can_id).actuator_ranges(),
@@ -394,6 +464,7 @@ impl ActuatorCanClient {
         match params {
             ActuatorRequestParams::ObtainId => ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::ReadParam => ActuatorRequest::ReadParam(ReadParamRequest::new(self.host_id, self.actuator_can_id, 0x7005)),
+            ActuatorRequestParams::ReadAllParams => ActuatorRequest::ReadAllParams(ReadAllParamsRequest::new(self.host_id, self.actuator_can_id, self.actuator_uuid.unwrap())),
             ActuatorRequestParams::MotorEnable => ActuatorRequest::MotorEnable(MotorEnableRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::Feedback => ActuatorRequest::Feedback(FeedbackRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::Control(cmd) => ActuatorRequest::Control(ControlCommandRequest::new(
@@ -412,6 +483,7 @@ impl ActuatorCanClient {
         self.state = match params {
             ActuatorRequestParams::ObtainId => ActuatorClientState::AwaitingIdRequest,
             ActuatorRequestParams::ReadParam => ActuatorClientState::AwaitingReadParamRequest,
+            ActuatorRequestParams::ReadAllParams => ActuatorClientState::AwaitingReadAllParamsRequest, // TODO: implement this
             ActuatorRequestParams::MotorEnable => ActuatorClientState::AwaitingMotorEnableRequest,
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
@@ -425,11 +497,12 @@ impl ActuatorCanClient {
         let req = transaction.into(); 
 
         self.state = match req {
-            ActuatorRequest::ObtainId(_) => ActuatorClientState::AwaitingIdRequest,
-            ActuatorRequest::Control(_) => ActuatorClientState::AwaitingDataRequest,
-            ActuatorRequest::ReadParam(_) => ActuatorClientState::AwaitingReadParamRequest,
-            ActuatorRequest::MotorEnable(_) => ActuatorClientState::AwaitingMotorEnableRequest,
-            ActuatorRequest::Feedback(_) => ActuatorClientState::AwaitingFeedbackRequest,
+            ActuatorRequest::ObtainId(_) => ActuatorClientState::AwaitingIdResponse,
+            ActuatorRequest::Control(_) => ActuatorClientState::AwaitingDataResponse,
+            ActuatorRequest::ReadParam(_) => ActuatorClientState::AwaitingReadParamResponse,
+            ActuatorRequest::ReadAllParams(_) => ActuatorClientState::AwaitingReadAllParamsResponse,
+            ActuatorRequest::MotorEnable(_) => ActuatorClientState::AwaitingMotorEnableResponse,
+            ActuatorRequest::Feedback(_) => ActuatorClientState::AwaitingFeedbackResponse,
         };
 
         self.last_request = Some(req);
@@ -473,8 +546,15 @@ impl ActuatorCanClient {
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
+                self.actuator_uuid = Some(resp.mcu_uid);
                 Ok(None)
             }
+
+            ActuatorResponse::ReadAllParams(resp) => {
+                log::warn!("Received Feedback response: {:?}", resp);
+                Ok(None)
+            }
+
             ActuatorResponse::Feedback(resp) => {
                 log::debug!("Received Feedback response: {:?}", resp);
                 if resp.actuator_can_id != self.actuator_can_id {
