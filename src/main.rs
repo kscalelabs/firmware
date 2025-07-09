@@ -38,6 +38,7 @@ use crate::robstride::{
 use socketcan::CanFrame;
 pub mod robstride;
 pub mod robstride_utils;
+pub mod robstride_params;
 use std::pin::Pin;
 
 use futures::stream::Stream;
