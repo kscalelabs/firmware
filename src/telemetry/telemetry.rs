@@ -14,6 +14,7 @@ use std::thread;
 use std::time::Instant;
 
 use std::sync::mpsc::Receiver;
+use tracing::error;
 use nix::libc;
 
 use crate::telemetry::forwarder::EventRecord;
@@ -62,7 +63,7 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         let mut writer = match MultiFdWriter::new(output_fds) {
             Ok(w) => w,
             Err(e) => {
-                eprintln!("Failed to create multi-fd writer: {}", e);
+                error!("Failed to create multi-fd writer: {}", e);
                 return;
             }
         };
@@ -80,7 +81,8 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         };
 
         if raw_ptr == libc::MAP_FAILED {
-            panic!("mmap failed: {}", io::Error::last_os_error());
+            error!("mmap failed: {}", io::Error::last_os_error());
+            panic!("mmap failed");
         }
         let mut batch_buf: Vec<u8> = unsafe { Vec::from_raw_parts(raw_ptr as *mut u8, 0, BUF_SIZE) };
 
@@ -104,7 +106,7 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
                         break;
                     }
                     Err(e) => {
-                        eprintln!("Multi-fd writer error: {}", e);
+                        error!("Multi-fd writer error: {}", e);
                         break;
                     }
                 }

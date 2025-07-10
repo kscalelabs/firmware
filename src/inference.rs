@@ -248,8 +248,8 @@ impl Store {
 
         for i in 0..step_session.inputs.len() {
             let input = &step_session.inputs[i];
-            println!("input name: {}", input.name);
-            println!("input type: {:?}", input.input_type);
+            debug!("input name: {}", input.name);
+            debug!("input type: {:?}", input.input_type);
             let name = input.name.clone();
             let model_input_type = ModelInputType::try_from(name)?;
             step_input_types.push(model_input_type.clone());

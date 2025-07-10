@@ -1,6 +1,6 @@
 
 use tokio::io::unix::AsyncFd;
-use tracing::warn;
+use tracing::{debug, warn};
 use tokio::io::{AsyncReadExt, AsyncRead};
 use tokio::io::{AsyncWriteExt, AsyncWrite};
 use tokio::io::ReadBuf;
@@ -170,9 +170,9 @@ impl AsyncWrite for ByteStreamFd {
         buf: &[u8],
     ) -> Poll<std::io::Result<usize>> {
         // 1) Wait for the FD to be writable
-        println!("Here 1");
+        debug!("Poll write ready");
         let mut ready = ready!(self.inner.poll_write_ready(cx))?;
-        println!("Here 2");
+        debug!("Write ready confirmed");
 
         // 2) Try to do the write without blocking
         match ready.try_io(|_| {

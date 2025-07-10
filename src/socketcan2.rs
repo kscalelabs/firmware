@@ -1,4 +1,5 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::error;
 use crate::typestate_socket2::{
     SocketConfigurator,
     SocketOperator,
@@ -89,7 +90,7 @@ impl SocketOperator for SocketCanOperator {
                 Ok(n)
             },
             Err(e) => {
-                eprintln!("Socket read failed: {}", e);
+                error!("Socket read failed: {}", e);
                 Err(e)
             }
         }

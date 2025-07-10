@@ -70,7 +70,7 @@ impl BytesHandler for CanSocket {
 
     fn verify_read(_buf: &[u8]) -> io::Result<()> {
         // Implement your verification logic here
-        println!("Verifying CAN socket data... {:?}", _buf);
+        debug!("Verifying CAN socket data... {:?}", _buf);
         Ok(())
     }
 

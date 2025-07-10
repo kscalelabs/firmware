@@ -3,6 +3,7 @@ use std::os::unix::io::{RawFd, AsRawFd, OwnedFd, BorrowedFd};
 use std::collections::VecDeque;
 use io_uring::{IoUring, opcode, types};
 use nix::libc;
+use tracing::{debug, error, info};
 use crate::telemetry::utils::Page;
 
 const PAGE_SIZE: usize = 4096;
@@ -108,7 +109,7 @@ impl BufferedIoUring {
         let io_uring = IoUring::builder().setup_sqpoll(10).build(128)
             .map_err(io::Error::other)?;
 
-        println!("Registered {} buffers with io_uring", num_pages);
+        info!("Registered {} buffers with io_uring", num_pages);
         unsafe {
             io_uring.submitter().register_buffers(
                 io_vec.as_slice(),
@@ -177,7 +178,7 @@ impl MultiFdWriter {
     pub fn drive(&mut self) -> io::Result<bool> {
         // for every second since start, log the current throughput
         if self.io_stats.last_log_time.elapsed().as_secs() >= 1 {
-            println!("user owned: {}, total duration: {:?}",
+            debug!("user owned: {}, total duration: {:?}",
                 self.io_stats.user_owned,
                 self.io_stats.total_duration);
             self.io_stats.last_log_time = std::time::Instant::now();
@@ -195,7 +196,7 @@ impl MultiFdWriter {
 
             if res < 0 {
                 let err = nix::Error::from_raw(-res);
-                eprintln!("io_uring operation failed: user_data={}, error={}", user_data, err);
+                error!("io_uring operation failed: user_data={}, error={}", user_data, err);
             }
 
             let entry = BufferedIoUring::entry_from_user_data(base_addr, user_data);

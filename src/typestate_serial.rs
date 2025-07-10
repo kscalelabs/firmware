@@ -1,7 +1,7 @@
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 #[allow(unused_imports)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::error;
+use tracing::{error, info, warn};
 use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -359,7 +359,7 @@ impl <Handler: BytesHandler> SerialPort<Localize, Handler> {
             {
                 // timeout
                 Err(_) => {
-                    eprintln!("baud {}: timed out waiting for 80 bytes", baud);
+                    warn!("baud {}: timed out waiting for 80 bytes", baud);
                     continue; // try next baud
                 }
                 // inner future completed with an Err
@@ -368,11 +368,11 @@ impl <Handler: BytesHandler> SerialPort<Localize, Handler> {
                 Ok(Ok(_n)) => {
                     // check the checksum
                     if let Err(e) = Handler::verify_read(&buf128) {
-                        eprintln!("baud {}: {}", baud, e);
+                        warn!("baud {}: {}", baud, e);
                         continue; // try next baud
                     }
                     // if we get here, we have a valid response
-                    println!("baud {}: detected", baud);
+                    info!("baud {}: detected", baud);
                     // return the port in the next state
                     return Ok(SerialPort { 
                         port: self.port, 
