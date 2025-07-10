@@ -69,6 +69,17 @@ impl Ready {
         send_request(self.shared_state.as_mut(), &ActuatorRequestParams::MotorEnable).await?;
         read_responses(self.shared_state.as_mut()).await
     }
+
+    pub async fn request_params(&mut self) -> std::io::Result<()> {
+        // send_request(self.shared_state.as_mut(), ActuatorRequestParams::Feedback).await?;
+        // read_responses(self.shared_state.as_mut()).await
+        send_request(self.shared_state.as_mut(), &ActuatorRequestParams::ReadAllParams).await
+    }
+
+    pub async fn process_feedback(&mut self, act_states: &mut [ActuatorState]) -> std::io::Result<()> {
+        // read_responses(self.shared_state.as_mut()).await
+        read_responses_update(self.shared_state.as_mut(), Some(act_states)).await
+    }
 }
 
 impl Operate {

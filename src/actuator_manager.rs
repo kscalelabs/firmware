@@ -335,6 +335,40 @@ impl State for Reset
     }
 }
 
+impl Ready {
+    pub async fn request_params(&mut self) -> std::io::Result<()> {
+        let mut ss = self.shared_state.as_mut().project();
+
+        let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
+        for wrapper in wrappers.values_mut() {
+            // all buses should be operational
+            if let Some(actuator::StateStore::Ready(rdy_bus)) = wrapper.bus.get_state() {
+                // enable the bus
+                rdy_bus.request_params().await?;
+            } else {
+                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+            }
+        };
+        Ok(())
+    }
+
+    pub async fn process_feedback(&mut self, act_states: &mut ActuatorStateStore) -> std::io::Result<()> {
+        let mut ss = self.shared_state.as_mut().project();
+
+        let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
+        for (i, wrapper) in wrappers.values_mut().enumerate() {
+            // all buses should be operational
+            if let Some(actuator::StateStore::Ready(rdy_bus)) = wrapper.bus.get_state() {
+                // process the feedback
+                rdy_bus.process_feedback(act_states.slice_mut(i.into())).await?;
+            } else {
+                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+            }
+        };
+        Ok(())
+    }
+}
+
 impl Operate {
     pub async fn request_feedback(&mut self) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();

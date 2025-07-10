@@ -205,7 +205,7 @@ impl State for Ready
             log::info!("IMU state: {:#?}", ss.robot_description.imu);
             wait_for_enter().await;
 
-            // drive actuator manager to the operate state
+            // drive actuator manager to the ready state
             let target = actuator_manager::StateTag::Ready;
             ss.actuator_manager.as_mut().set_target_pinned(target);
             loop {
@@ -243,6 +243,22 @@ impl State for Ready
                     result: Err(io::Error::new(io::ErrorKind::Other, "Actuator manager is not in Ready state")),
                 };
             };
+
+            log::warn!("Press Enter to request params");
+            wait_for_enter().await;
+            rdy_act_manager.request_params().await;
+
+            log::warn!("Press Enter to process feedback");
+            wait_for_enter().await;
+            let act_states = ss.robot_description.actuator_states_mut();
+            if let Err(e) = rdy_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Reset(Reset {
+                        shared_state,
+                    }),
+                    result: Err(e),
+                };
+            }
 
 
             // drive model manager to operate state

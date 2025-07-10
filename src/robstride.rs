@@ -483,7 +483,7 @@ impl ActuatorCanClient {
         self.state = match params {
             ActuatorRequestParams::ObtainId => ActuatorClientState::AwaitingIdRequest,
             ActuatorRequestParams::ReadParam => ActuatorClientState::AwaitingReadParamRequest,
-            ActuatorRequestParams::ReadAllParams => ActuatorClientState::AwaitingReadAllParamsRequest, // TODO: implement this
+            ActuatorRequestParams::ReadAllParams => ActuatorClientState::AwaitingReadAllParamsRequest,
             ActuatorRequestParams::MotorEnable => ActuatorClientState::AwaitingMotorEnableRequest,
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
@@ -492,7 +492,6 @@ impl ActuatorCanClient {
     }
 
     pub fn set_last_request(&mut self, transaction: CanFrame) {
-
         // map can frame back to request, update state and store it
         let req = transaction.into(); 
 
@@ -551,6 +550,20 @@ impl ActuatorCanClient {
             }
 
             ActuatorResponse::ReadAllParams(resp) => {
+                
+                // let idx = match resp.byte_marker {
+                //     0x0 => 0x0,
+                //     0x1 => 0x1,
+                //     0x2 => 0x2,
+                //     0x6 | 0x3 => 0x3,
+                //     0x7 | 0x4 => 0x4,
+                //     0x8 => 0x5,
+                //     _ => return Err(std::io::Error::new(
+                //         std::io::ErrorKind::InvalidData,
+                //         format!("Unknown byte marker: {}", resp.byte_marker),
+                //     )),
+                // };
+
                 log::warn!("Received Feedback response: {:?}", resp);
                 Ok(None)
             }

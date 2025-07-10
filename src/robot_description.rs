@@ -399,7 +399,7 @@ impl RobotDescription {
 
 
             // Input to polidy
-            DataType::Command => 4,
+            DataType::Command => 7,
 
             // Imu
             DataType::Quaternion => self.imu.quaternion.coords.len(),
