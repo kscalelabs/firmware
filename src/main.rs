@@ -44,7 +44,7 @@ use std::pin::Pin;
 use futures::stream::Stream;
 use futures::stream::StreamExt;
 
-use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::{layer::SubscriberExt, fmt, Layer, EnvFilter};
 use telemetry::{
     telemetry::start_pipeline,
     forwarder::{EventRecord, HeaplessForwardLayer},
@@ -401,8 +401,20 @@ fn main() {
                 .expect("Failed to start telemetry pipeline");
 
     // prepare tracing to forward to our thread
-    let layer = HeaplessForwardLayer { tx };
-    let subscriber = tracing_subscriber::registry().with(layer);
+    let forward_layer = HeaplessForwardLayer { tx };
+    
+    // add stdout layer for INFO, WARN, ERROR levels
+    let stdout_layer = fmt::layer()
+        .with_target(false)
+        .with_level(true)
+        .with_filter(EnvFilter::from_default_env()
+            .add_directive("info".parse().unwrap())
+            .add_directive("warn".parse().unwrap())
+            .add_directive("error".parse().unwrap()));
+    
+    let subscriber = tracing_subscriber::registry()
+        .with(forward_layer)
+        .with(stdout_layer);
 
     let guard: tracing::subscriber::DefaultGuard = 
         tracing::subscriber::set_default(subscriber);
