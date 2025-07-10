@@ -44,6 +44,15 @@ use std::pin::Pin;
 use futures::stream::Stream;
 use futures::stream::StreamExt;
 
+use tracing_subscriber::layer::SubscriberExt;
+use telemetry::{
+    telemetry::start_pipeline,
+    forwarder::{EventRecord, HeaplessForwardLayer},
+};
+
+use std::sync::mpsc;
+
+
 
 async fn get_one() -> std::io::Result<()> {
 
@@ -383,6 +392,20 @@ use chrono::Local;
 use log::LevelFilter;
 
 fn main() {
+
+    // setup telemetry before we do anything else
+    let (tx, rx) = mpsc::sync_channel::<EventRecord>(1024 * 1024);
+
+    //spawn the thread that will format and log our data
+    let jh = start_pipeline(rx, "events.log")
+                .expect("Failed to start telemetry pipeline");
+
+    // prepare tracing to forward to our thread
+    let layer = HeaplessForwardLayer { tx };
+    let subscriber = tracing_subscriber::registry().with(layer);
+
+    let guard: tracing::subscriber::DefaultGuard = 
+        tracing::subscriber::set_default(subscriber);
     
     env_logger::Builder::new()
         // Set a default log level; users can still override with RUST_LOG=…
