@@ -1,6 +1,5 @@
 use std::io;
 use std::marker::PhantomData;
-use tracing::{debug, error, info, warn};
 use std::time::Duration;
 use tokio::time::timeout;
 use tokio::io::unix::AsyncFd;
@@ -13,6 +12,7 @@ use std::os::unix::io::RawFd;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 use tokio::io::ReadBuf;
+use crate::{info, debug, warn, error};
 
 pub trait BytesHandler {
     fn verify_read(buf: &[u8]) -> io::Result<()>;

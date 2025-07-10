@@ -1,7 +1,6 @@
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 #[allow(unused_imports)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{error, info, warn};
 use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -19,6 +18,7 @@ use pin_project::pin_project;
 
 use crate::state_machine;
 state_machine!(Reset, Operate);
+use crate::{warn, info, error};
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

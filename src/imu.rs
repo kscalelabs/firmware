@@ -1,6 +1,5 @@
 use std::pin::Pin;
 use std::task::ready;
-use tracing::{debug, error, info, warn};
 use pin_project::pin_project;
 
 use crate::behavior::wait_for_enter;
@@ -22,6 +21,7 @@ use crate::state_machine;
 state_machine!(Reset, Scanning, Operate);
 
 use crate::robot_description::ImuData;
+use crate::{debug, warn, info, error};
 
 #[derive(Debug)]
 #[pin_project]

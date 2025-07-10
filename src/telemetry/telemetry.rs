@@ -14,7 +14,7 @@ use std::thread;
 use std::time::Instant;
 
 use std::sync::mpsc::Receiver;
-use tracing::error;
+use crate::error;
 use nix::libc;
 
 use crate::telemetry::forwarder::EventRecord;

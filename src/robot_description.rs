@@ -1,6 +1,5 @@
 use enum_map::{Enum, EnumMap, enum_map};
 use nalgebra as na;
-use tracing::info;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
@@ -295,6 +294,7 @@ pub enum DataType {
 }
 
 use clap::Parser;
+use crate::info;
 #[derive(Debug, Parser)]
 #[command(
     name = "faux-rtos",

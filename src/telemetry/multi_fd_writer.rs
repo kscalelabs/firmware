@@ -3,7 +3,7 @@ use std::os::unix::io::{RawFd, AsRawFd, OwnedFd, BorrowedFd};
 use std::collections::VecDeque;
 use io_uring::{IoUring, opcode, types};
 use nix::libc;
-use tracing::{debug, error, info};
+use crate::{info, debug, error};
 use crate::telemetry::utils::Page;
 
 const PAGE_SIZE: usize = 4096;

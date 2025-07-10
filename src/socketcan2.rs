@@ -1,10 +1,10 @@
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::error;
 use crate::typestate_socket2::{
     SocketConfigurator,
     SocketOperator,
 };
 use crate::bytestream_fd::ByteStreamFd;
+use crate::error;
 
 #[derive(Debug, Default)]
 pub struct SocketCanConfigurator;

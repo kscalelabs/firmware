@@ -1,5 +1,4 @@
 use crate::socketcan::CAN_MAX_DLEN;
-use tracing::{debug, warn};
 
 use crate::socketcan::CanFrame;
 
@@ -10,6 +9,7 @@ use crate::robot_description::{
 };
 
 use crate::robstride_utils::*;
+use crate::{warn, debug};
 
 impl<T> From<T> for crate::socketcan::CanFrame 
 where

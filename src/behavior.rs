@@ -1,5 +1,4 @@
 use futures::{Stream, StreamExt, TryStream, TryStreamExt};
-use tracing::{debug, error, info, warn};
 use crate::actuator_manager::{
     self,
     ActuatorManager,
@@ -28,6 +27,7 @@ use crate::inference::{
 };
 
 use crate::state_machine;
+use crate::{warn, debug, info, error};
 
 use tokio::io::{self, AsyncBufReadExt};
 

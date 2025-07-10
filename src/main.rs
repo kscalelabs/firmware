@@ -386,7 +386,7 @@ async fn driver2() -> std::io::Result<()> {
 // }
 
 
-use tracing::{info, debug, error, warn, trace, Level};
+use tracing::Level;
 
 fn main() {
 
@@ -417,6 +417,7 @@ fn main() {
     
     let start_time = std::time::Instant::now();
     info!("id: {:?} starting at {:?}", std::thread::current().id(), start_time);
+    data!(Policy, info, "Starting faux-rtos driver");
 
     // send_can().unwrap();
 

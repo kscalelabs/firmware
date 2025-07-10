@@ -1,12 +1,12 @@
 use crate::typestate_socket::BytesHandler;
 use std::io;
-use tracing::debug;
 
 use socket2::{
     Domain,
     Type,
     Protocol
 };
+use crate::debug;
 
 
 pub const CAN_MAX_DLEN: usize = 8; // Maximum Transmission Unit for CAN frames

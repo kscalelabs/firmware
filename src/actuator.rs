@@ -1,6 +1,5 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tracing::{debug, error};
 use crate::typestate_socket2::{
     SocketGraph,
     SocketState,
@@ -44,6 +43,7 @@ use std::task::ready;
 use crate::state_machine;
 
 state_machine!(Reset, Configure, Ready, Operate);
+use crate::{debug, error};
 
 #[derive(Debug)]
 pub struct Reset {

@@ -1,6 +1,5 @@
 
 use tokio::io::unix::AsyncFd;
-use tracing::{debug, warn};
 use tokio::io::{AsyncReadExt, AsyncRead};
 use tokio::io::{AsyncWriteExt, AsyncWrite};
 use tokio::io::ReadBuf;
@@ -11,6 +10,7 @@ use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
 use std::io::{self, ErrorKind};
+use crate::warn;
 
 
 #[derive(Debug)]

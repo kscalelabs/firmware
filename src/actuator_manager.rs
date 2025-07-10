@@ -1,7 +1,6 @@
 // #![allow(unused)]
 
 use crate::actuator::ActuatorBus;
-use tracing::{error, info};
 use crate::state_machine;
 
 use std::{
@@ -30,6 +29,7 @@ use std::task::ready;
 use crate::actuator;
 
 state_machine!(Reset, Scanning, Ready, Operate);
+use crate::{info, error};
 
 #[derive(Debug)]
 #[pin_project]

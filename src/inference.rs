@@ -3,7 +3,6 @@ use crate::robot_description::{
     RobotDescription,
     ActuatorId,
 };
-use tracing::{debug, error, info, warn};
 
 use std::{
     pin::Pin,
@@ -21,6 +20,7 @@ use crate::state_machine;
 state_machine!(Reset, Operate);
 
 use crate::robot_description::DataType;
+use crate::{info, debug, warn, error};
 
 impl TryFrom<String> for DataType {
     type Error = std::io::Error;

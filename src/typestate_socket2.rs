@@ -1,6 +1,5 @@
 use std::io;
 use std::os::unix::io::AsRawFd;
-use tracing::{debug, error, info};
 use crate::bytestream_fd::ByteStreamFd;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -12,6 +11,7 @@ use std::task::ready;
 use std::fmt::Debug;
 
 use std::future::Future as StdFuture;
+use crate::{debug, error, info};
 
 #[derive(Future)]  // from `futures-enum`
 pub enum SocketStateFut<C,O>

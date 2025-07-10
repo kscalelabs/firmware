@@ -10,6 +10,8 @@ use tracing_subscriber::{
     registry::LookupSpan,
 };
 
+use crate::telemetry::telemetry_macros::TelemetryStreamType;
+
 /// How many fields we inline per event (must bound it at compile time).
 const MAX_FIELDS: usize = 16;
 /// Max bytes for any string value.
@@ -36,6 +38,7 @@ pub enum FieldValue {
 #[derive(Debug)]
 pub struct EventRecord {
     pub ts: Instant,
+    pub stream: TelemetryStreamType,
     pub target: &'static str,
     pub level: Level,
     pub fields: HVec<FieldRecord, MAX_FIELDS>,
@@ -94,15 +97,34 @@ where
     fn on_event(&self, event: &Event<'_>, _ctx: Context<'_, S>) {
         // vector to store fields
         let mut fields = HVec::<FieldRecord, MAX_FIELDS>::new();
+        let mut stream_type = TelemetryStreamType::Log; // default
+        
         // record all fields into the event
         {
             let mut collector = FieldCollector(&mut fields);
             event.record(&mut collector);
         }
 
+        // extract stream_type from fields
+        for field in &fields {
+            if field.name == "stream_type" {
+                if let FieldValue::Str(ref s) = field.value {
+                    stream_type = match s.as_str() {
+                        "Log" => TelemetryStreamType::Log,
+                        "Data(Policy)" => TelemetryStreamType::Data(crate::telemetry::telemetry_macros::DataType::Policy),
+                        "Data(Actuator)" => TelemetryStreamType::Data(crate::telemetry::telemetry_macros::DataType::Actuator),
+                        "Data(Imu)" => TelemetryStreamType::Data(crate::telemetry::telemetry_macros::DataType::Imu),
+                        _ => TelemetryStreamType::Log, // fallback
+                    };
+                }
+                break;
+            }
+        }
+
         // create a record of the event
         let rec = EventRecord {
             ts: Instant::now(),
+            stream: stream_type,
             target: event.metadata().target(),
             level: *event.metadata().level(),
             fields,

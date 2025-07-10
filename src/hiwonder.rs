@@ -1,5 +1,4 @@
 use std::io;
-use tracing::debug;
 
 /**
 
@@ -18,6 +17,7 @@ const PAYLOAD_SIZE: usize = 8; // payload size in bytes
 use crate::robot_description::ImuFeedback;
 use crate::typestate_serial::Operate as OperationalPort;
 use crate::typestate_serial::SerialBaudRate;
+use crate::debug;
 
 #[derive(Debug)]
 pub struct HiwonderImu {
