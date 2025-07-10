@@ -226,22 +226,20 @@ impl MultiFdWriter {
         self.ring.ready_list.drain(..).for_each(|entry| {
             self.output_fds.iter().for_each(|fd| {
                 // Create a new write operation for each page
-                for _ in 0..2 {    
-                    operations.push(
-                        opcode::WriteFixed::new(
-                            types::Fd(fd.as_raw_fd()),
-                            entry.as_ptr() as _,
-                            entry.len() as u32,
-                            entry.idx() as u16, // fixed buffer index
-                        ).offset(u64::MAX) // offset -1 means use the file descriptor's current position
-                            .build()
-                            .user_data(
-                                BufferedIoUring::user_data_from_entry(self.ring.base_addr, &entry),
-                            ),
-                    );
-                    self.ring.pending_ops[entry.idx()] += 1;
-                    // println!("Pushing write operation for entry idx={} with ptr={:p} and len={}", entry.idx(), entry.as_ptr(), entry.len());
-                }
+                operations.push(
+                    opcode::WriteFixed::new(
+                        types::Fd(fd.as_raw_fd()),
+                        entry.as_ptr() as _,
+                        entry.len() as u32,
+                        entry.idx() as u16, // fixed buffer index
+                    ).offset(u64::MAX) // offset -1 means use the file descriptor's current position
+                        .build()
+                        .user_data(
+                            BufferedIoUring::user_data_from_entry(self.ring.base_addr, &entry),
+                        ),
+                );
+                self.ring.pending_ops[entry.idx()] += 1;
+                debug!("Pushing write operation for entry idx={} with ptr={:p} and len={}", entry.idx(), entry.as_ptr(), entry.len());
             });
             self.io_stats.user_owned -= 1;
         });
