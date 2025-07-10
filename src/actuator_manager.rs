@@ -1,6 +1,7 @@
 // #![allow(unused)]
 
 use crate::actuator::ActuatorBus;
+use tracing::{error, info};
 use crate::state_machine;
 
 use std::{
@@ -185,14 +186,14 @@ impl State for Ready
                 results.3,
             ];
 
-            log::info!("Results: {:?}", results);
+            info!("Results: {:?}", results);
 
             let mut proceed = true;
             for (i, results) in results.into_iter().enumerate() {
                 match results {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Operate;
-                        log::info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i.into()].iface_idx]);
+                        info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i.into()].iface_idx]);
                     }
                     Ok(None) => {
                         return StateTransitionResult {
@@ -271,7 +272,7 @@ impl State for Scanning
                 results.3,
             ];
 
-            log::info!("Results: {:?}", results);
+            info!("Results: {:?}", results);
 
             let mut proceed = true;
             for (i, results) in results.into_iter().enumerate() {
@@ -279,7 +280,7 @@ impl State for Scanning
                 match results {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Ready;
-                        log::info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i].iface_idx]);
+                        info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i].iface_idx]);
                     }
                     Ok(None) => {
                         return StateTransitionResult {
@@ -290,11 +291,11 @@ impl State for Scanning
                         };
                     }
                     Err(e) => {
-                        log::error!("Error polling bus {:?}: {:?}", i, e);
+                        error!("Error polling bus {:?}: {:?}", i, e);
                         // handle error, e.g. reset the bus
                         let av_idx = ss.av_iface_idxs.pop_front().expect("Expected at least 4 actuator buses");
                         ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
-                        log::error!("Resetting bus {:?} from {} to {}", i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]);
+                        error!("Resetting bus {:?} from {} to {}", i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]);
                         wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
                         proceed = false;
                     }
@@ -430,7 +431,7 @@ impl Operate {
     //         results.3,
     //     ];
 
-    //     log::info!("Results: {:?}", results);
+    //     info!("Results: {:?}", results);
 
     //     for (i, results) in results.into_iter().enumerate() {
     //         match results {
@@ -555,7 +556,7 @@ impl Stream for ActuatorManager {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

@@ -191,26 +191,26 @@ async fn driver2() -> std::io::Result<()> {
 
         match res {
             Ok(Some(Ok(tag))) => {
-                log::debug!("returned Some: {:?}", tag);
+                debug!("returned Some: {:?}", tag);
                 // if tag == target {
                 //     log::info!("Reached target state: {:?}", tag);
                 //     break;
                 // }
             }
             Ok(Some(Err(e))) => {
-                log::error!("returned Err: {:?}", e);
+                error!("returned Err: {:?}", e);
                 break;
             }
             Ok(None) => {
-                log::error!("returned None, continuing...");
+                error!("returned None, continuing...");
             }
             Err(_) => {
-                log::debug!("timed out, continuing...");
+                debug!("timed out, continuing...");
             }
         }
     }
 
-        log::info!("finished looping, dropping ActuatorBus");
+        info!("finished looping, dropping ActuatorBus");
     // }
 
 
@@ -386,10 +386,7 @@ async fn driver2() -> std::io::Result<()> {
 // }
 
 
-use std::io::Write;
-use log::Level;
-use chrono::Local;
-use log::LevelFilter;
+use tracing::{info, debug, error, warn, trace, Level};
 
 fn main() {
 
@@ -419,62 +416,8 @@ fn main() {
     let guard: tracing::subscriber::DefaultGuard = 
         tracing::subscriber::set_default(subscriber);
     
-    env_logger::Builder::new()
-        // Set a default log level; users can still override with RUST_LOG=…
-        .filter_level(log::LevelFilter::Info)
-
-        // Provide our own format closure
-        .format(|buf, record| {
-            // A) Timestamp (wall‐clock, up to nanoseconds):
-            let now = Local::now();
-            // e.g. "2025-06-01 14:23:45.123456789"
-            let timestamp = format!(
-                "{}.{:09}",
-                now.format("%Y-%m-%d %H:%M:%S"),
-                now.timestamp_subsec_nanos()
-            );
-
-            // B) Module path (caller) or target:
-            // record.module_path() is an Option<&str>. Fallback to record.target().
-            let module = record.module_path().unwrap_or(record.target());
-
-            // C) Colourize level:
-            // ANSI codes: 31 = red, 33 = yellow, 0 = reset
-            // let level = match record.level() {
-            //     Level::Error => format!("\x1b[31mERROR\x1b[0m"), // red
-            //     Level::Warn  => format!("\x1b[33mWARN \x1b[0m"), // yellow
-            //     Level::Info  => "INFO ".to_string(),             // no colour
-            //     Level::Debug => "DEBUG".to_string(),
-            //     Level::Trace => "TRACE".to_string(),
-            // };
-            let level = match record.level() {
-                Level::Error => format!("\x1b[31mERROR\x1b[0m"),  // red
-                Level::Warn  => format!("\x1b[33mWARN \x1b[0m"),  // yellow
-                Level::Info  => format!("\x1b[36mINFO \x1b[0m"),  // light blue (ANSI 94)
-                Level::Debug => format!("\x1b[37mDEBUG\x1b[0m"),  // white  (ANSI 37)
-                Level::Trace => format!("\x1b[90mTRACE\x1b[0m"),  // gray   (ANSI 90)
-            };
-
-
-            // D) Finally, write the line:
-            //   [timestamp] [module] [LEVEL] message
-            writeln!(
-                buf,
-                "{} [{}] [{}] {}",
-                timestamp,
-                level,
-                module,
-                record.args()
-            )
-        })
-
-        // E) Send output to stdout (you can change to stderr if desired)
-        // .chain(std::io::stdout())
-
-        // F) Install the logger
-        .init();
     let start_time = std::time::Instant::now();
-    log::info!("id: {:?} starting at {:?}", std::thread::current().id(), start_time);
+    info!("id: {:?} starting at {:?}", std::thread::current().id(), start_time);
 
     // send_can().unwrap();
 
@@ -494,12 +437,12 @@ fn main() {
     let drv = driver2();
     let start = std::time::Instant::now();
     if let Err(e) = rt.block_on(drv) {
-        log::error!("Error: {:?}", e);
+        error!("Error: {:?}", e);
     } else {
-        log::info!("Driver finished successfully");
+        info!("Driver finished successfully");
     }
     let elapsed = start.elapsed();
-    log::info!("Elapsed time: {:?}", elapsed);
+    info!("Elapsed time: {:?}", elapsed);
 }
 
 //#[tokio::main]

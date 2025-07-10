@@ -1,5 +1,6 @@
 
 use tokio::io::unix::AsyncFd;
+use tracing::warn;
 use tokio::io::{AsyncReadExt, AsyncRead};
 use tokio::io::{AsyncWriteExt, AsyncWrite};
 use tokio::io::ReadBuf;
@@ -42,7 +43,7 @@ impl ByteStreamFd {
 
 impl Drop for ByteStreamFd {
     fn drop(&mut self) {
-        log::warn!("ByteStreamFd dropped, fd: {}", self.inner.as_raw_fd());
+        warn!("ByteStreamFd dropped, fd: {}", self.inner.as_raw_fd());
     }
 }
 

@@ -1,4 +1,5 @@
 use std::io;
+use tracing::debug;
 
 /**
 
@@ -129,7 +130,7 @@ impl HiwonderImu {
     fn merge_frame(frame: &HiwonderRawFrame, fdbk: &mut ImuFeedback) -> io::Result<()> {
 
         let frame = frame.clone().try_into()?;
-        log::debug!("Parsed frame: {:?}", frame);
+        debug!("Parsed frame: {:?}", frame);
         match frame {
             ReadFrame::Acceleration { x, y, z, temp } => {
                 fdbk.accelerometer = Some([x.into(), y.into(), z.into()]);

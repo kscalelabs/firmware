@@ -1,5 +1,6 @@
 use crate::typestate_socket::BytesHandler;
 use std::io;
+use tracing::debug;
 
 use socket2::{
     Domain,
@@ -131,7 +132,7 @@ impl BytesHandler for EthernetSocket {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "frame too short"));
         }
         // You could parse dst/src MAC and EtherType here
-        log::debug!("Received Ethernet frame: {:02x?}", &buf[..14]);
+        debug!("Received Ethernet frame: {:02x?}", &buf[..14]);
         Ok(())
     }
 

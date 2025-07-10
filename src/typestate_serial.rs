@@ -1,6 +1,7 @@
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 #[allow(unused_imports)]
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tracing::error;
 use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::time::timeout;
@@ -260,7 +261,7 @@ impl Stream for SerialPort {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

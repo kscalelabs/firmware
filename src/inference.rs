@@ -3,6 +3,7 @@ use crate::robot_description::{
     RobotDescription,
     ActuatorId,
 };
+use tracing::{debug, error, info, warn};
 
 use std::{
     pin::Pin,
@@ -107,7 +108,7 @@ impl Store {
             
             let name = input.name.clone();
             let dims = input.input_type.tensor_shape().expect("step_fn input should have a tensor shape");
-            log::info!("input :{:?}", input);
+            info!("input :{:?}", input);
 
             if let Ok(model_input_type) = ModelInputType::try_from(name.clone()) {
                 match model_input_type {
@@ -405,7 +406,7 @@ impl Operate {
                         robot_description,
                         actuator_id_to_cmd_idx,
                     ) {
-                        log::warn!("Failed to extract data for input type {:?}: {}", data_type, e);
+                        warn!("Failed to extract data for input type {:?}: {}", data_type, e);
                     }
                 }
             }
@@ -606,7 +607,7 @@ impl Stream for ModelManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                log::debug!("Polling pending future");
+                debug!("Polling pending future");
                 // If the pending future is ready, we can transition to the next state
                 let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
                 // clear the pending future
@@ -615,7 +616,7 @@ impl Stream for ModelManager {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

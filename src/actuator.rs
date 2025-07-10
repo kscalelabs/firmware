@@ -1,5 +1,6 @@
 use std::pin::Pin;
 use std::task::{Context, Poll};
+use tracing::{debug, error};
 use crate::typestate_socket2::{
     SocketGraph,
     SocketState,
@@ -100,7 +101,7 @@ impl State for Reset
             let res = ss.socket_graph.await;
             match res {
                 Ok(_) => {
-                    log::debug!("Socket graph operational");
+                    debug!("Socket graph operational");
                     StateTransitionResult {
                         state: StateStore::Configure(Configure {
                             shared_state,
@@ -311,7 +312,7 @@ async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut 
                 rem -= !seen[client_idx] as usize;
                 seen[client_idx] = true;
 
-                log::debug!("Received CanFrame: {:?}", can_frame);
+                debug!("Received CanFrame: {:?}", can_frame);
                 handler(&can_frame)?;
             }
             Err(e) => {
@@ -325,7 +326,7 @@ async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut 
         // Process the read data here
         let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
         let client_idx = (ss.response_to_client_idx)(&can_frame);
-        log::debug!("Draining CanFrame: {:?}", can_frame);
+        debug!("Draining CanFrame: {:?}", can_frame);
         handler(&can_frame)?;
     }
 
@@ -450,7 +451,7 @@ impl Stream for ActuatorBus {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

@@ -1,4 +1,5 @@
 use futures::{Stream, StreamExt, TryStream, TryStreamExt};
+use tracing::{debug, error, info, warn};
 use crate::actuator_manager::{
     self,
     ActuatorManager,
@@ -125,7 +126,7 @@ impl Home {
 
             let err = home_position[act_id].qpos - normalized_feedback;
 
-            log::warn!("Actuator {:?} feedback: {}, home position: {}, error: {}", act_id, normalized_feedback, home_position[act_id].qpos, err);
+            warn!("Actuator {:?} feedback: {}, home position: {}, error: {}", act_id, normalized_feedback, home_position[act_id].qpos, err);
             // NOTE: these are currently not homed
             if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
                 ret = ret.max(err.abs());
@@ -172,7 +173,7 @@ impl State for Ready
                 match ss.imu_manager.try_next().await {
                     Ok(Some(imu::StateTag::Operate)) => break,
                     Ok(Some(tag)) => {
-                        log::debug!("IMU manager state: {:?}", tag);
+                        debug!("IMU manager state: {:?}", tag);
                         continue;
                     },
                     Ok(None) => return StateTransitionResult { 
@@ -202,7 +203,7 @@ impl State for Ready
                 };
             };
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
-            log::info!("IMU state: {:#?}", ss.robot_description.imu);
+            info!("IMU state: {:#?}", ss.robot_description.imu);
             wait_for_enter().await;
 
             // drive actuator manager to the operate state
@@ -212,7 +213,7 @@ impl State for Ready
                 match ss.actuator_manager.try_next().await {
                     Ok(Some(actuator_manager::StateTag::Ready)) => break,
                     Ok(Some(tag)) => {
-                        log::debug!("Actuator manager state: {:?}", tag);
+                        debug!("Actuator manager state: {:?}", tag);
                         continue;
                     },
                     Ok(None) => return StateTransitionResult { 
@@ -252,7 +253,7 @@ impl State for Ready
                 match ss.model_manager.try_next().await {
                     Ok(Some(inference::StateTag::Operate)) => break,
                     Ok(Some(tag)) => {
-                        log::debug!("model manager state: {:?}", tag);
+                        debug!("model manager state: {:?}", tag);
                         continue;
                     },
                     Ok(None) => return StateTransitionResult { 
@@ -284,7 +285,7 @@ impl State for Ready
                 };
             };
 
-            log::warn!("Press Enter to drive the buses...");
+            warn!("Press Enter to drive the buses...");
             wait_for_enter().await;
             rdy_act_manager.enable().await;
             return StateTransitionResult {
@@ -396,11 +397,11 @@ impl State for Home
             }
 
 
-            log::warn!("error: {}", err);
+            warn!("error: {}", err);
             if err < 0.1 {
                 // can go to next state
-                log::info!("error to home: {}", err);
-                log::info!("Home position reached, press enter to run policy");
+                info!("error to home: {}", err);
+                info!("Home position reached, press enter to run policy");
                 wait_for_enter().await;
                 return StateTransitionResult {
                     state: StateStore::Policy(Policy {
@@ -476,10 +477,10 @@ impl State for Policy
                 };
             };
 
-            log::warn!("Reading took {:?}", start_time.elapsed());
+            warn!("Reading took {:?}", start_time.elapsed());
             let policy_stamp = std::time::Instant::now();
             op_model.step_controller(&mut ss.robot_description);
-            log::warn!("Policy step took {:?}", policy_stamp.elapsed());
+            warn!("Policy step took {:?}", policy_stamp.elapsed());
 
             // print out the commands
             // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
@@ -512,9 +513,9 @@ impl State for Policy
                     result: Err(e),
                 };
             }
-            log::warn!("Send command took {:?}", send_stamp.elapsed());
+            warn!("Send command took {:?}", send_stamp.elapsed());
             tokio::time::sleep(std::time::Duration::from_millis(14)).await;
-            log::warn!("iteration took {:?}", start_time.elapsed());
+            warn!("iteration took {:?}", start_time.elapsed());
             let mut shared_state = self.shared_state;
             StateTransitionResult {
                 state: StateStore::Policy(Policy {
@@ -563,7 +564,7 @@ impl Stream for BehaviorManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                log::debug!("Polling pending future");
+                debug!("Polling pending future");
                 // If the pending future is ready, we can transition to the next state
                 let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
                 // clear the pending future
@@ -572,7 +573,7 @@ impl Stream for BehaviorManager {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

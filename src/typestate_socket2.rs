@@ -1,5 +1,6 @@
 use std::io;
 use std::os::unix::io::AsRawFd;
+use tracing::{debug, error, info};
 use crate::bytestream_fd::ByteStreamFd;
 use std::pin::Pin;
 use std::task::{Context, Poll};
@@ -191,7 +192,7 @@ where
         loop {
             match this.pending_fut.as_mut().as_pin_mut() {
                 Some(pending_fut) => {
-                    log::debug!("Polling pending future: {:?}", pending_fut);
+                    debug!("Polling pending future: {:?}", pending_fut);
                     // If the pending future is ready, we can transition to the next state
                     // *this.state = ready!(pending_fut.poll(cx));
                     let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
@@ -215,7 +216,7 @@ where
                             }
                         }
                         Err(e) => {
-                            log::error!("Error during state transition: {:?}", e);
+                            error!("Error during state transition: {:?}", e);
                             return Poll::Ready(Err(e));  // Return error
                         }
                     };
@@ -378,7 +379,7 @@ where
 
         // create the operator 
         let operator = Operator::new(bytestream_fd);
-        log::info!("establishing socket with operator: {:?}", operator);
+        info!("establishing socket with operator: {:?}", operator);
 
         // Return the new socket with the operator
         Ok(Socket {
