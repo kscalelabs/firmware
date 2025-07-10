@@ -400,14 +400,13 @@ fn main() {
     // prepare tracing to forward to our thread
     let forward_layer = HeaplessForwardLayer { tx };
     
-    // add stdout layer for INFO, WARN, ERROR levels
+    // add stdout layer for INFO and above
     let stdout_layer = fmt::layer()
-        .with_target(false)
+        .with_target(true)
         .with_level(true)
-        .with_filter(EnvFilter::from_default_env()
-            .add_directive("info".parse().unwrap())
-            .add_directive("warn".parse().unwrap())
-            .add_directive("error".parse().unwrap()));
+        .with_filter(
+            EnvFilter::from_default_env().add_directive("faux_rtos=info".parse().unwrap()) // info and above
+        );
     
     let subscriber = tracing_subscriber::registry()
         .with(forward_layer)

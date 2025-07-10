@@ -203,7 +203,8 @@ impl State for Ready
                 };
             };
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
-            info!("IMU state: {:#?}", ss.robot_description.imu);
+            debug!("IMU state: {:#?}", ss.robot_description.imu);
+            info!("Press Enter to continue..");
             wait_for_enter().await;
 
             // drive actuator manager to the operate state
