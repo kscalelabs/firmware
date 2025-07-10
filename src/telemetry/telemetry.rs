@@ -34,18 +34,20 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         .custom_flags(libc::O_DIRECT) // Use O_DIRECT for zero-copy
         .open(log_path)?;
 
-    let file2 = OpenOptions::new()
-        .create(true)
-        .truncate(true) // Ensure the file is empty at start
-        .write(true)
-        .custom_flags(libc::O_DIRECT) // Use O_DIRECT for zero-copy
-        .open("second.log")?;
+    /* Examples of additional file descriptors
+     * Uncomment if you want to use multiple outputs like a second file or a network socket
+     */
+
+    // let file2 = OpenOptions::new()
+    //     .create(true)
+    //     .truncate(true) // Ensure the file is empty at start
+    //     .write(true)
+    //     .custom_flags(libc::O_DIRECT) // Use O_DIRECT for zero-copy
+    //     .open("second.log")?;
 
     // make udp socket
     // let udp = UdpSocket::bind("0.0.0.0:0")?;
     // udp.connect("10.33.10.156:5656")?;
-
-
 
     // Spawn worker thread to handle I/O
     let jh = thread::spawn(move || {
@@ -54,7 +56,7 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         // Create array of output file descriptors
         let output_fds = vec![
             OwnedFd::from(file),
-            OwnedFd::from(file2),
+            // OwnedFd::from(file2),
             // OwnedFd::from(udp),
         ];
 
@@ -126,7 +128,7 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         }
 
         // Unmap the buffer when done
-        // unsafe { libc::munmap(raw_ptr, BUF_SIZE); }
+        unsafe { libc::munmap(raw_ptr, BUF_SIZE); }
     });
 
     Ok(jh)
