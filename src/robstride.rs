@@ -397,6 +397,7 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
     match mux {
         0x00 => bytemuck::must_cast::<crate::socketcan::CanFrame, ObtainIdResponse>(*frame).actuator_can_id as u8,
         0x02 => bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame).actuator_can_id as u8,
+        0x13 => bytemuck::must_cast::<crate::socketcan::CanFrame, ReadAllParamsResponse>(*frame).actuator_can_id as u8,
         _ => {
             log::warn!("Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F", mux);
             0x7F // Return a default value if the mux is unknown
