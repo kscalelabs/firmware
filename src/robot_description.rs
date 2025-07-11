@@ -313,11 +313,28 @@ pub struct Args {
     kd_scale: f64,
 }
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct JointLimits {
+    pub min: f64,
+    pub max: f64,
+}
+
+impl JointLimits {
+    pub fn new(min: f64, max: f64) -> Self {
+        Self { min, max }
+    }
+    
+    pub fn clamp(&self, value: f64) -> f64 {
+        value.max(self.min).min(self.max)
+    }
+}
+
 pub struct RobotDescription {
     pub actuators: ActuatorStateStore,
     pub imu: ImuData,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
+    pub joint_limits: EnumMap<ActuatorId, JointLimits>,
     pub policy_scale: f64,
     pub kp_scale: f64,
     pub kd_scale: f64,
@@ -383,6 +400,36 @@ impl RobotDescription {
                 ActuatorId::Rhy => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
                 ActuatorId::Rkp => ActuatorCommand { qpos: (-50.0_f64).to_radians(), kp: 150.0, kd: 8.654, ..Default::default() },
                 ActuatorId::Rap => ActuatorCommand { qpos: (30.0_f64).to_radians(), kp: 40.0, kd: 0.99, ..Default::default() },
+            },
+
+            joint_limits: enum_map! {
+                // Left arm joints
+                ActuatorId::Lsp => JointLimits::new(-1.396263, 3.141593),    // left shoulder pitch
+                ActuatorId::Lsr => JointLimits::new(-0.349066, 1.658063),    // left shoulder roll
+                ActuatorId::Lsy => JointLimits::new(-1.658063, 1.658063),    // left shoulder yaw
+                ActuatorId::Lep => JointLimits::new(-2.478368, 0.0),         // left elbow pitch
+                ActuatorId::Lwr => JointLimits::new(-1.745329, 1.745329),    // left wrist roll
+
+                // Right arm joints
+                ActuatorId::Rsp => JointLimits::new(-3.141593, 1.396263),    // right shoulder pitch
+                ActuatorId::Rsr => JointLimits::new(-1.658063, 0.349066),    // right shoulder roll
+                ActuatorId::Rsy => JointLimits::new(-1.658063, 1.658063),    // right shoulder yaw
+                ActuatorId::Rep => JointLimits::new(0.0, 2.478368),          // right elbow pitch
+                ActuatorId::Rwr => JointLimits::new(-1.745329, 1.745329),    // right wrist roll
+
+                // Left leg joints
+                ActuatorId::Lhp => JointLimits::new(-1.047198, 2.216568),    // left hip pitch
+                ActuatorId::Lhr => JointLimits::new(-0.209440, 2.268928),    // left hip roll
+                ActuatorId::Lhy => JointLimits::new(-1.570796, 1.570796),    // left hip yaw
+                ActuatorId::Lkp => JointLimits::new(0.0, 2.705260),          // left knee pitch
+                ActuatorId::Lap => JointLimits::new(-1.256637, 0.226893),    // left ankle pitch
+
+                // Right leg joints
+                ActuatorId::Rhp => JointLimits::new(-2.216568, 1.047198),    // right hip pitch
+                ActuatorId::Rhr => JointLimits::new(-2.268928, 0.209440),    // right hip roll
+                ActuatorId::Rhy => JointLimits::new(-1.570796, 1.570796),    // right hip yaw
+                ActuatorId::Rkp => JointLimits::new(-2.705260, 0.0),         // right knee pitch
+                ActuatorId::Rap => JointLimits::new(-0.226893, 1.256637),    // right ankle pitch
             },
         }
     }

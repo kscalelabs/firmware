@@ -455,9 +455,14 @@ impl Operate {
             let normalized_qpos = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
             let err = *command as f64 - normalized_qpos;
             let final_command = act_state.feedback.qpos + err * robot_description.policy_scale;
+            
+            // clamp the final command to joint limits
+            let joint_limits = robot_description.joint_limits[actuator_id];
+            let clamped_command = joint_limits.clamp(final_command);
+            
             // TODO: action scale
             // act_state.command.qpos = *command as f64 * robot_description.policy_scale;
-            act_state.command.qpos = final_command;
+            act_state.command.qpos = clamped_command;
             act_state.command.qvel = 0.0; // no velocity
             act_state.command.qfrc = 0.0; // no force
             act_state.command.kp = robot_description.policy_position[actuator_id].kp * robot_description.kp_scale;
