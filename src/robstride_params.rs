@@ -125,14 +125,12 @@ pub enum FunctionCode {
     LowPosition,
     ThetaMech1,
     Instep,
-
-    // Error case for unknown codes
-    Unknown(u16),
 }
 
-impl From<u16> for FunctionCode {
-    fn from(code: u16) -> Self {
-        match code {
+impl TryFrom<u16> for FunctionCode {
+    type Error = ();
+    fn try_from(code: u16) -> Result<Self, Self::Error> {
+        let ret = match code {
             // 0x0000 - 0x0FFF range
             0x0000 => FunctionCode::Name,
             0x0001 => FunctionCode::BarCode,
@@ -254,8 +252,9 @@ impl From<u16> for FunctionCode {
             0x3045 => FunctionCode::Instep,
 
             // Unknown code - return error variant
-            _ => FunctionCode::Unknown(code),
-        }
+            _ => return Err(()),
+        };
+        Ok(ret)
     }
 }
 
@@ -376,11 +375,128 @@ impl FunctionCode {
             FunctionCode::LowPosition          => 0x3043,
             FunctionCode::ThetaMech1           => 0x3044,
             FunctionCode::Instep               => 0x3045,
-            FunctionCode::Unknown(code)        => *code,
+        }
+    }
+}
+
+use heapless::String;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RobstrideActuatorParams {
+    pub params_00: [String<32>; 2],
+    pub params_10: [String<32>; 8],
+    pub params_20: [String<32>; 34],
+    pub params_30: [String<32>; 70],
+}
+
+
+pub struct RobstrideActuatorParamFragment<'a> {
+    pub function_code: FunctionCode,
+    pub bytemarker: u8,
+    pub data: &'a [u8],
+}
+
+impl<'a> RobstrideActuatorParamFragment<'a> {
+    pub fn new(function_code: FunctionCode, bytemarker: u8, data: &'a [u8]) -> Self {
+        Self {
+            function_code,
+            bytemarker,
+            data,
+        }
+    }
+}
+
+impl Default for RobstrideActuatorParams {
+    fn default() -> Self {
+        RobstrideActuatorParams {
+            params_00: [const { String::new() }; 2],
+            params_10: [const { String::new() }; 8],
+            params_20: [const { String::new() }; 34],
+            params_30: [const { String::new() }; 70],
+        }
+    }
+}
+
+impl RobstrideActuatorParams {
+
+    fn get_param_mut(&mut self, code: FunctionCode) -> &mut heapless::String<32> {
+        let idx = code.to_hex() as usize;
+
+        let arr_id = (idx >> 8) & 0xff;
+        let idx = idx & 0xff;
+
+        match arr_id {
+            0 => &mut self.params_00[idx],
+            1 => &mut self.params_10[idx],
+            2 => &mut self.params_20[idx],
+            3 => &mut self.params_30[idx],
+            _ => panic!("Invalid function code: {}", code.to_hex()),
         }
     }
 
-    pub fn is_valid(&self) -> bool {
-        !matches!(self, FunctionCode::Unknown(_))
+    pub fn merge_fragment(&mut self, fragment: RobstrideActuatorParamFragment) -> std::io::Result<()> {
+
+        let dst: &mut String<32> = self.get_param_mut(fragment.function_code);
+
+        let len = fragment.data.len();
+
+        let offset = match fragment.bytemarker {
+            0x0 => 0x0,
+            0x1 => 0x1,
+            0x2 => 0x2,
+            0x6 | 0x3 => 0x3,
+            0x7 | 0x4 => 0x4,
+            0x8 => 0x5,
+            _ => return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("Unknown byte marker: {}", fragment.bytemarker),
+            )),
+        };
+
+        if offset + len > dst.len() {
+            panic!("Fragment exceeds destination string length");
+        }
+
+        // TODO: improve (this is not very idiomatic)
+        unsafe {
+            // SAFETY: We ensure that the offset and length are within bounds
+            // of the destination string.
+            let dst_bytes = dst.as_bytes_mut();
+            dst_bytes[offset..(offset + len)]
+                .copy_from_slice(fragment.data);
+        }
+
+        log::warn!("after merge: {}", dst);
+        Ok(())
     }
+
+    fn get_param(&self, code: FunctionCode) -> &heapless::String<32> {
+        let idx = code.to_hex() as usize;
+
+        let arr_id = (idx >> 8) & 0xff;
+        let idx = idx & 0xff;
+
+        match arr_id {
+            0 => &self.params_00[idx],
+            1 => &self.params_10[idx],
+            2 => &self.params_20[idx],
+            3 => &self.params_30[idx],
+            _ => panic!("Invalid function code: {}", code.to_hex()),
+        }
+    }
+
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+

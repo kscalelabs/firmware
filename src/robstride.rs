@@ -8,6 +8,12 @@ use crate::robot_description::{
     ActuatorId,
 };
 
+use crate::robstride_params::{
+    RobstrideActuatorParams,
+    RobstrideActuatorParamFragment,
+    FunctionCode,
+};
+
 use crate::robstride_utils::*;
 
 impl<T> From<T> for crate::socketcan::CanFrame 
@@ -321,7 +327,8 @@ pub struct ReadAllParamsResponse {
     pad: u8,
     res0: u8,
     len8_dlc: u8,
-    can_data: [u8; CAN_MAX_DLEN],
+    param_idx: u16,
+    can_data: [u8; CAN_MAX_DLEN - 2],
 }
 
 #[derive(Debug, Clone)]
@@ -439,6 +446,7 @@ pub struct ActuatorCanClient {
     state: ActuatorClientState,
     actuator_ranges: RangeSet<f64>,
     can_range: RangeSet<f64>,
+    params: RobstrideActuatorParams,
 }
 
 impl ActuatorCanClient {
@@ -453,6 +461,7 @@ impl ActuatorCanClient {
             last_request: None,
             actuator_ranges: RobstrideActuatorType::from(actuator_can_id).actuator_ranges(),
             can_range: RobstrideActuatorType::from(actuator_can_id).can_ranges(),
+            params: Default::default(),
         }
     }
 
@@ -551,21 +560,19 @@ impl ActuatorCanClient {
             }
 
             ActuatorResponse::ReadAllParams(resp) => {
-                
-                // let idx = match resp.byte_marker {
-                //     0x0 => 0x0,
-                //     0x1 => 0x1,
-                //     0x2 => 0x2,
-                //     0x6 | 0x3 => 0x3,
-                //     0x7 | 0x4 => 0x4,
-                //     0x8 => 0x5,
-                //     _ => return Err(std::io::Error::new(
-                //         std::io::ErrorKind::InvalidData,
-                //         format!("Unknown byte marker: {}", resp.byte_marker),
-                //     )),
-                // };
 
-                log::warn!("Received Feedback response: {:?}", resp);
+                // make the fragment
+                let fragment = RobstrideActuatorParamFragment {
+                    function_code: FunctionCode::try_from(resp.param_idx).map_err(|_| std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Invalid function code in response",
+                    ))?,
+                    bytemarker: resp.byte_marker,
+                    data: &resp.can_data,
+                };
+
+                // merge the fragment into params
+                self.params.merge_fragment(fragment);
                 Ok(None)
             }
 
