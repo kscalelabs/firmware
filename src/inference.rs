@@ -452,9 +452,10 @@ impl Operate {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
             // get the normalized qpso
-            let normalized_qpos = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
-            let err = *command as f64 - normalized_qpos;
-            let final_command = act_state.feedback.qpos + err * robot_description.policy_scale;
+            // let normalized_qpos = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
+            // let err = *command as f64 - normalized_qpos;
+            // let final_command = act_state.feedback.qpos + err * robot_description.policy_scale;
+            let final_command = *command as f64;
             
             // clamp the final command to joint limits
             let joint_limits = robot_description.joint_limits[actuator_id];
