@@ -471,6 +471,8 @@ impl ActuatorCanClient {
     }
 
     fn build_request(&self, params: &ActuatorRequestParams) -> ActuatorRequest {
+
+        log::warn!("building for act: {:?}, uuid: {:?}", self.actuator_can_id, self.actuator_uuid);
         match params {
             ActuatorRequestParams::ObtainId => ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::ReadParam => ActuatorRequest::ReadParam(ReadParamRequest::new(self.host_id, self.actuator_can_id, 0x7005)),
