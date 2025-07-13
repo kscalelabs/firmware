@@ -1,5 +1,6 @@
 use enum_map::{Enum, EnumMap, enum_map};
 use nalgebra as na;
+use tracing::info;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
@@ -326,7 +327,7 @@ pub struct RobotDescription {
 impl RobotDescription {
     pub fn new() -> Self {
         let args = Args::parse();
-        log::info!("Args; {:?}", args);
+        info!("Args; {:?}", args);
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),

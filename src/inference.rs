@@ -3,6 +3,202 @@ use crate::robot_description::{
     RobotDescription,
     ActuatorId,
 };
+use tracing::{debug, error, info, warn, trace};
+use serde::Serialize;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct PolicyStepDescriptor {
+    pub step_id: Option<u64>,
+    pub t_us: Option<u64>,
+    pub joint_angles: Option<Vec<f32>>,
+    pub joint_vels: Option<Vec<f32>>,
+    pub initial_heading: Option<f32>,
+    pub quaternion: Option<Vec<f32>>,
+    pub projected_g: Option<Vec<f32>>,
+    pub accel: Option<Vec<f32>>,
+    pub gyro: Option<Vec<f32>>,
+    pub command: Option<Vec<f32>>,
+    pub output: Option<Vec<f32>>,
+}
+
+impl Default for PolicyStepDescriptor {
+    fn default() -> Self {
+        Self {
+            step_id: None,
+            t_us: None,
+            joint_angles: None,
+            joint_vels: None,
+            initial_heading: None,
+            quaternion: None,
+            projected_g: None,
+            accel: None,
+            gyro: None,
+            command: None,
+            output: None,
+        }
+    }
+}
+
+impl PolicyStepDescriptor {
+    pub fn from_session(step_session: &ort::session::Session) -> std::io::Result<Self> {
+        let mut ret = Self::default();
+        for input in step_session.inputs.iter() {
+            let name = input.name.clone();
+            let length = *input.input_type.tensor_shape().unwrap().first().unwrap() as usize;
+
+            let model_input_type = ModelInputType::try_from(name)?;
+
+            match model_input_type {
+                ModelInputType::DataType(data_type) => {
+                    match data_type {
+                        DataType::JointAngles => {
+                            ret.joint_angles = Some(vec![0.0; length]);
+                            ret.output = Some(vec![0.0; length]);
+                        }
+                        DataType::JointAngularVelocities => {
+                            ret.joint_vels = Some(vec![0.0; length]);
+                        }
+                        DataType::InitialHeading => {
+                            ret.initial_heading = Some(0.0);
+                        }
+                        DataType::Quaternion => {
+                            ret.quaternion = Some(vec![0.0; 4]);
+                        }
+                        DataType::ProjectedGravity => {
+                            ret.projected_g = Some(vec![0.0; 3]);
+                        }
+                        DataType::Accelerometer => {
+                            ret.accel = Some(vec![0.0; 3]);
+                        }
+                        DataType::Gyroscope => {
+                            ret.gyro = Some(vec![0.0; 3]);
+                        }
+                        DataType::Command => {
+                            ret.command = Some(vec![0.0; length]);
+                        }
+                        DataType::Time => {
+                            ret.t_us = Some(0);
+                        }
+                    }
+                }
+                ModelInputType::Carry => {
+                    // carry is not a data type, so we skip it
+                }
+            }
+        }
+
+        Ok(ret)
+    }
+
+    pub fn fill_outputs(&mut self, outputs: &ort::session::SessionOutputs) -> std::io::Result<()> {
+        let commands = outputs[0].try_extract_array::<f32>().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })?
+        .into_dimensionality::<ndarray::Dim<[usize; 1]>>().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })?;
+
+        let dst = self.output.as_mut().unwrap();
+        dst.iter_mut().zip(commands.iter()).for_each(|(d, s)| {
+            *d = *s;
+        });
+
+        Ok(())
+    }
+
+    pub fn finalize(&mut self) {
+        if let Some(ref mut step_id) = self.step_id {
+            *step_id += 1;
+        } else {
+            self.step_id = Some(0);
+        }
+        self.timestamp_now();
+    }
+
+    fn timestamp_now(&mut self) {
+        self.t_us = Some(
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_micros() as u64
+        );
+    }
+
+    pub fn fill_input(&mut self, input_type: &ModelInputType, input_val: &ort::session::SessionInputValue) -> std::io::Result<()> {
+        let ort::session::SessionInputValue::Owned(src) = input_val else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Expected Owned tensor",
+            ));
+        };
+        let mut src = src.try_extract_array::<f32>().map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })?;
+
+        // copy into the appropriate field
+        match input_type {
+            ModelInputType::DataType(data_type) => {
+                match data_type {
+                    DataType::JointAngles => {
+                        let dst = self.joint_angles.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::JointAngularVelocities => {
+                        let dst = self.joint_vels.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::InitialHeading => {
+                        self.initial_heading = Some(src[0]);
+                    }
+                    DataType::Quaternion => {
+                        let dst = self.quaternion.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::ProjectedGravity => {
+                        let dst = self.projected_g.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::Accelerometer => {
+                        let dst = self.accel.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::Gyroscope => {
+                        let dst = self.gyro.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::Command => {
+                        let dst = self.command.as_mut().unwrap();
+                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                            *d = *s;
+                        });
+                    }
+                    DataType::Time => {
+                        self.t_us = Some(src[0] as u64);
+                    }
+                }
+            }
+            ModelInputType::Carry => {
+                // carry is not a data type, so we skip it
+                return Ok(());
+            }
+        };
+
+        Ok(())
+    }
+}
+
 
 use std::{
     pin::Pin,
@@ -78,6 +274,7 @@ pub struct Store {
     step_input_types: Vec<ModelInputType>,
     cmd_idx_to_actuator_id: Vec<ActuatorId>,
     actuator_id_to_cmd_idx: enum_map::EnumMap<ActuatorId, usize>,
+    step_description: PolicyStepDescriptor,
 }
 
 impl Store {
@@ -107,7 +304,7 @@ impl Store {
             
             let name = input.name.clone();
             let dims = input.input_type.tensor_shape().expect("step_fn input should have a tensor shape");
-            log::info!("input :{:?}", input);
+            info!("input :{:?}", input);
 
             if let Ok(model_input_type) = ModelInputType::try_from(name.clone()) {
                 match model_input_type {
@@ -245,10 +442,12 @@ impl Store {
         let mut step_input_vec = vec![];
         let mut step_input_types = vec![];
 
+        let mut step_description = PolicyStepDescriptor::from_session(&step_session)?;
+
         for i in 0..step_session.inputs.len() {
             let input = &step_session.inputs[i];
-            println!("input name: {}", input.name);
-            println!("input type: {:?}", input.input_type);
+            debug!("input name: {}", input.name);
+            debug!("input type: {:?}", input.input_type);
             let name = input.name.clone();
             let model_input_type = ModelInputType::try_from(name)?;
             step_input_types.push(model_input_type.clone());
@@ -330,6 +529,7 @@ impl Store {
             step_input_types,
             cmd_idx_to_actuator_id,
             actuator_id_to_cmd_idx,
+            step_description,
         })
     }
 }
@@ -388,6 +588,7 @@ impl Operate {
             step_session,
             cmd_idx_to_actuator_id,
             actuator_id_to_cmd_idx,
+            step_description,
             ..
         } = self.shared_state.as_mut().project(); 
 
@@ -405,7 +606,7 @@ impl Operate {
                         robot_description,
                         actuator_id_to_cmd_idx,
                     ) {
-                        log::warn!("Failed to extract data for input type {:?}: {}", data_type, e);
+                        warn!("Failed to extract data for input type {:?}: {}", data_type, e);
                     }
                 }
             }
@@ -416,8 +617,18 @@ impl Operate {
             std::io::Error::new(std::io::ErrorKind::Other, e)
         })?;
 
+        step_description.fill_outputs(&outputs)
+            .map_err(|e| {
+                std::io::Error::new(std::io::ErrorKind::Other, e)
+            })?;
+
         // put the carry output back into the input
         for (input_type, input_val) in step_input_types.iter().zip(step_input_vec.iter_mut()) {
+            step_description.fill_input(input_type, input_val)
+                .map_err(|e| {
+                    std::io::Error::new(std::io::ErrorKind::Other, e)
+                })?;
+
             match input_type {
                 ModelInputType::Carry => {
                     let ort::session::SessionInputValue::Owned(dst) = input_val else {
@@ -438,6 +649,12 @@ impl Operate {
                 _ => {}
             }
         }
+
+        step_description.finalize();
+        let json_str = serde_json::to_string(&step_description).map_err(|e| {
+            std::io::Error::new(std::io::ErrorKind::Other, e)
+        })?;
+        trace!(policy_step = json_str);
 
         // extract the outputs
         let commands = outputs[0].try_extract_array::<f32>().map_err(|e| {
@@ -606,7 +823,7 @@ impl Stream for ModelManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                log::debug!("Polling pending future");
+                debug!("Polling pending future");
                 // If the pending future is ready, we can transition to the next state
                 let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
                 // clear the pending future
@@ -615,7 +832,7 @@ impl Stream for ModelManager {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));

@@ -1,5 +1,6 @@
 use crate::typestate_socket::BytesHandler;
 use std::io;
+use tracing::debug;
 
 use socket2::{
     Domain,
@@ -69,7 +70,7 @@ impl BytesHandler for CanSocket {
 
     fn verify_read(_buf: &[u8]) -> io::Result<()> {
         // Implement your verification logic here
-        println!("Verifying CAN socket data... {:?}", _buf);
+        debug!("Verifying CAN socket data... {:?}", _buf);
         Ok(())
     }
 
@@ -131,7 +132,7 @@ impl BytesHandler for EthernetSocket {
             return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "frame too short"));
         }
         // You could parse dst/src MAC and EtherType here
-        log::debug!("Received Ethernet frame: {:02x?}", &buf[..14]);
+        debug!("Received Ethernet frame: {:02x?}", &buf[..14]);
         Ok(())
     }
 
