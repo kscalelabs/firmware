@@ -12,7 +12,7 @@ use std::{
 
 use imu::{
     self,
-    ImuManager,
+    imu::ImuManager,
 };
 
 use robot_description::{
@@ -22,7 +22,7 @@ use robot_description::{
 
 use inference::{
     self,
-    ModelManager,
+    inference::ModelManager,
 };
 
 use infrastructure::state_machine;
@@ -165,11 +165,11 @@ impl State for Ready
             let mut ss = shared_state.as_mut().project();
 
             // drive imu manager to the operate state
-            let target = imu::StateTag::Operate;
+            let target = imu::imu::StateTag::Operate;
             ss.imu_manager.as_mut().set_target_pinned(target);
             loop {
                 match ss.imu_manager.try_next().await {
-                    Ok(Some(imu::StateTag::Operate)) => break,
+                    Ok(Some(imu::imu::StateTag::Operate)) => break,
                     Ok(Some(tag)) => {
                         log::debug!("IMU manager state: {:?}", tag);
                         continue;
@@ -191,7 +191,7 @@ impl State for Ready
                     }
                 }
             }
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
+            let imu::imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
                 .expect("IMU manager should be in Operate state") else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
@@ -245,11 +245,11 @@ impl State for Ready
 
 
             // drive model manager to operate state
-            let target = inference::StateTag::Operate;
+            let target = inference::inference::StateTag::Operate;
             ss.model_manager.as_mut().set_target_pinned(target);
             loop {
                 match ss.model_manager.try_next().await {
-                    Ok(Some(inference::StateTag::Operate)) => break,
+                    Ok(Some(inference::inference::StateTag::Operate)) => break,
                     Ok(Some(tag)) => {
                         log::debug!("model manager state: {:?}", tag);
                         continue;
@@ -273,7 +273,7 @@ impl State for Ready
             }
 
             // reached target state
-            let inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
+            let inference::inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
                 .expect("Model Manager should be in operate state") else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
@@ -337,7 +337,7 @@ impl State for Home
                 };
             };
 
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
+            let imu::imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
                 .expect("IMU manager should be in Operate state") else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
@@ -438,7 +438,7 @@ impl State for Policy
                 };
             };
 
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
+            let imu::imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
                 .expect("IMU manager should be in Operate state") else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
@@ -465,7 +465,7 @@ impl State for Policy
             }
 
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
-            let inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
+            let inference::inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
                 .expect("Model Manager should be in operate state") else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {

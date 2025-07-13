@@ -9,6 +9,8 @@ anyhow = { workspace = true }
 log = { workspace = true }
 futures = { workspace = true }
 pin-project = { workspace = true }
+paste = { workspace = true }
+futures-enum = { workspace = true }
 
 # Internal workspace dependencies
 actuators = { path = "../hardware/actuators" }

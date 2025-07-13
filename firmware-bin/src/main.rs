@@ -107,7 +107,7 @@ async fn driver2() -> std::io::Result<()> {
 
     // let mut act_manager_store = actuator_manager::Store::new(&mut act_stores);
     // let mut act_manager = actuator_manager::ActuatorManager::new();
-    let mut behavior_manager = behavior::BehaviorManager::new();
+    let mut behavior_manager = behavior::behavior::BehaviorManager::new();
     // let mut pinned = unsafe { Pin::new_unchecked(&mut act_manager) };
     let mut pinned = unsafe { Pin::new_unchecked(&mut behavior_manager) };
     

@@ -13,6 +13,8 @@ anyhow = { workspace = true }
 log = { workspace = true }
 env_logger = { workspace = true }
 clap = { workspace = true }
+futures = { workspace = true }
+chrono = { workspace = true }
 
 # Internal workspace dependencies
 actuators = { path = "../hardware/actuators" }
