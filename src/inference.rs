@@ -46,7 +46,7 @@ impl PolicyStepDescriptor {
             let name = input.name.clone();
             let length = *input.input_type.tensor_shape().unwrap().first().unwrap() as usize;
 
-            let model_input_type = ModelInputType::try_from(name)?;
+            let model_input_type = ModelInputType::try_from(input)?;
 
             match model_input_type {
                 ModelInputType::DataType(data_type) => {
@@ -73,13 +73,13 @@ impl PolicyStepDescriptor {
                         DataType::Gyroscope => {
                             ret.gyro = Some(vec![0.0; 3]);
                         }
-                        DataType::Command => {
-                            ret.command = Some(vec![0.0; length]);
-                        }
                         DataType::Time => {
                             ret.t_us = Some(0);
                         }
                     }
+                }
+                ModelInputType::Command(_) => {
+                    ret.command = Some(vec![0.0; length]);
                 }
                 ModelInputType::Carry => {
                     // carry is not a data type, so we skip it
@@ -178,16 +178,16 @@ impl PolicyStepDescriptor {
                             *d = *s;
                         });
                     }
-                    DataType::Command => {
-                        let dst = self.command.as_mut().unwrap();
-                        dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                            *d = *s;
-                        });
-                    }
                     DataType::Time => {
                         self.t_us = Some(src[0] as u64);
                     }
                 }
+            }
+            ModelInputType::Command(_) => {
+                let dst = self.command.as_mut().unwrap();
+                dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
+                    *d = *s;
+                });
             }
             ModelInputType::Carry => {
                 // carry is not a data type, so we skip it
@@ -240,7 +240,7 @@ impl TryFrom<&ort::session::Input> for DataType {
 }
 
 #[derive(Debug)]
-enum ModelInputType {
+pub enum ModelInputType {
     DataType(DataType),
     Command(CommandType),
     Carry,
@@ -558,7 +558,7 @@ impl Store {
             cmd_idx_to_actuator_id,
             actuator_id_to_cmd_idx,
             step_description,
-            kb_manager: crate::keyboard::KeyboardManager::new()?,
+            kb_manager: crate::keyboard::KeyboardManager::new(),
         })
     }
 }
