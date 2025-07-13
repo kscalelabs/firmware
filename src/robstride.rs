@@ -1,4 +1,5 @@
 use crate::socketcan::CAN_MAX_DLEN;
+use tracing::{debug, warn};
 
 use crate::socketcan::CanFrame;
 
@@ -329,7 +330,7 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
         0x00 => bytemuck::must_cast::<crate::socketcan::CanFrame, ObtainIdResponse>(*frame).actuator_can_id as u8,
         0x02 => bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame).actuator_can_id as u8,
         _ => {
-            log::warn!("Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F", mux);
+            warn!("Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F", mux);
             0x7F // Return a default value if the mux is unknown
         }
     }
@@ -461,7 +462,7 @@ impl ActuatorCanClient {
         // convert can frame into ActuatorResponse
         match (*response).into() {
             ActuatorResponse::ObtainId(resp) => {
-                log::debug!("Received ObtainId response: {:?}", resp);
+                debug!("Received ObtainId response: {:?}", resp);
                 if resp.actuator_can_id as u8 != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -472,7 +473,7 @@ impl ActuatorCanClient {
                 Ok(None)
             }
             ActuatorResponse::Feedback(resp) => {
-                log::debug!("Received Feedback response: {:?}", resp);
+                debug!("Received Feedback response: {:?}", resp);
                 if resp.actuator_can_id != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,

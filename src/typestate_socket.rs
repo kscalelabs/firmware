@@ -1,5 +1,6 @@
 use std::io;
 use std::marker::PhantomData;
+use tracing::{debug, error, info, warn};
 use std::time::Duration;
 use tokio::time::timeout;
 use tokio::io::unix::AsyncFd;
@@ -68,7 +69,7 @@ impl AsyncRead for ByteStreamFd {
             }
             // Would block — try again later
             Err(_would_block) => {
-                println!("Would block");
+                debug!("Would block");
                 Poll::Pending
             }
             Ok(Err(e)) => {
@@ -187,7 +188,7 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
 
         socket.set_nonblocking(true)?;
 
-        println!("Socket created: {:?}", socket);
+        info!("Socket created: {:?}", socket);
         let sockaddr = Handler::sockaddr(ifname);
         socket.bind(&sockaddr)?;
         Ok(SocketPort { 
@@ -208,10 +209,10 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
                 Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Socket read returned 0 bytes"))
             },
             Ok(n) => {
-                println!("Socket read {} bytes", n);
+                debug!("Socket read {} bytes", n);
                 // verify the read bytes
                 if let Err(e) = Handler::verify_read(&buf[..n]) {
-                    eprintln!("Socket read verification failed: {}", e);
+                    warn!("Socket read verification failed: {}", e);
                     return Err(e);
                 }
                 Ok(SocketPort {
@@ -221,7 +222,7 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
                 })
             },
             Err(e) => {
-                eprintln!("Socket read failed: {}", e);
+                error!("Socket read failed: {}", e);
                 Err(e)
             }
         }
@@ -272,7 +273,7 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
 
         socket.set_nonblocking(true)?;
 
-        println!("Socket created: {:?}", socket);
+        info!("Socket created: {:?}", socket);
         let sockaddr = Handler::sockaddr(ifname);
         socket.bind(&sockaddr)?;
         Ok(SocketPort { 
@@ -294,7 +295,7 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
             },
             Ok(n) => {
                 // verify the read bytes
-                println!("Socket read {} bytes", n);
+                debug!("Socket read {} bytes", n);
                 // if let Err(e) = Handler::verify_read(&buf[..n]) {
                 //     eprintln!("Socket read verification failed: {}", e);
                 //     return Err(e);
@@ -302,7 +303,7 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
                 Ok(n)
             },
             Err(e) => {
-                eprintln!("Socket read failed: {}", e);
+                error!("Socket read failed: {}", e);
                 Err(e)
             }
         }
@@ -321,7 +322,7 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
                 Ok(n)
             },
             Err(e) => {
-                eprintln!("Socket write failed: {}", e);
+                error!("Socket write failed: {}", e);
                 Err(e)
             }
         }

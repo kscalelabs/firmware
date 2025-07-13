@@ -1,17 +1,6 @@
 #![feature(type_alias_impl_trait)]
 #![allow(unused)]
 
-// use std::os::unix::io::AsRawFd;
-// use tokio::io::{AsyncReadExt, Interest};
-// use tokio::io::unix::AsyncFd;
-// use tokio_serial::{SerialPortBuilderExt, SerialStream, SerialPort};
-// use tokio::net::{TcpListener, TcpStream};
-// use std::io::Result as IoResult;
-// use std::time::Duration;
-// use tokio::time::sleep;
-// use std::pin::Pin;
-// use std::io::ErrorKind;
-
 pub mod typestate_serial;
 pub mod hiwonder;
 
@@ -45,6 +34,7 @@ use futures::stream::Stream;
 use futures::stream::StreamExt;
 
 use tracing_subscriber::{layer::SubscriberExt, fmt, Layer, EnvFilter};
+use tracing::{info, debug, error, warn, trace, Level, Metadata};
 use telemetry::{
     telemetry::start_pipeline,
     forwarder::{EventRecord, HeaplessForwardLayer},
@@ -88,29 +78,24 @@ async fn driver() -> std::io::Result<()> {
 
         match res {
             Ok(Some(Ok(tag))) => {
-                log::debug!("returned Some: {:?}", tag);
+                debug!("returned Some: {:?}", tag);
             }
             Ok(Some(Err(e))) => {
-                log::error!("returned Err: {:?}", e);
+                error!("returned Err: {:?}", e);
                 break;
             }
             Ok(None) => {
-                log::error!("returned None, continuing...");
+                error!("returned None, continuing...");
             }
             Err(_) => {
-                log::debug!("timed out, continuing...");
+                debug!("timed out, continuing...");
             }
         }
     }
 
-    log::info!("finished looping, dropping ActuatorBus");
+    info!("finished looping, dropping ActuatorBus");
     Ok(())
 }
-
-use std::io::Write;
-use log::Level;
-use chrono::Local;
-use log::LevelFilter;
 
 fn main() {
     // Setup telemetry before we do anything else

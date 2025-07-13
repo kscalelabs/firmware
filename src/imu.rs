@@ -1,5 +1,6 @@
 use std::pin::Pin;
 use std::task::ready;
+use tracing::{debug, error, info, warn};
 use pin_project::pin_project;
 
 use crate::behavior::wait_for_enter;
@@ -92,14 +93,14 @@ impl Scanning {
         match to.await {
             Ok(Ok(_n)) => {
                 // print in hex
-                log::debug!("Read {:?} from IMU", buf128.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>());
+                debug!("Read {:?} from IMU", buf128.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>());
             },
             Ok(Err(e)) => {
-                log::warn!("Error reading IMU data: {:?}", e);
+                warn!("Error reading IMU data: {:?}", e);
                 return Err(e);
             },
             Err(e) => {
-                log::warn!("Timed out reading from serial port: {:?}", e);
+                warn!("Timed out reading from serial port: {:?}", e);
                 return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Timed out reading from serial port"));
             }
         }
@@ -149,7 +150,7 @@ impl State for Scanning
             };
 
             if let Err(e) = Self::verify_imu(op_port).await {
-                    log::warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
+                    warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
                     *ss.cur_idx += 1;
                     let unpinned = unsafe { Pin::get_unchecked_mut(ss.port.as_mut()) };
                     unpinned.reset_baud(ss.bauds[*ss.cur_idx]);
@@ -163,10 +164,10 @@ impl State for Scanning
 
             match HiwonderImu::setup(op_port).await {
                 Ok(_) => {
-                    log::info!("Successfully setup IMU at baud: {:?}", ss.bauds[*ss.cur_idx]);
+                    info!("Successfully setup IMU at baud: {:?}", ss.bauds[*ss.cur_idx]);
                 },
                 Err(e) => {
-                    log::warn!("Error setting up IMU: {:?} at baud: {:?}", e, ss.bauds[*ss.cur_idx]);
+                    warn!("Error setting up IMU: {:?} at baud: {:?}", e, ss.bauds[*ss.cur_idx]);
                     return StateTransitionResult {
                         state: StateStore::Reset(Reset {
                             shared_state: self.shared_state,
@@ -177,7 +178,7 @@ impl State for Scanning
             }
 
             if let Err(e) = Self::verify_imu(op_port).await {
-                    log::warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
+                    warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
                     return StateTransitionResult {
                         state: StateStore::Reset(Reset {
                             shared_state: self.shared_state,
@@ -285,7 +286,7 @@ impl Stream for ImuManager {
                 let tag = st.tag();
                 *this.state = Some(st); // Update the state
                 if let Err(e) = result {
-                    log::error!("State transition failed: {:?}", e);
+                    error!("State transition failed: {:?}", e);
                     return Poll::Ready(Some(Err(e)));
                 }
                 return Poll::Ready(Some(Ok(tag)));
