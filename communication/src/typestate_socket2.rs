@@ -174,6 +174,10 @@ where
             // ),
         }
     }
+    
+    pub fn state(self: Pin<& mut Self>) -> Option<&mut SocketState<C, O>> {
+        self.project().state.as_mut()
+    }
 
     pub fn pub_project(self: Pin<&mut Self>) -> SocketGraphProj<'_, C, O> {
         self.project()

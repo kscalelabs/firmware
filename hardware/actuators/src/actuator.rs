@@ -193,7 +193,8 @@ impl State for Operate
 
 async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std::io::Result<()> {
     let mut ss = ss.project();
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.state() else {
+    // let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -223,7 +224,7 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
 
 async fn send_request(ss: Pin<&mut Store> , params: &ActuatorRequestParams) -> std::io::Result<()> {
     let mut ss = ss.project();
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.state() else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
@@ -255,7 +256,7 @@ async fn read_responses(ss: Pin<&mut Store>) -> std::io::Result<()> {
 async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut [ActuatorState]>) -> std::io::Result<()> {
     let mut ss = ss.project();
 
-    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.pub_project().state else {
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.state() else {
         // no operational socket, go back to configure state
         return Err(std::io::Error::new(
             std::io::ErrorKind::Other,
