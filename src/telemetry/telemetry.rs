@@ -36,6 +36,8 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         .custom_flags(libc::O_DIRECT) // Use O_DIRECT for zero-copy
         .open(log_path)?;
 
+    let udp = UdpSocket::bind("0.0.0.0:0")?;
+    udp.connect("10.33.10.122:5656")?;
     /**
     * Examples of additional file descriptors
     * let udp = UdpSocket::bind("0.0.0.0:0")?;
@@ -52,6 +54,7 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         // Create array of output file descriptors
         let output_fds = vec![
             OwnedFd::from(file),
+            OwnedFd::from(udp),
         ];
 
         let mut last_flush = Instant::now();
