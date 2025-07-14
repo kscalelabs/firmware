@@ -28,7 +28,7 @@ use crate::inference::{
     ModelManager,
 };
 
-crate::state_machine!(Reset, Ready, Home, Policy);
+crate::state_machine!(Reset, Ready, Calibrate, Home, Policy);
 
 impl std::fmt::Debug for Store {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -76,6 +76,11 @@ struct Reset {
 
 #[derive(Debug)]
 struct Ready {
+    shared_state: Pin<Box<Store>>,
+}
+
+#[derive(Debug)]
+struct Calibrate {
     shared_state: Pin<Box<Store>>,
 }
 
@@ -278,6 +283,21 @@ impl State for Ready
             ss.kb_manager.wait_for_enter().await;
 
             rdy_act_manager.enable().await;
+            return StateTransitionResult {
+                state: StateStore::Calibrate(Calibrate {
+                    shared_state,
+                }),
+                result: Ok(()),
+            };
+        }
+    }
+}
+
+impl State for Calibrate
+{
+    fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
+        async move {
+            let mut shared_state = self.shared_state;
             return StateTransitionResult {
                 state: StateStore::Home(Home::new(shared_state)),
                 result: Ok(()),
