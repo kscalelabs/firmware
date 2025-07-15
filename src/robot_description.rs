@@ -5,6 +5,7 @@ use heapless::Deque;
 use crossterm::event::KeyEvent;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
+    /*
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
     // rem_euclid gives a value in [0, 2π)
     qpos = qpos.rem_euclid(TWO_PI);
@@ -12,6 +13,7 @@ pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     if qpos > std::f64::consts::PI {
         qpos -= TWO_PI;
     }
+    */
     qpos
 }
 
