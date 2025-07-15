@@ -28,6 +28,8 @@ use crate::inference::{
     ModelManager,
 };
 
+use crate::robstride_utils::RobstrideActuatorParam;
+
 crate::state_machine!(Reset, Ready, Calibrate, Home, Policy);
 
 impl std::fmt::Debug for Store {
@@ -134,6 +136,47 @@ impl Home {
             act_state.command.kd = home_position[act_id].kd; // derivative gain
         }
         ret
+    }
+}
+
+impl Calibrate {
+    pub fn new(shared_state: Pin<Box<Store>>) -> Self {
+        Self { 
+            shared_state , 
+        }
+    }
+
+    // returns max error
+    pub fn step_controller(robot_desc: &mut RobotDescription) {
+        let (actuators, calibrate_commands) = (
+            &mut robot_desc.actuators,
+            &mut robot_desc.calibrate_command
+        );
+
+        let mut ret = 0.0f64;
+        for (act_id, act_state) in actuators.actuator_states.iter_mut() {
+            // feedback could be anywhere between [-4PI, 4PI]
+            // home position is in [-PI, PI]
+            // first we must normalize the feedback into [-PI, PI]
+            let mut normalized_feedback = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
+
+            let err = calibrate_commands[act_id].qpos - normalized_feedback;
+
+            warn!("Actuator {:?} feedback: {}, home position: {}, error: {}",
+                act_id, normalized_feedback, calibrate_commands[act_id].qpos, err);
+            // NOTE: these are currently not homed
+            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
+                ret = ret.max(err.abs());
+            }
+            // proportional control with clamping
+            let step = (err).clamp(-4.0f64.to_radians(), 4.0f64.to_radians());
+            // log::warn!("Actuator {:?} error: {}, step: {}", act_id, err, step);
+            act_state.command.qpos = 0.0;
+            act_state.command.qvel = calibrate_commands[act_id].qvel; // no velocity
+            act_state.command.qfrc = 0.0; // no force
+            act_state.command.kp = 0.0; // proportional gain
+            act_state.command.kd = calibrate_commands[act_id].kd; // derivative gain
+        }
     }
 }
 
@@ -295,15 +338,98 @@ impl State for Ready
 
 impl State for Calibrate
 {
-    fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
+    fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
-            let mut shared_state = self.shared_state;
+            let mut shared_state = &mut self.shared_state;
+            let mut ss = shared_state.as_mut().project();
+
+            // move the actuator manager to the operate state
+            let target = actuator_manager::StateTag::Operate;
+            ss.actuator_manager.as_mut().set_target_pinned(target);
+            loop {
+                match ss.actuator_manager.try_next().await {
+                    Ok(Some(actuator_manager::StateTag::Operate)) => break,
+                    Ok(_) => continue,
+                    Ok(None) => return StateTransitionResult { 
+                        state: StateStore::Reset(Reset {
+                            shared_state: self.shared_state,
+                        }),
+                        result: Err(io::Error::new(io::ErrorKind::UnexpectedEof, 
+                            "Actuator manager stream ended unexpectedly")),
+                    },
+                    Err(e) => {
+                        return StateTransitionResult { 
+                            state: StateStore::Reset(Reset {
+                                shared_state: self.shared_state,
+                            }),
+                            result: Err(e),
+                        };
+                    }
+                }
+            }
+
+            let actuator_manager::StateStore::Operate(op_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()
+                .expect("Actuator manager should be in Operate state") else {
+                return StateTransitionResult {
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
+                    result: Err(io::Error::new(io::ErrorKind::Other, "Actuator manager is not in Operate state")),
+                };
+            };
+
+            // request initial feedback to seed the state
+            if let Err(e) = op_act_manager.request_param(RobstrideActuatorParam::Iqf).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
+            // and wait for responses
+            let act_states = ss.robot_description.actuator_states_mut();
+            if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
+            for (act_id, act_state) in act_states.actuator_states.iter() {
+                info!("Actuator {:?} current: {}", act_id, act_state.feedback.amps);
+            }
+
+
+            // run controller
+            // Self::step_controller(&mut ss.robot_description);
+
+            // // send commands
+            // let act_states = &mut ss.robot_description.actuators;
+            // if let Err(e) = op_act_manager.send_command(act_states).await {
+            //     return StateTransitionResult {
+            //         state: StateStore::Home(Home::new(self.shared_state)),
+            //         result: Err(e),
+            //     };
+            // }
+
             return StateTransitionResult {
-                state: StateStore::Home(Home::new(shared_state)),
+                state: StateStore::Calibrate(Calibrate {
+                    shared_state: self.shared_state,
+                }),
                 result: Ok(()),
             }
         }
     }
+
+    // fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
+    //     async move {
+    //         let mut shared_state = self.shared_state;
+    //         return StateTransitionResult {
+    //             state: StateStore::Home(Home::new(shared_state)),
+    //             result: Ok(()),
+    //         }
+    //     }
+    // }
 }
 
 impl State for Home

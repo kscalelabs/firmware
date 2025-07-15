@@ -5,13 +5,6 @@ use heapless::Deque;
 use crossterm::event::KeyEvent;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
-    const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
-    // rem_euclid gives a value in [0, 2π)
-    qpos = qpos.rem_euclid(TWO_PI);
-    // shift to (−π, π]
-    if qpos > std::f64::consts::PI {
-        qpos -= TWO_PI;
-    }
     qpos
 }
 
@@ -24,6 +17,7 @@ pub struct ActuatorFeedback {
     pub kd:     f64, // Velocity gain
     pub temp:   f64, // Temperature
     pub faults: u32, // Faults
+    pub amps:   f64, // Current in Amperes
 }
 
 impl ActuatorFeedback {
@@ -49,6 +43,9 @@ impl ActuatorFeedback {
         if let Some(faults) = update.faults {
             self.faults = faults;
         }
+        if let Some(amps) = update.amps {
+            self.amps = amps;
+        }
     }
 }
 
@@ -60,6 +57,7 @@ pub struct ActuatorFeedbackUpdate {
     pub kd:     Option<f64>,
     pub temp:   Option<f64>,
     pub faults: Option<u32>,
+    pub amps:   Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -322,6 +320,7 @@ pub struct RobotDescription {
     pub kb_pending_events: Deque<KeyEvent, 16>,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
+    pub calibrate_command: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
     pub kp_scale: f64,
     pub kd_scale: f64,
@@ -389,6 +388,32 @@ impl RobotDescription {
                 ActuatorId::Rhy => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
                 ActuatorId::Rkp => ActuatorCommand { qpos: (-50.0_f64).to_radians(), kp: 150.0, kd: 8.654, ..Default::default() },
                 ActuatorId::Rap => ActuatorCommand { qpos: (30.0_f64).to_radians(), kp: 40.0, kd: 0.99, ..Default::default() },
+            },
+
+            calibrate_command: enum_map! {
+                ActuatorId::Lsp => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
+                ActuatorId::Lsr => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.257, ..Default::default() },
+                ActuatorId::Lsy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.945, ..Default::default() },
+                ActuatorId::Lep => ActuatorCommand { qvel: 0.0, kp: 80.0, kd: 2.266, ..Default::default() },
+                ActuatorId::Lwr => ActuatorCommand { qvel: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+
+                ActuatorId::Rsp => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
+                ActuatorId::Rsr => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.257, ..Default::default() },
+                ActuatorId::Rsy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.945, ..Default::default() },
+                ActuatorId::Rep => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.266, ..Default::default() },
+                ActuatorId::Rwr => ActuatorCommand { qvel: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+
+                ActuatorId::Lhp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 24.722, ..Default::default() },
+                ActuatorId::Lhr => ActuatorCommand { qvel: 0.0, kp: 200.0, kd: 26.387, ..Default::default() },
+                ActuatorId::Lhy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
+                ActuatorId::Lkp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 8.654, ..Default::default() },
+                ActuatorId::Lap => ActuatorCommand { qvel: 0.0, kp: 40.0, kd: 0.99, ..Default::default() },
+
+                ActuatorId::Rhp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 24.722, ..Default::default() },
+                ActuatorId::Rhr => ActuatorCommand { qvel: 0.0, kp: 200.0, kd: 26.387, ..Default::default() },
+                ActuatorId::Rhy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
+                ActuatorId::Rkp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 8.654, ..Default::default() },
+                ActuatorId::Rap => ActuatorCommand { qvel: 0.0, kp: 40.0, kd: 0.99, ..Default::default() },
             },
         }
     }
