@@ -404,6 +404,8 @@ impl State for Calibrate
                 };
             }
 
+            // check which ids are within zero range
+
             let id = ActuatorId::Lkp;
             info!("Actuator {:?} qvel: {}", id, act_states.actuator_states[id].feedback.qvel);
             let id = ActuatorId::Rkp;

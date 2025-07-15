@@ -146,19 +146,10 @@ impl BusTag {
             ],
         }
     }
-
-    pub fn containing_bus(actuator_id: ActuatorId) -> Self {
-        match actuator_id {
-            ActuatorId::Lsp | ActuatorId::Lsr | ActuatorId::Lsy | ActuatorId::Lep | ActuatorId::Lwr => BusTag::LeftArm,
-            ActuatorId::Rsp | ActuatorId::Rsr | ActuatorId::Rsy | ActuatorId::Rep | ActuatorId::Rwr => BusTag::RightArm,
-            ActuatorId::Lhp | ActuatorId::Lhr | ActuatorId::Lhy | ActuatorId::Lkp | ActuatorId::Lap => BusTag::LeftLeg,
-            ActuatorId::Rhp | ActuatorId::Rhr | ActuatorId::Rhy | ActuatorId::Rkp | ActuatorId::Rap => BusTag::RightLeg,
-        }
-    }
 }
 
 #[repr(usize)]
-#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActuatorId {
     Lsp,
     Lsr,
@@ -188,6 +179,15 @@ pub enum ActuatorId {
 impl ActuatorId {
     pub fn flattened_idx(&self) -> usize {
         *self as usize
+    }
+
+    pub fn bus_tag(&self) -> BusTag {
+        match self {
+            ActuatorId::Lsp | ActuatorId::Lsr | ActuatorId::Lsy | ActuatorId::Lep | ActuatorId::Lwr => BusTag::LeftArm,
+            ActuatorId::Rsp | ActuatorId::Rsr | ActuatorId::Rsy | ActuatorId::Rep | ActuatorId::Rwr => BusTag::RightArm,
+            ActuatorId::Lhp | ActuatorId::Lhr | ActuatorId::Lhy | ActuatorId::Lkp | ActuatorId::Lap => BusTag::LeftLeg,
+            ActuatorId::Rhp | ActuatorId::Rhr | ActuatorId::Rhy | ActuatorId::Rkp | ActuatorId::Rap => BusTag::RightLeg,
+        }
     }
 }
 

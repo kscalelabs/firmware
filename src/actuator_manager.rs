@@ -414,19 +414,18 @@ impl Operate {
         Ok(())
     }
 
-    pub async fn set_mechanical_zero(&mut self, id: ActuatorId) -> std::io::Result<()> {
+    pub async fn set_mechanical_zero(&mut self, actuator_id: ActuatorId) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
-            // all buses should be operational
-            if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
-                // enable the bus
-                op_bus.request_param(param).await?;
-            } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
-            }
-        };
+
+        let wrapper = &mut wrappers[actuator_id.bus_tag()];
+        if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
+            // enable the bus
+            op_bus.set_mechanical_zero(actuator_id).await?;
+        } else {
+            return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+        }
         Ok(())
     }
 

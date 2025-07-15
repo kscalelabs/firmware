@@ -34,6 +34,7 @@ impl From<ActuatorRequest> for crate::socketcan::CanFrame
             ActuatorRequest::ReadParam(req) => req.into(),
             ActuatorRequest::MotorEnable(req) => req.into(),
             ActuatorRequest::Feedback(req) => req.into(),
+            ActuatorRequest::SetMechanicalZero(req) => req.into(),
         }
     }
 }
@@ -73,6 +74,7 @@ pub trait RobstrideActuatorFrame {}
 impl RobstrideActuatorFrame for ObtainIdRequest {}
 impl RobstrideActuatorFrame for ObtainIdResponse {}
 impl RobstrideActuatorFrame for ControlCommandRequest {}
+impl RobstrideActuatorFrame for SetMechanicalZeroRequest {}
 impl RobstrideActuatorFrame for FeedbackRequest {}
 impl RobstrideActuatorFrame for FeedbackResponse {}
 impl RobstrideActuatorFrame for ReadParamRequest {}
@@ -329,6 +331,7 @@ pub enum ActuatorRequest {
     ObtainId(ObtainIdRequest),
     Control(ControlCommandRequest),
     ReadParam(ReadParamRequest),
+    SetMechanicalZero(SetMechanicalZeroRequest),
     MotorEnable(MotorEnableRequest),
     Feedback(FeedbackRequest),
 }
@@ -338,6 +341,7 @@ pub enum ActuatorRequestParams {
     ObtainId,
     ReadParam(RobstrideActuatorParam),
     MotorEnable,
+    SetMechanicalZero,
     Control(ActuatorCommand),
     Feedback,
 }
@@ -351,6 +355,7 @@ impl ActuatorRequest {
             Self::ReadParam(_) => 0x11, // read param mux
             Self::MotorEnable(_) => 0x02, // feedback mux
             Self::Feedback(_) => 0x02, // feedback mux
+            Self::SetMechanicalZero(_) => 0x06, // feedback mux
             
         }
     }
@@ -408,6 +413,8 @@ enum ActuatorClientState {
     AwaitingDataRequest,
     AwaitingDataResponse,
 
+    AwaitingSetMechanicalZeroRequest,
+
     AwaitingFeedbackRequest,
     AwaitingFeedbackResponse,
 
@@ -450,6 +457,7 @@ impl ActuatorCanClient {
             ActuatorRequestParams::ObtainId => ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::ReadParam(param) => ActuatorRequest::ReadParam(ReadParamRequest::new(self.host_id, self.actuator_can_id, *param as u16)),
             ActuatorRequestParams::MotorEnable => ActuatorRequest::MotorEnable(MotorEnableRequest::new(self.host_id, self.actuator_can_id)),
+            ActuatorRequestParams::SetMechanicalZero => ActuatorRequest::SetMechanicalZero(SetMechanicalZeroRequest::new(self.host_id as u8, self.actuator_can_id)),
             ActuatorRequestParams::Feedback => ActuatorRequest::Feedback(FeedbackRequest::new(self.host_id, self.actuator_can_id)),
             ActuatorRequestParams::Control(cmd) => ActuatorRequest::Control(ControlCommandRequest::new(
                 self.actuator_can_id,
@@ -470,6 +478,7 @@ impl ActuatorCanClient {
             ActuatorRequestParams::MotorEnable => ActuatorClientState::AwaitingMotorEnableRequest,
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
+            ActuatorRequestParams::SetMechanicalZero => ActuatorClientState::AwaitingSetMechanicalZeroRequest,
         };
         self.build_request(params).into()
     }
@@ -480,11 +489,12 @@ impl ActuatorCanClient {
         let req = transaction.into(); 
 
         self.state = match req {
-            ActuatorRequest::ObtainId(_) => ActuatorClientState::AwaitingIdRequest,
-            ActuatorRequest::Control(_) => ActuatorClientState::AwaitingDataRequest,
-            ActuatorRequest::ReadParam(_) => ActuatorClientState::AwaitingReadParamRequest,
-            ActuatorRequest::MotorEnable(_) => ActuatorClientState::AwaitingMotorEnableRequest,
-            ActuatorRequest::Feedback(_) => ActuatorClientState::AwaitingFeedbackRequest,
+            ActuatorRequest::ObtainId(_) => ActuatorClientState::AwaitingIdResponse,
+            ActuatorRequest::Control(_) => ActuatorClientState::AwaitingFeedbackResponse,
+            ActuatorRequest::ReadParam(_) => ActuatorClientState::AwaitingReadParamResponse,
+            ActuatorRequest::MotorEnable(_) => ActuatorClientState::AwaitingFeedbackResponse,
+            ActuatorRequest::Feedback(_) => ActuatorClientState::AwaitingFeedbackResponse,
+            ActuatorRequest::SetMechanicalZero(_) => ActuatorClientState::AwaitingFeedbackResponse,
         };
 
         self.last_request = Some(req);

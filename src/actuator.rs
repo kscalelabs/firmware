@@ -92,6 +92,14 @@ impl Operate {
         // read_responses(self.shared_state.as_mut()).await
     }
 
+    pub async fn set_mechanical_zero(&mut self, actuator_id: ActuatorId) -> std::io::Result<()> {
+        send_one_request(
+            self.shared_state.as_mut(),
+            actuator_id,
+            &ActuatorRequestParams::SetMechanicalZero,
+        ).await
+    }
+
     pub async fn process_feedback(&mut self, act_states: &mut [ActuatorState]) -> std::io::Result<()> {
         // read_responses(self.shared_state.as_mut()).await
         read_responses_update(self.shared_state.as_mut(), Some(act_states)).await
@@ -229,6 +237,35 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
     Ok(())
 }
 
+async fn send_one_request(ss: Pin<&mut Store>, actuator_id: ActuatorId, params: &ActuatorRequestParams) -> std::io::Result<()> {
+    let mut ss = ss.project();
+    let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
+        // no operational socket, go back to configure state
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Socket is not in Operate state",
+        ));
+    };
+
+    let client: &mut ActuatorCanClient = &mut ss.actuator_clients[*ss.actuator_id_to_client_idx.get(&actuator_id)
+        .ok_or_else(|| std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("No client found for actuator id {:?}", actuator_id),
+        ))?];
+
+    let req = client.stage_request(params);
+    let res = op_socket.write(&req.into()).await;
+    match res {
+        Ok(_) => {
+            client.set_last_request(req);
+        }
+        Err(e) => {
+            return Err(e);
+        }
+    }
+    Ok(())
+}
+
 async fn send_request(ss: Pin<&mut Store> , params: &ActuatorRequestParams) -> std::io::Result<()> {
     let mut ss = ss.project();
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
@@ -344,18 +381,26 @@ async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut 
     Ok(())
 }
 
+use heapless::LinearMap;
 #[derive(Debug)]
 #[pin_project]
 struct Store {
     ifname: String,
     actuator_clients: Vec<ActuatorCanClient>,
     response_to_client_idx: fn(&CanFrame) -> usize, // map canframe to client index
+    actuator_id_to_client_idx: LinearMap<ActuatorId, usize, 5>,
     #[pin]
     socket_graph: SocketGraph<SocketCanConfigurator, SocketCanOperator>,
 }
 
 impl Store {
     pub fn new(ifname: &str, ids: Vec<ActuatorId>) -> Self {
+
+        // create a linear map from actuator id to client index
+        let mut actuator_id_to_client_idx = LinearMap::new();
+        for (i, id) in ids.iter().enumerate() {
+            actuator_id_to_client_idx.insert(*id, i).expect("Failed to insert actuator id into linear map");
+        }
         Self {
             ifname: ifname.to_string(),
             actuator_clients: ids.into_iter().map(|id| {
@@ -365,6 +410,7 @@ impl Store {
                 let id = actuator_can_id_from_response(frame);
                 ((id % 10) - 1) as usize
             },
+            actuator_id_to_client_idx,
             socket_graph: SocketGraph::new(ifname),
         }
     }
