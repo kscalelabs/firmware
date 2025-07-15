@@ -153,24 +153,7 @@ impl Calibrate {
             &mut robot_desc.calibrate_command
         );
 
-        let mut ret = 0.0f64;
         for (act_id, act_state) in actuators.actuator_states.iter_mut() {
-            // feedback could be anywhere between [-4PI, 4PI]
-            // home position is in [-PI, PI]
-            // first we must normalize the feedback into [-PI, PI]
-            let mut normalized_feedback = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
-
-            let err = calibrate_commands[act_id].qpos - normalized_feedback;
-
-            warn!("Actuator {:?} feedback: {}, home position: {}, error: {}",
-                act_id, normalized_feedback, calibrate_commands[act_id].qpos, err);
-            // NOTE: these are currently not homed
-            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
-                ret = ret.max(err.abs());
-            }
-            // proportional control with clamping
-            let step = (err).clamp(-4.0f64.to_radians(), 4.0f64.to_radians());
-            // log::warn!("Actuator {:?} error: {}, step: {}", act_id, err, step);
             act_state.command.qpos = 0.0;
             act_state.command.qvel = calibrate_commands[act_id].qvel; // no velocity
             act_state.command.qfrc = 0.0; // no force
@@ -395,22 +378,36 @@ impl State for Calibrate
                 };
             }
 
-            for (act_id, act_state) in act_states.actuator_states.iter() {
-                info!("Actuator {:?} current: {}", act_id, act_state.feedback.amps);
-            }
-
+            // for (act_id, act_state) in act_states.actuator_states.iter() {
+            //     info!("Actuator {:?} current: {}", act_id, act_state.feedback.amps);
+            // }
+            let id = ActuatorId::Lkp;
+            info!("Actuator {:?} current: {}", id, act_states.actuator_states[id].feedback.amps);
+            let id = ActuatorId::Rkp;
+            info!("Actuator {:?} current: {}", id, act_states.actuator_states[id].feedback.amps);
 
             // run controller
-            // Self::step_controller(&mut ss.robot_description);
+            Self::step_controller(&mut ss.robot_description);
 
             // // send commands
-            // let act_states = &mut ss.robot_description.actuators;
-            // if let Err(e) = op_act_manager.send_command(act_states).await {
-            //     return StateTransitionResult {
-            //         state: StateStore::Home(Home::new(self.shared_state)),
-            //         result: Err(e),
-            //     };
-            // }
+            let act_states = &mut ss.robot_description.actuators;
+            if let Err(e) = op_act_manager.send_command(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+            if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
+            let id = ActuatorId::Lkp;
+            info!("Actuator {:?} qvel: {}", id, act_states.actuator_states[id].feedback.qvel);
+            let id = ActuatorId::Rkp;
+            info!("Actuator {:?} qvel: {}", id, act_states.actuator_states[id].feedback.qvel);
 
             return StateTransitionResult {
                 state: StateStore::Calibrate(Calibrate {

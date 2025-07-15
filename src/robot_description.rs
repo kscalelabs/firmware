@@ -60,6 +60,11 @@ pub struct ActuatorFeedbackUpdate {
     pub amps:   Option<f64>,
 }
 
+pub struct ActuatorHardstopThreshold {
+    pub qvel: f64, // Velocity threshold
+    pub amps: f64, // Current threshold
+}
+
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ActuatorCommand {
     pub qpos:   f64,
@@ -321,6 +326,7 @@ pub struct RobotDescription {
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub calibrate_command: EnumMap<ActuatorId, ActuatorCommand>,
+    pub hardstop_thres: EnumMap<ActuatorId, ActuatorHardstopThreshold>,
     pub policy_scale: f64,
     pub kp_scale: f64,
     pub kd_scale: f64,
@@ -391,30 +397,56 @@ impl RobotDescription {
             },
 
             calibrate_command: enum_map! {
-                ActuatorId::Lsp => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
-                ActuatorId::Lsr => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.257, ..Default::default() },
-                ActuatorId::Lsy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.945, ..Default::default() },
-                ActuatorId::Lep => ActuatorCommand { qvel: 0.0, kp: 80.0, kd: 2.266, ..Default::default() },
-                ActuatorId::Lwr => ActuatorCommand { qvel: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+                ActuatorId::Lsp => ActuatorCommand { qvel: 0.0,     kd: 8.284, ..Default::default() },
+                ActuatorId::Lsr => ActuatorCommand { qvel: 0.0,     kd: 8.257, ..Default::default() },
+                ActuatorId::Lsy => ActuatorCommand { qvel: 0.0,     kd: 2.945, ..Default::default() },
+                ActuatorId::Lep => ActuatorCommand { qvel: 0.0,     kd: 2.266, ..Default::default() },
+                ActuatorId::Lwr => ActuatorCommand { qvel: 0.0,     kd: 0.295, ..Default::default() },
 
-                ActuatorId::Rsp => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
-                ActuatorId::Rsr => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 8.257, ..Default::default() },
-                ActuatorId::Rsy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.945, ..Default::default() },
-                ActuatorId::Rep => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 2.266, ..Default::default() },
-                ActuatorId::Rwr => ActuatorCommand { qvel: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+                ActuatorId::Rsp => ActuatorCommand { qvel: 0.0,     kd: 8.284, ..Default::default() },
+                ActuatorId::Rsr => ActuatorCommand { qvel: 0.0,     kd: 8.257, ..Default::default() },
+                ActuatorId::Rsy => ActuatorCommand { qvel: 0.0,     kd: 2.945, ..Default::default() },
+                ActuatorId::Rep => ActuatorCommand { qvel: 0.0,     kd: 2.266, ..Default::default() },
+                ActuatorId::Rwr => ActuatorCommand { qvel: 0.0,     kd: 0.295, ..Default::default() },
 
-                ActuatorId::Lhp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 24.722, ..Default::default() },
-                ActuatorId::Lhr => ActuatorCommand { qvel: 0.0, kp: 200.0, kd: 26.387, ..Default::default() },
-                ActuatorId::Lhy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
-                ActuatorId::Lkp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 8.654, ..Default::default() },
-                ActuatorId::Lap => ActuatorCommand { qvel: 0.0, kp: 40.0, kd: 0.99, ..Default::default() },
+                ActuatorId::Lhp => ActuatorCommand { qvel: 0.0,     kd: 24.722, ..Default::default() },
+                ActuatorId::Lhr => ActuatorCommand { qvel: 0.0,     kd: 26.387, ..Default::default() },
+                ActuatorId::Lhy => ActuatorCommand { qvel: 0.0,     kd: 3.419, ..Default::default() },
+                ActuatorId::Lkp => ActuatorCommand { qvel: -0.2,    kd: 40.0, ..Default::default() },
+                ActuatorId::Lap => ActuatorCommand { qvel: 0.0,     kd: 0.99, ..Default::default() },
 
-                ActuatorId::Rhp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 24.722, ..Default::default() },
-                ActuatorId::Rhr => ActuatorCommand { qvel: 0.0, kp: 200.0, kd: 26.387, ..Default::default() },
-                ActuatorId::Rhy => ActuatorCommand { qvel: 0.0, kp: 100.0, kd: 3.419, ..Default::default() },
-                ActuatorId::Rkp => ActuatorCommand { qvel: 0.0, kp: 150.0, kd: 8.654, ..Default::default() },
-                ActuatorId::Rap => ActuatorCommand { qvel: 0.0, kp: 40.0, kd: 0.99, ..Default::default() },
+                ActuatorId::Rhp => ActuatorCommand { qvel: 0.0,     kd: 24.722, ..Default::default() },
+                ActuatorId::Rhr => ActuatorCommand { qvel: 0.0,     kd: 26.387, ..Default::default() },
+                ActuatorId::Rhy => ActuatorCommand { qvel: 0.0,     kd: 3.419, ..Default::default() },
+                ActuatorId::Rkp => ActuatorCommand { qvel: 0.2,     kd: 40.0, ..Default::default() },
+                ActuatorId::Rap => ActuatorCommand { qvel: 0.0,     kd: 0.99, ..Default::default() },
             },
+
+            hardstop_thres: enum_map! {
+                ActuatorId::Lsp => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lsr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lsy => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lep => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lwr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+
+                ActuatorId::Rsp => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rsr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rsy => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rep => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rwr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+
+                ActuatorId::Lhp => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lhr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lhy => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Lkp => ActuatorHardstopThreshold { qvel: 0.08, amps: 4.5 },
+                ActuatorId::Lap => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+
+                ActuatorId::Rhp => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rhr => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rhy => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+                ActuatorId::Rkp => ActuatorHardstopThreshold { qvel: 0.08, amps: 4.5 },
+                ActuatorId::Rap => ActuatorHardstopThreshold { qvel: 0.08, amps: 0.0 },
+            }
         }
     }
     pub fn actuator_states_mut(&mut self) -> &mut ActuatorStateStore {
