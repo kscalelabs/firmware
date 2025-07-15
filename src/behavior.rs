@@ -15,6 +15,7 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 
 use crate::inference::{self, ModelManager};
 
+use crate::robstride_utils::RobstrideActuatorParam;
 crate::state_machine!(Reset, Ready, Home, Policy);
 
 impl std::fmt::Debug for Store {

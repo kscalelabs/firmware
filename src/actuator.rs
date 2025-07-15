@@ -15,6 +15,8 @@ use crate::robstride::{
     ActuatorCanClient, ActuatorRequestParams, actuator_can_id_from_response, mux_from_can_frame,
 };
 
+use crate::robstride_utils::RobstrideActuatorParam;
+
 use crate::robot_description::{
     ActuatorCommand, ActuatorFeedback, ActuatorFeedbackUpdate, ActuatorId, ActuatorState, BusTag,
 };
@@ -62,6 +64,14 @@ impl Operate {
         // send_request(self.shared_state.as_mut(), ActuatorRequestParams::Feedback).await?;
         // read_responses(self.shared_state.as_mut()).await
         send_request(self.shared_state.as_mut(), &ActuatorRequestParams::Feedback).await
+    }
+
+    pub async fn request_param(&mut self, param: RobstrideActuatorParam) -> std::io::Result<()> {
+        send_request(
+            self.shared_state.as_mut(),
+            &ActuatorRequestParams::ReadParam(param),
+        )
+        .await
     }
 
     pub async fn command(&mut self, act_states: &[ActuatorState]) -> std::io::Result<()> {

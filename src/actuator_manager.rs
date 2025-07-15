@@ -4,6 +4,7 @@ use crate::actuator::ActuatorBus;
 use crate::state_machine;
 use tracing::{error, info};
 
+use crate::robstride_utils::RobstrideActuatorParam;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStream;
@@ -352,6 +353,32 @@ impl Operate {
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
                 op_bus.command(act_states.slice(BusTag::from(i))).await?;
+            } else {
+                return Err(io::Error::other("Bus is not in Operate state"));
+            }
+        }
+        Ok(())
+    }
+
+    // NOTE: the param should be actuator agnostic
+    // to do this, we can have a superset enum which holds a subset enum
+    // enum ActuatorParam {
+    //  RobstrideActuatorParam(RobstrideActuatorParam),
+    //  FeetechActuatorParam(FeetechActuatorParam),
+    //  etc.
+    //
+    //  The backend then handles the appropriate param
+    //
+    //  For now we will just use RobstrideActuatorParam
+    pub async fn request_param(&mut self, param: RobstrideActuatorParam) -> std::io::Result<()> {
+        let mut ss = self.shared_state.as_mut().project();
+
+        let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
+        for wrapper in wrappers.values_mut() {
+            // all buses should be operational
+            if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
+                // enable the bus
+                op_bus.request_param(param).await?;
             } else {
                 return Err(io::Error::other("Bus is not in Operate state"));
             }
