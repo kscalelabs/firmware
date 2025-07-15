@@ -20,6 +20,10 @@ pub mod telemetry;
 pub mod keyboard;
 pub mod policy_control;
 
+pub mod git_hash {
+    include!(concat!(env!("OUT_DIR"), "/git_hash.rs"));
+}
+
 use std::task::{Context, Poll};
 
 use crate::robstride::{
@@ -129,6 +133,7 @@ fn main() {
     let guard = tracing::subscriber::set_default(subscriber);
     
     let start_time = std::time::Instant::now();
+    info!("Starting faux-rtos version: {}", git_hash::GIT_HASH);
     info!("id: {:?} starting at {:?}", std::thread::current().id(), start_time);
     
     // Create runtime
