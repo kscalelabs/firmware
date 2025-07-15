@@ -1,4 +1,5 @@
 use enum_map::{Enum, EnumMap, enum_map};
+use strum::{EnumIter};
 use nalgebra as na;
 use tracing::info;
 use heapless::Deque;
@@ -63,6 +64,12 @@ pub struct ActuatorFeedbackUpdate {
 pub struct ActuatorHardstopThreshold {
     pub qvel: f64, // Velocity threshold
     pub amps: f64, // Current threshold
+}
+
+impl ActuatorHardstopThreshold {
+    pub fn is_hardstop(&self, qvel: f64, amps: f64) -> bool {
+        qvel.abs() > self.qvel && amps.abs() > self.amps
+    }
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
@@ -149,7 +156,7 @@ impl BusTag {
 }
 
 #[repr(usize)]
-#[derive(Enum, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Enum, EnumIter, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActuatorId {
     Lsp,
     Lsr,

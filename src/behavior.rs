@@ -364,7 +364,9 @@ impl State for Calibrate
             // request initial feedback to seed the state
             if let Err(e) = op_act_manager.request_param(RobstrideActuatorParam::Iqf).await {
                 return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
                     result: Err(e),
                 };
             }
@@ -373,7 +375,9 @@ impl State for Calibrate
             let act_states = ss.robot_description.actuator_states_mut();
             if let Err(e) = op_act_manager.process_feedback(act_states).await {
                 return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
                     result: Err(e),
                 };
             }
@@ -393,23 +397,46 @@ impl State for Calibrate
             let act_states = &mut ss.robot_description.actuators;
             if let Err(e) = op_act_manager.send_command(act_states).await {
                 return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
                     result: Err(e),
                 };
             }
             if let Err(e) = op_act_manager.process_feedback(act_states).await {
                 return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
                     result: Err(e),
                 };
             }
 
             // check which ids are within zero range
+            use strum::IntoEnumIterator;
+            for actuator_id in ActuatorId::iter() {
+                if ss.robot_description.hardstop_thres[actuator_id].is_hardstop(
+                    act_states.actuator_states[actuator_id].feedback.qvel,
+                    act_states.actuator_states[actuator_id].feedback.amps,
+                ) {
+                    // we have reached hardstop, let's zero it
+                    if let Err(e) = op_act_manager.set_mechanical_zero(actuator_id).await {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset {
+                                shared_state: self.shared_state,
+                            }),
+                            result: Err(e),
+                        };
+                    }
+                }
+            }
 
             let id = ActuatorId::Lkp;
             info!("Actuator {:?} qvel: {}", id, act_states.actuator_states[id].feedback.qvel);
+            info!("Actuator {:?} qpos: {}", id, act_states.actuator_states[id].feedback.qpos);
             let id = ActuatorId::Rkp;
             info!("Actuator {:?} qvel: {}", id, act_states.actuator_states[id].feedback.qvel);
+            info!("Actuator {:?} qpos: {}", id, act_states.actuator_states[id].feedback.qpos);
 
             return StateTransitionResult {
                 state: StateStore::Calibrate(Calibrate {

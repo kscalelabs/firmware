@@ -65,6 +65,7 @@ impl Into<ActuatorRequest> for crate::socketcan::CanFrame
             0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<Self, ReadParamRequest>(self)),
             0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<Self, MotorEnableRequest>(self)),
             0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<Self, FeedbackRequest>(self)),
+            0x06 => ActuatorRequest::SetMechanicalZero(bytemuck::must_cast::<Self, SetMechanicalZeroRequest>(self)),
             _ => panic!("Unknown mux value: {}", mux),
         }
     }
@@ -355,7 +356,7 @@ impl ActuatorRequest {
             Self::ReadParam(_) => 0x11, // read param mux
             Self::MotorEnable(_) => 0x02, // feedback mux
             Self::Feedback(_) => 0x02, // feedback mux
-            Self::SetMechanicalZero(_) => 0x06, // feedback mux
+            Self::SetMechanicalZero(_) => 0x02, // feedback mux
             
         }
     }
@@ -513,14 +514,22 @@ impl ActuatorCanClient {
         // Check if the response matches the current transaction
         if let Some(ref cur_req) = self.last_request {
             if mux_from_can_frame(&response) != cur_req.response_mux() {
+                // warn!("Response ID {} does not match current transaction {} for req {:?}",
+                //     mux_from_can_frame(&response),
+                //     cur_req.response_mux(),
+                //     cur_req,
+                // );
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
-                    format!("Response ID {} does not match current transaction {}",
+                    format!("Response ID {} does not match current transaction {} for req {:?}",
                         mux_from_can_frame(&response),
-                        cur_req.response_mux()),
+                        cur_req.response_mux(),
+                        cur_req,
+                    ),
                 ));
             }
         } else {
+            // warn!("No current transaction to handle response for");
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
                 "No current transaction to handle response for",
