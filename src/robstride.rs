@@ -190,6 +190,38 @@ impl MotorEnableRequest {
     }
 }
 
+
+// responds with 0x2, FeedbackResponse
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+pub struct SetMechanicalZeroRequest {
+    pub actuator_can_id: u8,
+    pub host_id: u8,
+    res_id: u8, /* 0x00 */
+    mux: u8, /* 0x06 */
+
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    set_byte: u8, /* 0x01 */
+    can_data: [u8; CAN_MAX_DLEN - 1],
+}
+
+impl SetMechanicalZeroRequest {
+    pub fn new(host_id: u8, actuator_can_id: u8) -> Self {
+        Self {
+            mux: 0x06,
+            host_id,
+            actuator_can_id,
+            len: 8,
+            set_byte: 0x01, // Set mechanical zero command
+            .. Default::default()
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]

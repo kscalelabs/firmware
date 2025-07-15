@@ -24,6 +24,7 @@ use enum_map::{
 
 use crate::robot_description::{
     BusTag,
+    ActuatorId,
     ActuatorStateStore,
 };
 
@@ -398,6 +399,22 @@ impl Operate {
     //
     //  For now we will just use RobstrideActuatorParam
     pub async fn request_param(&mut self, param: RobstrideActuatorParam) -> std::io::Result<()> {
+        let mut ss = self.shared_state.as_mut().project();
+
+        let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
+        for wrapper in wrappers.values_mut() {
+            // all buses should be operational
+            if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
+                // enable the bus
+                op_bus.request_param(param).await?;
+            } else {
+                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+            }
+        };
+        Ok(())
+    }
+
+    pub async fn set_mechanical_zero(&mut self, id: ActuatorId) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };

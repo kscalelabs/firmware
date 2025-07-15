@@ -146,6 +146,15 @@ impl BusTag {
             ],
         }
     }
+
+    pub fn containing_bus(actuator_id: ActuatorId) -> Self {
+        match actuator_id {
+            ActuatorId::Lsp | ActuatorId::Lsr | ActuatorId::Lsy | ActuatorId::Lep | ActuatorId::Lwr => BusTag::LeftArm,
+            ActuatorId::Rsp | ActuatorId::Rsr | ActuatorId::Rsy | ActuatorId::Rep | ActuatorId::Rwr => BusTag::RightArm,
+            ActuatorId::Lhp | ActuatorId::Lhr | ActuatorId::Lhy | ActuatorId::Lkp | ActuatorId::Lap => BusTag::LeftLeg,
+            ActuatorId::Rhp | ActuatorId::Rhr | ActuatorId::Rhy | ActuatorId::Rkp | ActuatorId::Rap => BusTag::RightLeg,
+        }
+    }
 }
 
 #[repr(usize)]
