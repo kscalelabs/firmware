@@ -514,26 +514,26 @@ impl ActuatorCanClient {
         // Check if the response matches the current transaction
         if let Some(ref cur_req) = self.last_request {
             if mux_from_can_frame(&response) != cur_req.response_mux() {
-                // warn!("Response ID {} does not match current transaction {} for req {:?}",
-                //     mux_from_can_frame(&response),
-                //     cur_req.response_mux(),
-                //     cur_req,
-                // );
-                return Err(std::io::Error::new(
-                    std::io::ErrorKind::InvalidData,
-                    format!("Response ID {} does not match current transaction {} for req {:?}",
-                        mux_from_can_frame(&response),
-                        cur_req.response_mux(),
-                        cur_req,
-                    ),
-                ));
+                warn!("Response ID {} does not match current transaction {} for req {:?}",
+                    mux_from_can_frame(&response),
+                    cur_req.response_mux(),
+                    cur_req,
+                );
+                // return Err(std::io::Error::new(
+                //     std::io::ErrorKind::InvalidData,
+                //     format!("Response ID {} does not match current transaction {} for req {:?}",
+                //         mux_from_can_frame(&response),
+                //         cur_req.response_mux(),
+                //         cur_req,
+                //     ),
+                // ));
             }
         } else {
-            // warn!("No current transaction to handle response for");
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "No current transaction to handle response for",
-            ));
+            warn!("No current transaction to handle response for");
+            // return Err(std::io::Error::new(
+            //     std::io::ErrorKind::Other,
+            //     "No current transaction to handle response for",
+            // ));
         }
 
         // convert can frame into ActuatorResponse
