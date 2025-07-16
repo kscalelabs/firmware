@@ -400,7 +400,7 @@ impl RobotDescription {
         let mut home_trajectory = Trajectory::new();
         home_trajectory.push(TrajectorySegment::Bounded(BoundedSegment::new(
             HOME_WAYPOINT.clone(),
-            crate::trajectory::trajectory::WaypointTraversal::Position,
+            crate::trajectory::traversal::WaypointTraversal::Position,
         )));
 
         Self {

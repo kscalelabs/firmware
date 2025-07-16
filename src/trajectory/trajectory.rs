@@ -8,6 +8,8 @@ use crate::robot_description::{
     normalize_actuator_qpos,
 };
 
+use crate::trajectory::traversal::WaypointTraversal;
+
 use tracing::{info, warn, error};
 
 use enum_map::EnumMap;
@@ -36,12 +38,6 @@ impl AbsDiffEq for Waypoint {
             abs_diff_eq!(val, &other.feedbacks[id], epsilon = epsilon.clone())
         })
     }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub enum WaypointTraversal {
-    Position,
-    Velocity,
 }
 
 pub struct BoundedSegment {
@@ -106,6 +102,18 @@ impl Trajectory {
         &mut self.segments
     }
 
+    /// used to skip the current segment and move to the next one
+    /// Useful with Unbounded segments, where we don't care about the feedback
+    pub fn skip(&mut self) {
+        if let Some(idx) = self.segidx {
+            if idx + 1 < self.segments.len() {
+                self.segidx = Some(idx + 1);
+            } else {
+                self.segidx = None; // no more segments to drive
+            }
+        }
+    }
+
     pub fn drive(&mut self, states: &mut ActuatorStateStore) -> Poll<()> {
         if self.segidx.is_none() {
             return Poll::Ready(());
@@ -126,6 +134,10 @@ impl Trajectory {
             TrajectorySegment::Bounded(ref segment) => {
                 // check if we have reached the target
                 let reached = segment.target.feedbacks.iter().all(|(id, val)| {
+                    if id == ActuatorId::Rwr || id == ActuatorId::Lwr {
+                        // these are not homed, so we skip them
+                        return true;
+                    }
                     abs_diff_eq!(val, &states.actuator_states[id].feedback, epsilon = segment.epsilon.clone())
                 });
 
@@ -141,54 +153,16 @@ impl Trajectory {
                         return Poll::Ready(()); // no more segments to drive
                     }
                 } else {
-                    for (act_id, act_state) in states.actuator_states.iter_mut() {
+                    let cur_waypoint = Waypoint {
+                        feedbacks: states.actuator_states.iter().map(|(id, state)| (id, state.feedback.clone())).collect(),
+                    };
 
-                        if act_id == ActuatorId::Rwr || act_id == ActuatorId::Lwr {
-                            // these are not homed, so we skip them
-                            continue;
-                        }
-
-                        let target = &segment.target.feedbacks[act_id];
-                        let mut normalized_qpos = normalize_actuator_qpos(act_state.feedback.qpos);
-                        let err_qpos = target.qpos - normalized_qpos;
-                        // This can be refactored
-                        // Let WaypointTraversal be decoupled from the segment (i.e remove the traversal field)
-                        // Let it be standalond struct / enum that implements enum dispatch to a
-                        // set of WaypointTraveral structs. Each struct provides the below
-                        // implmeentation, where it takes the current feedback and target feedback,
-                        // and produdces an actuator command.
-                        //
-                        // i.e make a WaypointTraversal trait with a method called
-                        // traverse(Waypoint, Waypoint) -> EnumMap<ActuatorId, ActuatorCommand>
-                        //
-                        // Then we can do 
-                        // WaypointTraversal::Position.traverse(target, act_state.feedback)
-                        // WaypointTraversal::Velocity.traverse(target, act_state.feedback)
-                        // this is more modular, and decouples traversal from segment and
-                        // trajectory logic
-                        match segment.traversal {
-                            WaypointTraversal::Position => {
-                                let step = (err_qpos).clamp(-4.0f64.to_radians(), 4.0f64.to_radians());
-                                // drive to the target position
-                                act_state.command.qpos = act_state.feedback.qpos + step;
-                                act_state.command.qvel = 0.0; // no velocity
-                                act_state.command.qfrc = 0.0; // no force
-                                act_state.command.kp = target.kp / 2.0; // proportional gain
-                                act_state.command.kd = target.kd; // derivative gain
-                            }
-                            WaypointTraversal::Velocity => {
-                                // drive to the target using velocity control
-                                // 10 degrees per second is the maximum velocity
-                                let step = (err_qpos).signum() * 10f64.to_radians();
-                                act_state.command.qpos = 0.0; // no position command
-                                act_state.command.qvel = step; // fixed velocity
-                                act_state.command.qfrc = 0.0; // no force
-                                act_state.command.kp = 0.0; // proportional gain
-                                act_state.command.kd = target.kd; // derivative gain
-                            }
-                        }
-                        warn!("Actuator {:?} command: {}, feedback: {}, error: {}", act_id, act_state.command.qpos, normalized_qpos, err_qpos);
-                    }
+                    segment.traversal.traverse(
+                        &cur_waypoint,
+                        &segment.target,
+                    ).into_iter().for_each(|(act_id, cmd)| {
+                        states.actuator_states[act_id].command = cmd;
+                    });
                 }
                 Poll::Pending // not yet reached the target, continue driving
             }
