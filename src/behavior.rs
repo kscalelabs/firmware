@@ -310,11 +310,15 @@ impl State for Ready
 
             rdy_act_manager.enable().await;
             return StateTransitionResult {
-                state: StateStore::Calibrate(Calibrate {
-                    shared_state,
-                }),
+                state: StateStore::Home(Home::new(shared_state)),
                 result: Ok(()),
             };
+            // return StateTransitionResult {
+            //     state: StateStore::Calibrate(Calibrate {
+            //         shared_state: self.shared_state,
+            //     }),
+            //     result: Ok(()),
+            // }
         }
     }
 }
@@ -530,39 +534,14 @@ impl State for Home
             op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
             // run controller
 
-            let err = Self::step_controller(&mut ss.robot_description);
-            // TODO
-            // get time since start
-
-            // let elapsed = self.start.elapsed();
-            // // sine wave with a period of 2 seconds and ampliture of 0.5 radians
-            // let period = std::time::Duration::from_secs(2);
-            // let amplitude = 0.5; // rad
-            // 
-            // let angle = amplitude * (2.0 * std::f64::consts::PI * elapsed.as_secs_f64() / period.as_secs_f64()).sin();
-
-            // for act_state in act_states.actuator_states.values_mut() {
-            //     act_state.command.qpos = angle;
-            //     act_state.command.qvel = 0.0; // no velocity
-            //     act_state.command.qfrc = 0.0; // no force
-            //     act_state.command.kp = 1.0; // proportional gain
-            //     act_state.command.kd = 1.0; // derivative gain
-            // }
-            
-            // send commadn to buses and wait for responses
+            // let err = Self::step_controller(&mut ss.robot_description);
             let act_states = &mut ss.robot_description.actuators;
-            if let Err(e) = op_act_manager.send_command(act_states).await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
-                };
-            }
+            let ret = ss.robot_description.home_trajectory.drive(act_states);
 
 
-            warn!("error: {}", err);
-            if err < 0.1 {
+            if ret == Poll::Ready(()) {
                 // can go to next state
-                info!("error to home: {}", err);
+                // info!("error to home: {}", err);
                 info!("Home position reached, press enter to run policy");
                 // we need to arm the imu with the initial value. Again, this needs to be done once
                 // when we transition to Policy state.
@@ -576,6 +555,11 @@ impl State for Home
                     }),
                     result: Ok(()),
                 }
+            } else if let Err(e) = op_act_manager.send_command(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
             }
 
             return StateTransitionResult {

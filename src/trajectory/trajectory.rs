@@ -8,7 +8,7 @@ use crate::robot_description::{
     normalize_actuator_qpos,
 };
 
-use tracing::{debug, warn};
+use tracing::{info, warn, error};
 
 use enum_map::EnumMap;
 
@@ -19,9 +19,9 @@ use approx::{
 
 use std::task::Poll;
 
-#[derive(Debug, PartialEq)]
-struct Waypoint {
-    feedbacks: EnumMap<ActuatorId, ActuatorFeedback>,
+#[derive(Debug, Clone, PartialEq)]
+pub struct Waypoint {
+    pub feedbacks: EnumMap<ActuatorId, ActuatorFeedback>,
 }
 
 impl AbsDiffEq for Waypoint {
@@ -39,19 +39,29 @@ impl AbsDiffEq for Waypoint {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-enum WaypointTraversal {
+pub enum WaypointTraversal {
     Position,
     Velocity,
 }
 
-struct BoundedSegment {
+pub struct BoundedSegment {
     pub target: Waypoint,
     pub epsilon: ActuatorFeedbackEpsilon,
     pub traversal: WaypointTraversal,
 }
 
+impl BoundedSegment {
+    pub fn new(target: Waypoint, traversal: WaypointTraversal) -> Self {
+        BoundedSegment {
+            target,
+            traversal,
+            epsilon: ActuatorFeedbackEpsilon::default(),
+        }
+    }
+}
+
 // we drive this segment blindly, to infinity
-type UnboundedSegment = EnumMap<ActuatorId, ActuatorCommand>;
+pub type UnboundedSegment = EnumMap<ActuatorId, ActuatorCommand>;
 
 /**
 * A trajectory is a sequence of segments that the robot will follow.
@@ -61,12 +71,12 @@ type UnboundedSegment = EnumMap<ActuatorId, ActuatorCommand>;
 * 2. A waypoint segment, which commands each actuator to a specific target position or velocity.
 *
 */
-enum TrajectorySegment {
+pub enum TrajectorySegment {
     Unbounded(UnboundedSegment),
     Bounded(BoundedSegment),
 }
 
-struct Trajectory {
+pub struct Trajectory {
     segments: Vec<TrajectorySegment>,
     segidx: Option<usize>, // index of the current segment being driven, None if no more remaining segments
 }
@@ -74,7 +84,7 @@ struct Trajectory {
 impl Trajectory {
 
     // must have at least one segment
-    pub fn new(qpos_thres: f64, qvel_thres: f64) -> Self {
+    pub fn new() -> Self {
         Trajectory {
             segments: Vec::new(),
             segidx: None,
@@ -83,6 +93,9 @@ impl Trajectory {
 
     pub fn push(&mut self, segment: TrajectorySegment) {
         self.segments.push(segment);
+        if self.segidx.is_none() {
+            self.segidx = Some(0); // start with the first segment
+        }
     }
 
     pub fn segments(&self) -> &Vec<TrajectorySegment> {
@@ -117,6 +130,7 @@ impl Trajectory {
                 });
 
                 if reached {
+                    info!("Reached target for segment {}", idx);
                     // we have reached the target, move to the next segment
                     self.segidx = if idx + 1 < self.segments.len() {
                         Some(idx + 1)
@@ -137,7 +151,21 @@ impl Trajectory {
                         let target = &segment.target.feedbacks[act_id];
                         let mut normalized_qpos = normalize_actuator_qpos(act_state.feedback.qpos);
                         let err_qpos = target.qpos - normalized_qpos;
-
+                        // This can be refactored
+                        // Let WaypointTraversal be decoupled from the segment (i.e remove the traversal field)
+                        // Let it be standalond struct / enum that implements enum dispatch to a
+                        // set of WaypointTraveral structs. Each struct provides the below
+                        // implmeentation, where it takes the current feedback and target feedback,
+                        // and produdces an actuator command.
+                        //
+                        // i.e make a WaypointTraversal trait with a method called
+                        // traverse(Waypoint, Waypoint) -> EnumMap<ActuatorId, ActuatorCommand>
+                        //
+                        // Then we can do 
+                        // WaypointTraversal::Position.traverse(target, act_state.feedback)
+                        // WaypointTraversal::Velocity.traverse(target, act_state.feedback)
+                        // this is more modular, and decouples traversal from segment and
+                        // trajectory logic
                         match segment.traversal {
                             WaypointTraversal::Position => {
                                 let step = (err_qpos).clamp(-4.0f64.to_radians(), 4.0f64.to_radians());
@@ -145,7 +173,7 @@ impl Trajectory {
                                 act_state.command.qpos = act_state.feedback.qpos + step;
                                 act_state.command.qvel = 0.0; // no velocity
                                 act_state.command.qfrc = 0.0; // no force
-                                act_state.command.kp = target.kp; // proportional gain
+                                act_state.command.kp = target.kp / 2.0; // proportional gain
                                 act_state.command.kd = target.kd; // derivative gain
                             }
                             WaypointTraversal::Velocity => {
@@ -159,7 +187,7 @@ impl Trajectory {
                                 act_state.command.kd = target.kd; // derivative gain
                             }
                         }
-                        warn!("Actuator {:?} target: {}, feedback: {}, error: {}", act_id, target.qpos, normalized_qpos, err_qpos);
+                        warn!("Actuator {:?} command: {}, feedback: {}, error: {}", act_id, act_state.command.qpos, normalized_qpos, err_qpos);
                     }
                 }
                 Poll::Pending // not yet reached the target, continue driving

@@ -6,11 +6,21 @@ use heapless::Deque;
 use crossterm::event::KeyEvent;
 use approx::AbsDiffEq;
 
+use crate::trajectory::trajectory::{
+    Trajectory,
+    TrajectorySegment,
+    BoundedSegment,
+    UnboundedSegment,
+    Waypoint,
+};
+
+use crate::trajectory::home::HOME_WAYPOINT;
+
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     qpos
 }
 
-#[derive(Debug, Default, PartialEq)]
+#[derive(Debug, Clone, Default, PartialEq)]
 pub struct ActuatorFeedback {
     pub qpos:   f64, // Position
     pub qvel:   f64, // Velocity
@@ -31,7 +41,7 @@ pub struct ActuatorFeedbackEpsilon {
 impl Default for ActuatorFeedbackEpsilon {
     fn default() -> Self {
         ActuatorFeedbackEpsilon {
-            qpos_thres: 0.01,
+            qpos_thres: 0.1,
             // qvel_thres: 0.01,
         }
     }
@@ -373,6 +383,7 @@ pub struct RobotDescription {
     pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
+    pub home_trajectory: Trajectory,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub calibrate_command: EnumMap<ActuatorId, ActuatorCommand>,
     pub hardstop_thres: EnumMap<ActuatorId, ActuatorHardstopThreshold>,
@@ -385,6 +396,13 @@ impl RobotDescription {
     pub fn new() -> Self {
         let args = Args::parse();
         info!("Args; {:?}", args);
+
+        let mut home_trajectory = Trajectory::new();
+        home_trajectory.push(TrajectorySegment::Bounded(BoundedSegment::new(
+            HOME_WAYPOINT.clone(),
+            crate::trajectory::trajectory::WaypointTraversal::Position,
+        )));
+
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),
@@ -393,6 +411,7 @@ impl RobotDescription {
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
+            home_trajectory,
             home_position: enum_map! {
                 ActuatorId::Lsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Lsr => ActuatorCommand { qpos: (10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },
