@@ -14,6 +14,7 @@ pub mod actuator_manager;
 pub mod behavior;
 pub mod state_machine_utils;
 pub mod robot_description;
+pub mod trajectory;
 pub mod imu;
 pub mod inference;
 pub mod telemetry;

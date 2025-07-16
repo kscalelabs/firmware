@@ -4,12 +4,13 @@ use nalgebra as na;
 use tracing::info;
 use heapless::Deque;
 use crossterm::event::KeyEvent;
+use approx::AbsDiffEq;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     qpos
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, PartialEq)]
 pub struct ActuatorFeedback {
     pub qpos:   f64, // Position
     pub qvel:   f64, // Velocity
@@ -19,6 +20,38 @@ pub struct ActuatorFeedback {
     pub temp:   f64, // Temperature
     pub faults: u32, // Faults
     pub amps:   f64, // Current in Amperes
+}
+
+#[derive(Debug, Clone)]
+pub struct ActuatorFeedbackEpsilon {
+    pub qpos_thres: f64, // Position threshold
+    // pub qvel_thres: f64, // Velocity threshold
+}
+
+impl Default for ActuatorFeedbackEpsilon {
+    fn default() -> Self {
+        ActuatorFeedbackEpsilon {
+            qpos_thres: 0.01,
+            // qvel_thres: 0.01,
+        }
+    }
+}
+
+impl AbsDiffEq for ActuatorFeedback {
+    type Epsilon = ActuatorFeedbackEpsilon;
+
+    fn default_epsilon() -> Self::Epsilon {
+        ActuatorFeedbackEpsilon::default()
+    }
+
+    fn abs_diff_eq(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        (self.qpos - other.qpos).abs() < epsilon.qpos_thres
+        // && (self.qvel - other.qvel).abs() < epsilon.qvel_thres
+    }
+
+    fn abs_diff_ne(&self, other: &Self, epsilon: Self::Epsilon) -> bool {
+        !self.abs_diff_eq(other, epsilon)
+    }
 }
 
 impl ActuatorFeedback {

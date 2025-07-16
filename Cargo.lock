@@ -522,6 +522,7 @@ name = "faux-rtos"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "approx",
  "bytemuck",
  "chrono",
  "clap",

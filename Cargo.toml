@@ -41,3 +41,4 @@ crossterm = "0.29.0"
 enum_dispatch = "0.3.13"
 heapless = "0.8.0"
 strum = { version = "0.27.1", features = ["derive"] }
+approx = "0.5.1"
