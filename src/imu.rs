@@ -3,7 +3,6 @@ use std::task::ready;
 use tracing::{debug, error, info, warn};
 use pin_project::pin_project;
 
-use crate::behavior::wait_for_enter;
 use std::task::{Context, Poll};
 use futures::{
     Stream,
