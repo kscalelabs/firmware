@@ -2,6 +2,7 @@
 name = "faux-rtos"
 version = "0.1.0"
 edition = "2024"
+build = "build.rs"
 
 [dependencies]
 socket2 = "0.5.9"
