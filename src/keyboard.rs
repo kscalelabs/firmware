@@ -11,6 +11,12 @@ pub struct KeyboardManager {
 
 use crate::policy_control::{CommandType, InputState};
 
+impl Default for KeyboardManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyboardManager {
     pub fn new() -> Self {
         KeyboardManager {
@@ -38,9 +44,9 @@ impl KeyboardManager {
                             process::exit(0);
                         }
                         _ => {
-                            pending_events.push_back(key).map_err(|_| {
-                                io::Error::new(io::ErrorKind::Other, "Event queue is full")
-                            })?;
+                            pending_events
+                                .push_back(key)
+                                .map_err(|_| io::Error::other("Event queue is full"))?;
                         }
                     }
                 }

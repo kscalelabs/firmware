@@ -38,7 +38,7 @@ use futures::stream::StreamExt;
 
 use telemetry::{
     forwarder::{EventRecord, HeaplessForwardLayer},
-    telemetry::start_pipeline,
+    telemetry_main::start_pipeline,
 };
 use tracing::{Level, Metadata, debug, error, info, trace, warn};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt};
@@ -172,7 +172,7 @@ fn main() {
     // wait for the telemetry thread to finish
     match jh.join() {
         Ok(_) => println!("Background thread finished successfully"),
-        Err(e) => eprintln!("Background thread panicked: {:?}", e),
+        Err(e) => eprintln!("Background thread panicked: {e:?}"),
     }
 
     println!("Cleanup complete, exiting");

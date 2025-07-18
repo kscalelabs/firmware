@@ -37,6 +37,12 @@ pub struct Store {
     kb_manager: crate::keyboard::KeyboardManager,
 }
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
     pub fn new() -> Self {
         let robot_description = RobotDescription::new();
@@ -55,23 +61,23 @@ impl Store {
 }
 
 #[derive(Debug)]
-struct Reset {
+pub struct Reset {
     shared_state: Pin<Box<Store>>,
 }
 
 #[derive(Debug)]
-struct Ready {
+pub struct Ready {
     shared_state: Pin<Box<Store>>,
 }
 
 #[derive(Debug)]
-struct Home {
+pub struct Home {
     shared_state: Pin<Box<Store>>,
     start: std::time::Instant,
 }
 
 #[derive(Debug)]
-struct Policy {
+pub struct Policy {
     shared_state: Pin<Box<Store>>,
 }
 
@@ -119,6 +125,7 @@ impl Home {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -131,6 +138,7 @@ impl State for Reset {
 }
 
 impl State for Ready {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -171,10 +179,7 @@ impl State for Ready {
             else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset { shared_state }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "IMU manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("IMU manager is not in Operate state")),
                 };
             };
             op_imu_manager
@@ -221,10 +226,7 @@ impl State for Ready {
             else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset { shared_state }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Actuator manager is not in Ready state",
-                    )),
+                    result: Err(io::Error::other("Actuator manager is not in Ready state")),
                 };
             };
 
@@ -265,10 +267,7 @@ impl State for Ready {
             else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset { shared_state }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Model manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("Model manager is not in Operate state")),
                 };
             };
 
@@ -276,15 +275,16 @@ impl State for Ready {
             ss.kb_manager.wait_for_enter().await;
 
             rdy_act_manager.enable().await;
-            return StateTransitionResult {
+            StateTransitionResult {
                 state: StateStore::Home(Home::new(shared_state)),
                 result: Ok(()),
-            };
+            }
         }
     }
 }
 
 impl State for Home {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -330,10 +330,7 @@ impl State for Home {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Actuator manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("Actuator manager is not in Operate state")),
                 };
             };
 
@@ -347,10 +344,7 @@ impl State for Home {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "IMU manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("IMU manager is not in Operate state")),
                 };
             };
 
@@ -375,7 +369,7 @@ impl State for Home {
                 .await;
             // run controller
 
-            let err = Self::step_controller(&mut ss.robot_description);
+            let err = Self::step_controller(ss.robot_description);
             // TODO
             // get time since start
 
@@ -413,7 +407,7 @@ impl State for Home {
                 op_imu_manager
                     .process_feedback(&mut ss.robot_description.imu)
                     .await;
-                ss.robot_description.initial_imu = ss.robot_description.imu.clone();
+                ss.robot_description.initial_imu = ss.robot_description.imu;
                 ss.kb_manager.wait_for_enter().await;
 
                 return StateTransitionResult {
@@ -424,18 +418,19 @@ impl State for Home {
                 };
             }
 
-            return StateTransitionResult {
+            StateTransitionResult {
                 state: StateStore::Home(Home {
                     shared_state: self.shared_state,
                     start: self.start, // keep the start time to continue the sine wave
                 }),
                 result: Ok(()),
-            };
+            }
         }
     }
 }
 
 impl State for Policy {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -458,10 +453,7 @@ impl State for Policy {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Actuator manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("Actuator manager is not in Operate state")),
                 };
             };
 
@@ -475,10 +467,7 @@ impl State for Policy {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "IMU manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("IMU manager is not in Operate state")),
                 };
             };
 
@@ -518,16 +507,13 @@ impl State for Policy {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(
-                        io::ErrorKind::Other,
-                        "Model manager is not in Operate state",
-                    )),
+                    result: Err(io::Error::other("Model manager is not in Operate state")),
                 };
             };
 
             warn!("Reading took {:?}", start_time.elapsed());
             let policy_stamp = std::time::Instant::now();
-            op_model.step_controller(&mut ss.robot_description);
+            op_model.step_controller(ss.robot_description);
             warn!("Policy step took {:?}", policy_stamp.elapsed());
 
             // print out the commands
@@ -580,6 +566,12 @@ pub struct BehaviorManager {
 
     #[pin]
     pending_fut: Option<StateFut>,
+}
+
+impl Default for BehaviorManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BehaviorManager {

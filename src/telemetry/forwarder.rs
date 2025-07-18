@@ -72,7 +72,7 @@ impl<'a> Visit for FieldCollector<'a> {
     fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
         let mut s = HString::new();
         // format into inline buffer
-        let _ = write!(&mut s, "{:?}", value);
+        let _ = write!(&mut s, "{value:?}");
         let _ = self.0.push(FieldRecord {
             name: field.name(),
             value: FieldValue::Debug(s),

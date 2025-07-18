@@ -2,7 +2,7 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 use serde::Serialize;
 use tracing::{debug, error, info, trace, warn};
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct PolicyStepDescriptor {
     pub step_id: Option<u64>,
     pub t_us: Option<u64>,
@@ -15,24 +15,6 @@ pub struct PolicyStepDescriptor {
     pub gyro: Option<Vec<f32>>,
     pub command: Option<Vec<f32>>,
     pub output: Option<Vec<f32>>,
-}
-
-impl Default for PolicyStepDescriptor {
-    fn default() -> Self {
-        Self {
-            step_id: None,
-            t_us: None,
-            joint_angles: None,
-            joint_vels: None,
-            initial_heading: None,
-            quaternion: None,
-            projected_g: None,
-            accel: None,
-            gyro: None,
-            command: None,
-            output: None,
-        }
-    }
 }
 
 impl PolicyStepDescriptor {
@@ -87,9 +69,9 @@ impl PolicyStepDescriptor {
     pub fn fill_outputs(&mut self, outputs: &ort::session::SessionOutputs) -> std::io::Result<()> {
         let commands = outputs[0]
             .try_extract_array::<f32>()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+            .map_err(std::io::Error::other)?
             .into_dimensionality::<ndarray::Dim<[usize; 1]>>()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         let dst = self.output.as_mut().unwrap();
         dst.iter_mut().zip(commands.iter()).for_each(|(d, s)| {
@@ -123,14 +105,11 @@ impl PolicyStepDescriptor {
         input_val: &ort::session::SessionInputValue,
     ) -> std::io::Result<()> {
         let ort::session::SessionInputValue::Owned(src) = input_val else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Expected Owned tensor",
-            ));
+            return Err(std::io::Error::other("Expected Owned tensor"));
         };
         let mut src = src
             .try_extract_array::<f32>()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         // copy into the appropriate field
         match input_type {
@@ -224,10 +203,9 @@ impl TryFrom<&ort::session::Input> for DataType {
             "accelerometer" => Ok(DataType::Accelerometer),
             "gyroscope" => Ok(DataType::Gyroscope),
             "time" => Ok(DataType::Time),
-            _ => Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                format!("Unknown data type: {:?}", input),
-            )),
+            _ => Err(std::io::Error::other(format!(
+                "Unknown data type: {input:?}"
+            ))),
         }
     }
 }
@@ -246,16 +224,14 @@ impl TryFrom<&ort::session::Input> for ModelInputType {
             "carry" => Ok(ModelInputType::Carry),
             "command" => {
                 if input.input_type.tensor_shape().is_none() {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
+                    return Err(std::io::Error::other(
                         "Command input must have a tensor shape",
                     ));
                 }
 
                 let dims = input.input_type.tensor_shape().unwrap();
                 if dims.len() != 1 {
-                    return Err(std::io::Error::new(
-                        std::io::ErrorKind::InvalidData,
+                    return Err(std::io::Error::other(
                         "Command input must have a 1D tensor shape",
                     ));
                 }
@@ -333,15 +309,13 @@ impl Store {
                 match model_input_type {
                     ModelInputType::DataType(data_type) => {
                         let target =
-                            ort::tensor::Shape::try_from(robot_description.dimensions(data_type))
-                                .expect("step_fn input should have a tensor shape");
+                            ort::tensor::Shape::from(robot_description.dimensions(data_type));
 
                         if *dims != target {
                             return Err(Error::new(
                                 std::io::ErrorKind::InvalidInput,
                                 format!(
-                                    "step_fn input {} shape ({:?}) does not match robot description ({:?})",
-                                    name, dims, target
+                                    "step_fn input {name} shape ({dims:?}) does not match robot description ({target:?})"
                                 ),
                             ));
                         }
@@ -358,7 +332,7 @@ impl Store {
             } else {
                 return Err(Error::new(
                     std::io::ErrorKind::InvalidInput,
-                    format!("step_fn input {} is not a valid data type", name),
+                    format!("step_fn input {name} is not a valid data type"),
                 ));
             }
         }
@@ -377,17 +351,15 @@ impl Store {
             .output_type
             .tensor_shape()
             .expect("step_fn input should have a tensor shape");
-        let target = ort::tensor::Shape::try_from(
+        let target = ort::tensor::Shape::from(
             robot_description.dimensions(robot_description::DataType::JointAngles),
-        )
-        .expect("step_fn output should have a tensor shape");
+        );
 
         if *dims != target {
             return Err(Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!(
-                    "step_fn output[0] ({}) shape ({:?}) does not match robot description ({:?})",
-                    name, dims, target
+                    "step_fn output[0] ({name}) shape ({dims:?}) does not match robot description ({target:?})"
                 ),
             ));
         }
@@ -452,7 +424,7 @@ impl Store {
                 "metadata.json" => {
                     let mut contents = String::new();
                     entry.read_to_string(&mut contents)?;
-                    log::info!("Loaded metadata: {}", contents);
+                    log::info!("Loaded metadata: {contents}");
                     _metadata = Some(contents);
                 }
                 "init_fn.onnx" => {
@@ -474,18 +446,18 @@ impl Store {
 
         use std::io::{Error, ErrorKind};
         let mut init_session = Session::builder()
-            .map_err(|e| Error::new(ErrorKind::Other, e))?
+            .map_err(Error::other)?
             .commit_from_memory(&init_fn.ok_or_else(|| {
                 Error::new(ErrorKind::NotFound, "init_fn.onnx not found in archive")
             })?)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .map_err(Error::other)?;
 
         let step_session = Session::builder()
-            .map_err(|e| Error::new(ErrorKind::Other, e))?
+            .map_err(Error::other)?
             .commit_from_memory(&step_fn.ok_or_else(|| {
                 Error::new(ErrorKind::NotFound, "step_fn.onnx not found in archive")
             })?)
-            .map_err(|e| Error::new(ErrorKind::Other, e))?;
+            .map_err(Error::other)?;
 
         Self::validate_sessions(&init_session, &step_session, robot_description)?;
 
@@ -522,17 +494,17 @@ impl Store {
                 };
                 let mut dst = dst
                     .try_extract_array_mut::<f32>()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    .map_err(std::io::Error::other)?;
 
                 // get the carry state
                 let input_values: Vec<(String, ort::value::Value)> = Vec::new();
                 let outputs = init_session
                     .run(input_values)
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    .map_err(std::io::Error::other)?;
 
                 let src = outputs[0]
                     .try_extract_array::<f32>()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                    .map_err(std::io::Error::other)?;
 
                 ndarray::Zip::from(src.view())
                     .and(dst.view_mut())
@@ -568,11 +540,10 @@ impl Store {
         ];
 
         let actuator_id_to_cmd_idx = enum_map::EnumMap::from_fn(|actuator_id| {
-            let idx = cmd_idx_to_actuator_id
+            cmd_idx_to_actuator_id
                 .iter()
                 .position(|id| *id == actuator_id)
-                .unwrap();
-            idx
+                .unwrap()
         });
 
         Ok(Self {
@@ -602,6 +573,7 @@ impl std::fmt::Debug for Reset {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -661,8 +633,7 @@ impl Operate {
 
                     // set the command input to zero
                     let ort::session::SessionInputValue::Owned(arr) = input_val else {
-                        return Err(std::io::Error::new(
-                            std::io::ErrorKind::InvalidInput,
+                        return Err(std::io::Error::other(
                             "Expected a mutable reference to a DynTensor",
                         ));
                     };
@@ -695,54 +666,48 @@ impl Operate {
         }
 
         let inputs = step_input_vec.as_slice();
-        let outputs = step_session
-            .run(inputs)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let outputs = step_session.run(inputs).map_err(std::io::Error::other)?;
 
         step_description
             .fill_outputs(&outputs)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         // put the carry output back into the input
         for (input_type, input_val) in step_input_types.iter().zip(step_input_vec.iter_mut()) {
             step_description
                 .fill_input(input_type, input_val)
-                .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                .map_err(std::io::Error::other)?;
 
-            match input_type {
-                ModelInputType::Carry => {
-                    let ort::session::SessionInputValue::Owned(dst) = input_val else {
-                        panic!("Expected a mutable reference to a DynTensor");
-                    };
-                    let mut dst = dst
-                        .try_extract_array_mut::<f32>()
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            if let ModelInputType::Carry = input_type {
+                let ort::session::SessionInputValue::Owned(dst) = input_val else {
+                    panic!("Expected a mutable reference to a DynTensor");
+                };
+                let mut dst = dst
+                    .try_extract_array_mut::<f32>()
+                    .map_err(std::io::Error::other)?;
 
-                    let src = outputs[1]
-                        .try_extract_array::<f32>()
-                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+                let src = outputs[1]
+                    .try_extract_array::<f32>()
+                    .map_err(std::io::Error::other)?;
 
-                    ndarray::Zip::from(src.view())
-                        .and(dst.view_mut())
-                        .for_each(|srcp, dstp| {
-                            *dstp = *srcp;
-                        });
-                }
-                _ => {}
+                ndarray::Zip::from(src.view())
+                    .and(dst.view_mut())
+                    .for_each(|srcp, dstp| {
+                        *dstp = *srcp;
+                    });
             }
         }
 
         step_description.finalize();
-        let json_str = serde_json::to_string(&step_description)
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+        let json_str = serde_json::to_string(&step_description).map_err(std::io::Error::other)?;
         trace!(policy_step = json_str);
 
         // extract the outputs
         let commands = outputs[0]
             .try_extract_array::<f32>()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+            .map_err(std::io::Error::other)?
             .into_dimensionality::<ndarray::Dim<[usize; 1]>>()
-            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+            .map_err(std::io::Error::other)?;
 
         let actuator_states = &mut robot_description.actuators.actuator_states;
         for (i, command) in commands.iter().enumerate() {
@@ -814,7 +779,7 @@ impl Operate {
                 let quat = nalgebra::UnitQuaternion::from_quaternion(quat);
                 // scalar part is w
                 let (_, _, yaw) = quat.euler_angles();
-                log::warn!("Current heading yaw: {}", yaw);
+                log::warn!("Current heading yaw: {yaw}");
             }
             DataType::ProjectedGravity => {
                 let unit_quat =
@@ -853,7 +818,7 @@ impl Operate {
                     robot_description.initial_imu.quaternion,
                 );
                 let (_, _, yaw) = unit_quat.euler_angles();
-                log::warn!("Initial heading yaw: {}", yaw);
+                log::warn!("Initial heading yaw: {yaw}");
                 arr[0] = yaw as f32;
             }
             _ => {
@@ -868,6 +833,7 @@ impl Operate {
 }
 
 impl State for Operate {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;

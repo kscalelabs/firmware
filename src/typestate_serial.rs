@@ -68,6 +68,7 @@ impl Reset {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let ss = self.shared_state.as_mut().project();
@@ -99,6 +100,7 @@ impl State for Reset {
 }
 
 impl State for Operate {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
