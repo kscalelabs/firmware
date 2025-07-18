@@ -9,6 +9,7 @@ pub struct PolicyStepDescriptor {
     pub joint_angles: Option<Vec<f32>>,
     pub joint_vels: Option<Vec<f32>>,
     pub initial_heading: Option<f32>,
+    pub joint_amps: Option<Vec<f32>>,
     pub quaternion: Option<Vec<f32>>,
     pub projected_g: Option<Vec<f32>>,
     pub accel: Option<Vec<f32>>,
@@ -31,6 +32,8 @@ impl PolicyStepDescriptor {
                     DataType::JointAngles => {
                         ret.joint_angles = Some(vec![0.0; length]);
                         ret.output = Some(vec![0.0; length]);
+                        // always add joint_amps
+                        ret.joint_amps = Some(vec![0.0; length]);
                     }
                     DataType::JointAngularVelocities => {
                         ret.joint_vels = Some(vec![0.0; length]);
@@ -170,6 +173,45 @@ impl PolicyStepDescriptor {
         };
 
         Ok(())
+    }
+
+    /// fills additional fields from robot description
+    pub fn fill_from_description(&mut self, robot_description: &RobotDescription) {
+        // create the output to actuator id map
+        // TODO: read from metadata to create this
+        let mut cmd_idx_to_actuator_id = [
+            ActuatorId::Rsp,
+            ActuatorId::Rsr,
+            ActuatorId::Rsy,
+            ActuatorId::Rep,
+            ActuatorId::Rwr,
+            ActuatorId::Lsp,
+            ActuatorId::Lsr,
+            ActuatorId::Lsy,
+            ActuatorId::Lep,
+            ActuatorId::Lwr,
+            ActuatorId::Rhp,
+            ActuatorId::Rhr,
+            ActuatorId::Rhy,
+            ActuatorId::Rkp,
+            ActuatorId::Rap,
+            ActuatorId::Lhp,
+            ActuatorId::Lhr,
+            ActuatorId::Lhy,
+            ActuatorId::Lkp,
+            ActuatorId::Lap,
+        ];
+
+        let Some(ref mut dst) = self.joint_amps else {
+            // if joint_amps is not set, we just return
+            return;
+        };
+
+        for (i, act_id) in cmd_idx_to_actuator_id.iter().enumerate() {
+            dst[i] = robot_description.actuators.actuator_states[*act_id]
+                .feedback
+                .amps as f32;
+        }
     }
 }
 
@@ -697,6 +739,9 @@ impl Operate {
                     });
             }
         }
+
+        // fill the step description with the current state
+        step_description.fill_from_description(robot_description);
 
         step_description.finalize();
         let json_str = serde_json::to_string(&step_description).map_err(std::io::Error::other)?;
