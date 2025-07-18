@@ -3,15 +3,11 @@ use tracing::{debug, warn};
 
 use crate::socketcan::CanFrame;
 
-use crate::robot_description::{
-    ActuatorFeedbackUpdate,
-    ActuatorCommand,
-    ActuatorId,
-};
+use crate::robot_description::{ActuatorCommand, ActuatorFeedbackUpdate, ActuatorId};
 
 use crate::robstride_utils::*;
 
-impl<T> From<T> for crate::socketcan::CanFrame 
+impl<T> From<T> for crate::socketcan::CanFrame
 where
     T: RobstrideActuatorFrame + bytemuck::Pod + bytemuck::Zeroable,
 {
@@ -22,8 +18,7 @@ where
     }
 }
 
-impl From<ActuatorRequest> for crate::socketcan::CanFrame 
-{
+impl From<ActuatorRequest> for crate::socketcan::CanFrame {
     fn from(req: ActuatorRequest) -> Self {
         match req {
             ActuatorRequest::ObtainId(req) => req.into(),
@@ -35,8 +30,7 @@ impl From<ActuatorRequest> for crate::socketcan::CanFrame
     }
 }
 
-impl Into<ActuatorResponse> for crate::socketcan::CanFrame 
-{
+impl Into<ActuatorResponse> for crate::socketcan::CanFrame {
     fn into(mut self) -> ActuatorResponse {
         self.can_id ^= 0x8000_0000; // remove EFF FLAG
         let mux = mux_from_can_frame(&self);
@@ -48,17 +42,20 @@ impl Into<ActuatorResponse> for crate::socketcan::CanFrame
     }
 }
 
-impl Into<ActuatorRequest> for crate::socketcan::CanFrame 
-{
+impl Into<ActuatorRequest> for crate::socketcan::CanFrame {
     fn into(mut self) -> ActuatorRequest {
         self.can_id &= !0x80; // clear EFF FLAG
         let mux = mux_from_can_frame(&self);
         // TODO: change mux values from u8 to an enum
         match mux {
             0x00 => ActuatorRequest::ObtainId(bytemuck::must_cast::<Self, ObtainIdRequest>(self)),
-            0x01 => ActuatorRequest::Control(bytemuck::must_cast::<Self, ControlCommandRequest>(self)),
+            0x01 => {
+                ActuatorRequest::Control(bytemuck::must_cast::<Self, ControlCommandRequest>(self))
+            }
             0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<Self, ReadParamRequest>(self)),
-            0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<Self, MotorEnableRequest>(self)),
+            0x03 => {
+                ActuatorRequest::MotorEnable(bytemuck::must_cast::<Self, MotorEnableRequest>(self))
+            }
             0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<Self, FeedbackRequest>(self)),
             _ => panic!("Unknown mux value: {}", mux),
         }
@@ -74,8 +71,7 @@ impl RobstrideActuatorFrame for FeedbackResponse {}
 impl RobstrideActuatorFrame for ReadParamRequest {}
 impl RobstrideActuatorFrame for MotorEnableRequest {}
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct ObtainIdRequest {
     pub actuator_can_id: u8,
@@ -96,13 +92,12 @@ impl ObtainIdRequest {
             host_id,
             actuator_can_id,
             len: 8,
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct ObtainIdResponse {
     fe: u8,
@@ -116,8 +111,7 @@ pub struct ObtainIdResponse {
     mcu_uid: u64,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct ControlCommandRequest {
     pub actuator_can_id: u8,
@@ -152,14 +146,12 @@ impl ControlCommandRequest {
             angular_vel_scale: angular_vel_scale.to_be(),
             kp_scale: kp_scale.to_be(),
             kd_scale: kd_scale.to_be(),
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
 
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct MotorEnableRequest {
     pub actuator_can_id: u8,
@@ -180,13 +172,12 @@ impl MotorEnableRequest {
             host_id,
             actuator_can_id,
             len: 8,
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct FeedbackResponse {
     host_id: u8,
@@ -205,8 +196,7 @@ pub struct FeedbackResponse {
     pub temp_be: u16,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct FeedbackRequest {
     /**
@@ -230,13 +220,12 @@ impl FeedbackRequest {
             host_id,
             actuator_can_id,
             len: 8,
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct ReadParamRequest {
     pub actuator_can_id: u8,
@@ -253,18 +242,14 @@ pub struct ReadParamRequest {
 }
 
 impl ReadParamRequest {
-    pub fn new(
-        host_id: u16,
-        actuator_can_id: u8,
-        index: u16,
-    ) -> Self {
+    pub fn new(host_id: u16, actuator_can_id: u8, index: u16) -> Self {
         Self {
             mux: 0x11,
             index: index.to_le(),
             actuator_can_id,
             host_id: host_id as u16,
             len: 8,
-            .. Default::default()
+            ..Default::default()
         }
     }
 }
@@ -288,15 +273,13 @@ pub enum ActuatorRequestParams {
 }
 
 impl ActuatorRequest {
-    
     pub fn response_mux(&self) -> u8 {
         match self {
-            Self::ObtainId(_) => 0x0, // Obtain Id mux
-            Self::Control(_) => 0x2, // feedback mux
-            Self::ReadParam(_) => 0x11, // read param mux
+            Self::ObtainId(_) => 0x0,     // Obtain Id mux
+            Self::Control(_) => 0x2,      // feedback mux
+            Self::ReadParam(_) => 0x11,   // read param mux
             Self::MotorEnable(_) => 0x02, // feedback mux
-            Self::Feedback(_) => 0x02, // feedback mux
-            
+            Self::Feedback(_) => 0x02,    // feedback mux
         }
     }
 }
@@ -323,14 +306,22 @@ pub fn mux_from_can_frame(frame: &crate::socketcan::CanFrame) -> u8 {
     frame[3] & 0x1F // Mask to get the mux (5 bits)
 }
 
-
 pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
     let mux = mux_from_can_frame(frame);
     match mux {
-        0x00 => bytemuck::must_cast::<crate::socketcan::CanFrame, ObtainIdResponse>(*frame).actuator_can_id as u8,
-        0x02 => bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame).actuator_can_id as u8,
+        0x00 => {
+            bytemuck::must_cast::<crate::socketcan::CanFrame, ObtainIdResponse>(*frame)
+                .actuator_can_id as u8
+        }
+        0x02 => {
+            bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame)
+                .actuator_can_id as u8
+        }
         _ => {
-            warn!("Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F", mux);
+            warn!(
+                "Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F",
+                mux
+            );
             0x7F // Return a default value if the mux is unknown
         }
     }
@@ -370,7 +361,6 @@ pub struct ActuatorCanClient {
 
 impl ActuatorCanClient {
     pub fn new(actuator_id: ActuatorId) -> Self {
-
         let actuator_can_id = Self::actuator_id_to_can_id(actuator_id);
         ActuatorCanClient {
             host_id: 0xFD,
@@ -389,18 +379,40 @@ impl ActuatorCanClient {
 
     fn build_request(&self, params: &ActuatorRequestParams) -> ActuatorRequest {
         match params {
-            ActuatorRequestParams::ObtainId => ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id)),
-            ActuatorRequestParams::ReadParam => ActuatorRequest::ReadParam(ReadParamRequest::new(self.host_id, self.actuator_can_id, 0x7005)),
-            ActuatorRequestParams::MotorEnable => ActuatorRequest::MotorEnable(MotorEnableRequest::new(self.host_id, self.actuator_can_id)),
-            ActuatorRequestParams::Feedback => ActuatorRequest::Feedback(FeedbackRequest::new(self.host_id, self.actuator_can_id)),
-            ActuatorRequestParams::Control(cmd) => ActuatorRequest::Control(ControlCommandRequest::new(
+            ActuatorRequestParams::ObtainId => {
+                ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id))
+            }
+            ActuatorRequestParams::ReadParam => ActuatorRequest::ReadParam(ReadParamRequest::new(
+                self.host_id,
                 self.actuator_can_id,
-                self.actuator_ranges.torque.scale_value(cmd.qfrc, &self.can_range.torque) as u16,
-                self.actuator_ranges.angle.scale_value(cmd.qpos, &self.can_range.angle) as u16,
-                self.actuator_ranges.velocity.scale_value(cmd.qvel, &self.can_range.velocity) as u16,
-                self.actuator_ranges.kd.scale_value(cmd.kd, &self.can_range.kd) as u16,
-                self.actuator_ranges.kp.scale_value(cmd.kp, &self.can_range.kp) as u16,
+                0x7005,
             )),
+            ActuatorRequestParams::MotorEnable => ActuatorRequest::MotorEnable(
+                MotorEnableRequest::new(self.host_id, self.actuator_can_id),
+            ),
+            ActuatorRequestParams::Feedback => {
+                ActuatorRequest::Feedback(FeedbackRequest::new(self.host_id, self.actuator_can_id))
+            }
+            ActuatorRequestParams::Control(cmd) => {
+                ActuatorRequest::Control(ControlCommandRequest::new(
+                    self.actuator_can_id,
+                    self.actuator_ranges
+                        .torque
+                        .scale_value(cmd.qfrc, &self.can_range.torque) as u16,
+                    self.actuator_ranges
+                        .angle
+                        .scale_value(cmd.qpos, &self.can_range.angle) as u16,
+                    self.actuator_ranges
+                        .velocity
+                        .scale_value(cmd.qvel, &self.can_range.velocity) as u16,
+                    self.actuator_ranges
+                        .kd
+                        .scale_value(cmd.kd, &self.can_range.kd) as u16,
+                    self.actuator_ranges
+                        .kp
+                        .scale_value(cmd.kp, &self.can_range.kp) as u16,
+                ))
+            }
         }
     }
 
@@ -417,9 +429,8 @@ impl ActuatorCanClient {
     }
 
     pub fn set_last_request(&mut self, transaction: CanFrame) {
-
         // map can frame back to request, update state and store it
-        let req = transaction.into(); 
+        let req = transaction.into();
 
         self.state = match req {
             ActuatorRequest::ObtainId(_) => ActuatorClientState::AwaitingIdRequest,
@@ -432,9 +443,10 @@ impl ActuatorCanClient {
         self.last_request = Some(req);
     }
 
-
-    pub fn handle_response(&mut self, response: &CanFrame) -> std::io::Result<Option<ActuatorFeedbackUpdate>> {
-
+    pub fn handle_response(
+        &mut self,
+        response: &CanFrame,
+    ) -> std::io::Result<Option<ActuatorFeedbackUpdate>> {
         if self.last_request.is_none() {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::Other,
@@ -447,9 +459,11 @@ impl ActuatorCanClient {
             if mux_from_can_frame(&response) != cur_req.response_mux() {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
-                    format!("Response ID {} does not match current transaction {}",
+                    format!(
+                        "Response ID {} does not match current transaction {}",
                         mux_from_can_frame(&response),
-                        cur_req.response_mux()),
+                        cur_req.response_mux()
+                    ),
                 ));
             }
         } else {
@@ -488,9 +502,18 @@ impl ActuatorCanClient {
 
     pub fn update_from_feedback(&self, resp: &FeedbackResponse) -> ActuatorFeedbackUpdate {
         ActuatorFeedbackUpdate {
-            qpos: Some(self.can_range.angle.scale_value(resp.angle_scale_be.swap_bytes() as f64, &self.actuator_ranges.angle)),
-            qvel: Some(self.can_range.velocity.scale_value(resp.angular_vel_scale_be.swap_bytes() as f64, &self.actuator_ranges.velocity)),
-            qfrc: Some(self.can_range.torque.scale_value(resp.torque_be.swap_bytes() as f64, &self.actuator_ranges.torque)),
+            qpos: Some(self.can_range.angle.scale_value(
+                resp.angle_scale_be.swap_bytes() as f64,
+                &self.actuator_ranges.angle,
+            )),
+            qvel: Some(self.can_range.velocity.scale_value(
+                resp.angular_vel_scale_be.swap_bytes() as f64,
+                &self.actuator_ranges.velocity,
+            )),
+            qfrc: Some(self.can_range.torque.scale_value(
+                resp.torque_be.swap_bytes() as f64,
+                &self.actuator_ranges.torque,
+            )),
             kp: None,
             kd: None,
             temp: None,

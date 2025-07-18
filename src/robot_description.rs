@@ -1,8 +1,8 @@
+use crossterm::event::KeyEvent;
 use enum_map::{Enum, EnumMap, enum_map};
+use heapless::Deque;
 use nalgebra as na;
 use tracing::info;
-use heapless::Deque;
-use crossterm::event::KeyEvent;
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
@@ -17,12 +17,12 @@ pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
 
 #[derive(Debug, Default)]
 pub struct ActuatorFeedback {
-    pub qpos:   f64, // Position
-    pub qvel:   f64, // Velocity
-    pub qfrc:   f64, // Force
-    pub kp:     f64, // Position gain
-    pub kd:     f64, // Velocity gain
-    pub temp:   f64, // Temperature
+    pub qpos: f64,   // Position
+    pub qvel: f64,   // Velocity
+    pub qfrc: f64,   // Force
+    pub kp: f64,     // Position gain
+    pub kd: f64,     // Velocity gain
+    pub temp: f64,   // Temperature
     pub faults: u32, // Faults
 }
 
@@ -53,33 +53,31 @@ impl ActuatorFeedback {
 }
 
 pub struct ActuatorFeedbackUpdate {
-    pub qpos:   Option<f64>,
-    pub qvel:   Option<f64>,
-    pub qfrc:   Option<f64>,
-    pub kp:     Option<f64>,
-    pub kd:     Option<f64>,
-    pub temp:   Option<f64>,
+    pub qpos: Option<f64>,
+    pub qvel: Option<f64>,
+    pub qfrc: Option<f64>,
+    pub kp: Option<f64>,
+    pub kd: Option<f64>,
+    pub temp: Option<f64>,
     pub faults: Option<u32>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct ActuatorCommand {
-    pub qpos:   f64,
-    pub qvel:   f64,
-    pub qfrc:   f64,
-    pub kp:     f64,
-    pub kd:     f64,
+    pub qpos: f64,
+    pub qvel: f64,
+    pub qfrc: f64,
+    pub kp: f64,
+    pub kd: f64,
 }
-
 
 #[derive(Debug, Default)]
 pub struct ActuatorState {
     pub feedback: ActuatorFeedback,
-    pub command:  ActuatorCommand,
+    pub command: ActuatorCommand,
 }
 
 impl ActuatorState {
-
     pub fn merge_feedback(&mut self, fdbk: ActuatorFeedbackUpdate) {
         self.feedback.merge(fdbk);
     }
@@ -188,7 +186,7 @@ impl ActuatorStateStore {
         Self {
             actuator_states: enum_map::EnumMap::from_fn(|_| ActuatorState {
                 feedback: ActuatorFeedback::default(),
-                command:  ActuatorCommand::default(),
+                command: ActuatorCommand::default(),
             }),
         }
     }
@@ -255,7 +253,9 @@ impl ImuData {
             self.euler.as_mut_slice().copy_from_slice(euler);
         }
         if let Some(ref lin_acc) = feedback.linear_acceleration {
-            self.linear_acceleration.as_mut_slice().copy_from_slice(lin_acc);
+            self.linear_acceleration
+                .as_mut_slice()
+                .copy_from_slice(lin_acc);
         }
         if let Some(ref grav) = feedback.gravity {
             self.gravity.as_mut_slice().copy_from_slice(grav);
@@ -297,10 +297,7 @@ pub enum DataType {
 
 use clap::Parser;
 #[derive(Debug, Parser)]
-#[command(
-    name = "faux-rtos",
-    about = "Parse three floats"
-)]
+#[command(name = "faux-rtos", about = "Parse three floats")]
 pub struct Args {
     /// scale factor for the policy
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
@@ -398,10 +395,8 @@ impl RobotDescription {
 
     pub fn dimensions(&self, dtype: DataType) -> Vec<usize> {
         let ret = match dtype {
-
             // Actuators
-            DataType::JointAngles 
-            | DataType::JointAngularVelocities => self.actuators.len(),
+            DataType::JointAngles | DataType::JointAngularVelocities => self.actuators.len(),
 
             // Imu
             DataType::Quaternion => self.imu.quaternion.coords.len(),
@@ -416,4 +411,3 @@ impl RobotDescription {
         return vec![ret];
     }
 }
-

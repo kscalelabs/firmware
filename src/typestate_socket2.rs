@@ -1,30 +1,29 @@
+use crate::bytestream_fd::ByteStreamFd;
+use futures_enum::Future; // derive macro for enums
+use pin_project::pin_project;
 use std::io;
 use std::os::unix::io::AsRawFd;
-use tracing::{debug, error, info};
-use crate::bytestream_fd::ByteStreamFd;
 use std::pin::Pin;
-use std::task::{Context, Poll};
-use pin_project::pin_project;
-use futures_enum::Future;            // derive macro for enums
 use std::task::ready;
-
+use std::task::{Context, Poll};
+use tracing::{debug, error, info};
 
 use std::fmt::Debug;
 
 use std::future::Future as StdFuture;
 
-#[derive(Future)]  // from `futures-enum`
-pub enum SocketStateFut<C,O>
+#[derive(Future)] // from `futures-enum`
+pub enum SocketStateFut<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
 {
-    Reset(ResetStateFut<C,O>),
-    Configure(ConfigureStateFut<C,O>),
-    Operate(OperateStateFut<C,O>),
+    Reset(ResetStateFut<C, O>),
+    Configure(ConfigureStateFut<C, O>),
+    Operate(OperateStateFut<C, O>),
 }
 
-impl<C,O> Debug for SocketStateFut<C,O> 
+impl<C, O> Debug for SocketStateFut<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -39,7 +38,7 @@ where
 }
 
 #[derive(Debug)]
-pub enum SocketState<C,O> 
+pub enum SocketState<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -51,7 +50,7 @@ where
     Error,
 }
 
-struct StateTransitionResult<C, O> 
+struct StateTransitionResult<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -66,7 +65,7 @@ macro_rules! state_fn_type {
         pub type $name<C, O>
         where
             C: SocketConfigurator + Unpin,
-            O: SocketOperator     + Unpin,
+            O: SocketOperator + Unpin,
         = impl StdFuture<Output = StateTransitionResult<C, O>>;
     };
 }
@@ -75,16 +74,17 @@ state_fn_type!(ConfigureStateFut);
 state_fn_type!(OperateStateFut);
 state_fn_type!(ResetStateFut);
 
-impl<C, O> SocketState<C, O> 
+impl<C, O> SocketState<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
 {
-
-    pub fn transition_fut(self) -> SocketStateFut<C,O> {
+    pub fn transition_fut(self) -> SocketStateFut<C, O> {
         match self {
             SocketState::Reset(ifname) => SocketStateFut::Reset(Self::reset_state_fn(ifname)),
-            SocketState::Configure(socket) => SocketStateFut::Configure(Self::configure_state_fn(socket)),
+            SocketState::Configure(socket) => {
+                SocketStateFut::Configure(Self::configure_state_fn(socket))
+            }
             SocketState::Operate(socket) => SocketStateFut::Operate(Self::operate_state_fn(socket)),
             _ => panic!("SocketState Invalid!"),
         }
@@ -97,46 +97,38 @@ where
             // Simulate some async work, e.g., configuration
             // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             match Socket::<C>::new(&ifname) {
-                Ok(socket) => {
-                    StateTransitionResult {
-                        state: SocketState::Configure(socket),
-                        result: Ok(()),
-                    }
-                }
-                Err(e) => {
-                    StateTransitionResult {
-                        state: SocketState::Reset(ifname),
-                        result: Err(e),
-                    }
-                }
+                Ok(socket) => StateTransitionResult {
+                    state: SocketState::Configure(socket),
+                    result: Ok(()),
+                },
+                Err(e) => StateTransitionResult {
+                    state: SocketState::Reset(ifname),
+                    result: Err(e),
+                },
             }
         }
     }
 
     #[define_opaque(ConfigureStateFut)]
-    pub fn configure_state_fn(socket: Socket::<C>) -> ConfigureStateFut<C, O> {
+    pub fn configure_state_fn(socket: Socket<C>) -> ConfigureStateFut<C, O> {
         async move {
             // tokio::time::sleep(std::time::Duration::from_secs(1)).await;
             let ifname = socket.ifname.clone();
             match socket.establish::<O>().await {
-                Ok(socket) => {
-                    StateTransitionResult {
-                        state: SocketState::Operate(socket),
-                        result: Ok(()),
-                    }
-                }
-                Err(e) => {
-                    StateTransitionResult {
-                        state: SocketState::Reset(ifname),
-                        result: Err(e),
-                    }
-                }
+                Ok(socket) => StateTransitionResult {
+                    state: SocketState::Operate(socket),
+                    result: Ok(()),
+                },
+                Err(e) => StateTransitionResult {
+                    state: SocketState::Reset(ifname),
+                    result: Err(e),
+                },
             }
         }
     }
 
     #[define_opaque(OperateStateFut)]
-    pub fn operate_state_fn(socket: Socket::<O>) -> OperateStateFut<C, O> {
+    pub fn operate_state_fn(socket: Socket<O>) -> OperateStateFut<C, O> {
         async move {
             StateTransitionResult {
                 state: SocketState::Operate(socket),
@@ -147,13 +139,14 @@ where
 }
 
 #[pin_project]
-pub struct SocketGraph<C,O>
+pub struct SocketGraph<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
 {
     pub state: Option<SocketState<C, O>>,
-    #[pin] pending_fut: Option<SocketStateFut<C, O>>,
+    #[pin]
+    pending_fut: Option<SocketStateFut<C, O>>,
 }
 
 impl<C, O> SocketGraph<C, O>
@@ -178,7 +171,7 @@ where
     // }
 }
 
-impl<C,O> StdFuture for SocketGraph<C,O>
+impl<C, O> StdFuture for SocketGraph<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -195,7 +188,7 @@ where
                     debug!("Polling pending future: {:?}", pending_fut);
                     // If the pending future is ready, we can transition to the next state
                     // *this.state = ready!(pending_fut.poll(cx));
-                    let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
+                    let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
                     // println!("Got new state: {:?}", this.state);
                     let unpinned = unsafe { Pin::get_unchecked_mut(this.pending_fut.as_mut()) };
                     *unpinned = None; // Clear the pending future after polling
@@ -208,19 +201,18 @@ where
                         Ok(_) => {
                             // println!("transition to next state: {:?}", st);
                             if let SocketState::Operate(_) = &st {
-                                *this.state = Some(st);  // Update the current state
-                                return Poll::Ready(Ok(()));  // Return ready with Ok if we are in Operate state
+                                *this.state = Some(st); // Update the current state
+                                return Poll::Ready(Ok(())); // Return ready with Ok if we are in Operate state
                             } else {
-                                *this.state = Some(st);  // Update the current state
-                                continue;  // Continue polling if we are not in Operate state
+                                *this.state = Some(st); // Update the current state
+                                continue; // Continue polling if we are not in Operate state
                             }
                         }
                         Err(e) => {
                             error!("Error during state transition: {:?}", e);
-                            return Poll::Ready(Err(e));  // Return error
+                            return Poll::Ready(Err(e)); // Return error
                         }
                     };
-
                 }
                 None => {
                     // println!("in none");
@@ -229,7 +221,12 @@ where
                     }
                     // queue up pending fut
                     let unpinned = unsafe { this.pending_fut.as_mut().get_unchecked_mut() };
-                    *unpinned = Some(this.state.take().expect("state must not be None").transition_fut());
+                    *unpinned = Some(
+                        this.state
+                            .take()
+                            .expect("state must not be None")
+                            .transition_fut(),
+                    );
                     // queue up pending fut
                     // let mut state = SocketState::InFlight;
                     // std::mem::swap(this.state, &mut state);
@@ -244,7 +241,6 @@ where
         // loop {
         //     match this.pending_fut.as_mut().poll(cx) {
         //         Poll::Ready(state) => {
-
 
         //             // check if we are in operate state
         //             if let SocketState::Operate(_) = state {
@@ -278,7 +274,7 @@ where
     }
 }
 
-impl<C,O> Debug for SocketGraph<C,O>
+impl<C, O> Debug for SocketGraph<C, O>
 where
     C: SocketConfigurator + Unpin + Debug,
     O: SocketOperator + Unpin + Debug,
@@ -288,7 +284,7 @@ where
     }
 }
 
-pub enum SocketStorage<C,O> 
+pub enum SocketStorage<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -298,7 +294,7 @@ where
     Operate(Socket<O>),
 }
 
-impl<C,O> std::fmt::Debug for SocketStorage<C,O> 
+impl<C, O> std::fmt::Debug for SocketStorage<C, O>
 where
     C: SocketConfigurator + Unpin + std::fmt::Debug,
     O: SocketOperator + Unpin + std::fmt::Debug,
@@ -312,8 +308,6 @@ where
     }
 }
 
-
-
 #[derive(Debug)]
 pub struct Socket<State: Unpin> {
     // common data across all states
@@ -324,30 +318,36 @@ pub struct Socket<State: Unpin> {
     state: State,
 }
 
-// impl<State> Unpin for Socket<State> 
+// impl<State> Unpin for Socket<State>
 // where
 //     State: SocketConfigurator + Unpin,
 // {
 // }
 
-pub trait SocketConfigurator : Default + std::fmt::Debug {
+pub trait SocketConfigurator: Default + std::fmt::Debug {
     fn get_domain() -> socket2::Domain;
     fn get_type() -> socket2::Type;
     fn get_protocol() -> Option<socket2::Protocol>;
     fn get_sockaddr(ifname: &str) -> std::io::Result<socket2::SockAddr>;
 }
 
-pub trait SocketOperator : std::fmt::Debug {
+pub trait SocketOperator: std::fmt::Debug {
     type MsgType;
     fn new(bytestream_fd: ByteStreamFd) -> Self;
     // async fn write(&mut self, msg: &Self::MsgType) -> io::Result<usize>;
     // async fn write(&mut self, msg: &mut Self::MsgType) -> io::Result<usize>;
-    fn write(&mut self, msg: &Self::MsgType) -> impl std::future::Future<Output = io::Result<usize>> + Send + Sync;
-    fn read(&mut self, msg: &mut Self::MsgType) -> impl std::future::Future<Output = io::Result<usize>> + Send + Sync;
+    fn write(
+        &mut self,
+        msg: &Self::MsgType,
+    ) -> impl std::future::Future<Output = io::Result<usize>> + Send + Sync;
+    fn read(
+        &mut self,
+        msg: &mut Self::MsgType,
+    ) -> impl std::future::Future<Output = io::Result<usize>> + Send + Sync;
     fn try_read(&mut self, msg: &mut [u8]) -> std::io::Result<usize>;
 }
 
-impl<State> Socket<State> 
+impl<State> Socket<State>
 where
     State: SocketConfigurator + Unpin,
 {
@@ -369,15 +369,13 @@ where
         })
     }
 
-    pub async fn establish<Operator>(self) -> std::io::Result<Socket<Operator>> 
+    pub async fn establish<Operator>(self) -> std::io::Result<Socket<Operator>>
     where
         Operator: SocketOperator + Unpin,
     {
-        let bytestream_fd = ByteStreamFd::new(
-            self.socket.as_raw_fd(),
-        )?;
+        let bytestream_fd = ByteStreamFd::new(self.socket.as_raw_fd())?;
 
-        // create the operator 
+        // create the operator
         let operator = Operator::new(bytestream_fd);
         info!("establishing socket with operator: {:?}", operator);
 
@@ -390,8 +388,8 @@ where
     }
 }
 
-impl <State> Socket<State>
-where 
+impl<State> Socket<State>
+where
     State: SocketOperator + Unpin,
 {
     pub async fn write(&mut self, msg: &State::MsgType) -> io::Result<usize> {
@@ -495,5 +493,3 @@ impl Future for CanSocketFuture {
     }
 }
 */
-
-

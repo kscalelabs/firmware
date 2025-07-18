@@ -1,29 +1,23 @@
 // #![allow(unused)]
 
 use crate::actuator::ActuatorBus;
-use tracing::{error, info};
 use crate::state_machine;
+use tracing::{error, info};
 
-use std::{
-    pin::Pin,
-    future::Future,
-    task::{Context, Poll},
-};
-use pin_project::pin_project;
 use futures::Stream;
 use futures::StreamExt;
 use futures::TryStream;
 use futures::TryStreamExt;
-
-use enum_map::{
-    EnumMap,
-    Enum,
+use pin_project::pin_project;
+use std::{
+    future::Future,
+    pin::Pin,
+    task::{Context, Poll},
 };
 
-use crate::robot_description::{
-    BusTag,
-    ActuatorStateStore,
-};
+use enum_map::{Enum, EnumMap};
+
+use crate::robot_description::{ActuatorStateStore, BusTag};
 
 use std::task::ready;
 
@@ -49,7 +43,6 @@ impl ActuatorBusWrapper {
 #[derive(Debug)]
 #[pin_project]
 pub struct Store {
-
     // leftarm_store: actuator::Store,
     #[pin]
     bus_wrappers: EnumMap<BusTag, ActuatorBusWrapper>,
@@ -62,14 +55,7 @@ pub struct Store {
 
 impl Store {
     pub fn new() -> Self {
-
-        let iface_names = [
-            "can0",
-            "can1",
-            "can2",
-            "can3",
-            "can4"
-        ].map(String::from);
+        let iface_names = ["can0", "can1", "can2", "can3", "can4"].map(String::from);
 
         let actuator_ids = [
             BusTag::LeftArm.id_vec(),
@@ -126,10 +112,9 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
 }
 
+use std::io;
 use std::time::Duration;
 use tokio::time::timeout;
-use std::io;
-
 
 impl Ready {
     pub async fn enable(&mut self) -> std::io::Result<()> {
@@ -142,15 +127,17 @@ impl Ready {
                 // enable the bus
                 rdy_bus.enable().await?;
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Bus is not in Operate state",
+                ));
             }
         }
         Ok(())
     }
 }
 
-impl State for Ready
-{
+impl State for Ready {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -170,21 +157,11 @@ impl State for Ready
                 unsafe { Pin::new_unchecked(&mut w3.bus) },
             ];
 
-            let [f0, f1, f2, f3] = [
-                s0.try_next(),
-                s1.try_next(),
-                s2.try_next(),
-                s3.try_next(),
-            ];
+            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
 
             // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
             let results = tokio::join!(f0, f1, f2, f3);
-            let results = [
-                results.0,
-                results.1,
-                results.2,
-                results.3,
-            ];
+            let results = [results.0, results.1, results.2, results.3];
 
             info!("Results: {:?}", results);
 
@@ -193,48 +170,47 @@ impl State for Ready
                 match results {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Operate;
-                        info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i.into()].iface_idx]);
+                        info!(
+                            "Bus {:?} reached {:?} on iface {}",
+                            i,
+                            tag,
+                            ss.iface_names[wrappers[i.into()].iface_idx]
+                        );
                     }
                     Ok(None) => {
                         return StateTransitionResult {
-                            state: StateStore::Reset(Reset {
-                                shared_state,
-                            }),
-                            result: Err(io::Error::new(io::ErrorKind::Other, "No data received from bus")),
+                            state: StateStore::Reset(Reset { shared_state }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                "No data received from bus",
+                            )),
                         };
                     }
                     Err(e) => {
                         return StateTransitionResult {
-                            state: StateStore::Ready(Ready {
-                                shared_state,
-                            }),
+                            state: StateStore::Ready(Ready { shared_state }),
                             result: Err(e),
                         };
                     }
                 }
             }
-            
+
             if !proceed {
                 return StateTransitionResult {
-                    state: StateStore::Ready(Ready {
-                        shared_state,
-                    }),
+                    state: StateStore::Ready(Ready { shared_state }),
                     result: Ok(()),
                 };
             }
 
             StateTransitionResult {
-                state: StateStore::Operate(Operate {
-                    shared_state,
-                }),
+                state: StateStore::Operate(Operate { shared_state }),
                 result: Ok(()),
             }
         }
     }
 }
 
-impl State for Scanning
-{
+impl State for Scanning {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -243,7 +219,7 @@ impl State for Scanning
             // in place and can be reborrowed safely.
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
             // unsafe { std::mem::transmute(&mut *ss.bus_wrappers) };
-            
+
             for wrapper in wrappers.values_mut() {
                 wrapper.bus.set_target(actuator::StateTag::Ready);
             }
@@ -256,21 +232,11 @@ impl State for Scanning
                 unsafe { Pin::new_unchecked(&mut w3.bus) },
             ];
 
-            let [f0, f1, f2, f3] = [
-                s0.try_next(),
-                s1.try_next(),
-                s2.try_next(),
-                s3.try_next(),
-            ];
+            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
 
             // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
             let results = tokio::join!(f0, f1, f2, f3);
-            let results = [
-                results.0,
-                results.1,
-                results.2,
-                results.3,
-            ];
+            let results = [results.0, results.1, results.2, results.3];
 
             info!("Results: {:?}", results);
 
@@ -280,56 +246,59 @@ impl State for Scanning
                 match results {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Ready;
-                        info!("Bus {:?} reached {:?} on iface {}", i, tag, ss.iface_names[wrappers[i].iface_idx]);
+                        info!(
+                            "Bus {:?} reached {:?} on iface {}",
+                            i, tag, ss.iface_names[wrappers[i].iface_idx]
+                        );
                     }
                     Ok(None) => {
                         return StateTransitionResult {
-                            state: StateStore::Reset(Reset {
-                                shared_state,
-                            }),
-                            result: Err(io::Error::new(io::ErrorKind::Other, "No data received from bus")),
+                            state: StateStore::Reset(Reset { shared_state }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::Other,
+                                "No data received from bus",
+                            )),
                         };
                     }
                     Err(e) => {
                         error!("Error polling bus {:?}: {:?}", i, e);
                         // handle error, e.g. reset the bus
-                        let av_idx = ss.av_iface_idxs.pop_front().expect("Expected at least 4 actuator buses");
+                        let av_idx = ss
+                            .av_iface_idxs
+                            .pop_front()
+                            .expect("Expected at least 4 actuator buses");
                         ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
-                        error!("Resetting bus {:?} from {} to {}", i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]);
+                        error!(
+                            "Resetting bus {:?} from {} to {}",
+                            i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]
+                        );
                         wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
                         proceed = false;
                     }
                 }
             }
-            
+
             if !proceed {
                 return StateTransitionResult {
-                    state: StateStore::Scanning(Scanning {
-                        shared_state,
-                    }),
+                    state: StateStore::Scanning(Scanning { shared_state }),
                     result: Ok(()),
                 };
             }
 
             StateTransitionResult {
-                state: StateStore::Ready(Ready {
-                    shared_state,
-                }),
+                state: StateStore::Ready(Ready { shared_state }),
                 result: Ok(()),
             }
         }
     }
 }
 
-impl State for Reset
-{
+impl State for Reset {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
             StateTransitionResult {
-                state: StateStore::Scanning(Scanning {
-                    shared_state,
-                }),
+                state: StateStore::Scanning(Scanning { shared_state }),
                 result: Ok(()),
             }
         }
@@ -347,13 +316,19 @@ impl Operate {
                 // enable the bus
                 op_bus.request_feedback().await?;
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Bus is not in Operate state",
+                ));
             }
-        };
+        }
         Ok(())
     }
 
-    pub async fn process_feedback(&mut self, act_states: &mut ActuatorStateStore) -> std::io::Result<()> {
+    pub async fn process_feedback(
+        &mut self,
+        act_states: &mut ActuatorStateStore,
+    ) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
@@ -361,11 +336,16 @@ impl Operate {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // process the feedback
-                op_bus.process_feedback(act_states.slice_mut(i.into())).await?;
+                op_bus
+                    .process_feedback(act_states.slice_mut(i.into()))
+                    .await?;
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Bus is not in Operate state",
+                ));
             }
-        };
+        }
         Ok(())
     }
 
@@ -379,9 +359,12 @@ impl Operate {
                 // enable the bus
                 op_bus.command(act_states.slice(BusTag::from(i))).await?;
             } else {
-                return Err(io::Error::new(io::ErrorKind::Other, "Bus is not in Operate state"));
+                return Err(io::Error::new(
+                    io::ErrorKind::Other,
+                    "Bus is not in Operate state",
+                ));
             }
-        };
+        }
         Ok(())
     }
 
@@ -452,8 +435,7 @@ impl Operate {
     // }
 }
 
-impl State for Operate
-{
+impl State for Operate {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -484,10 +466,8 @@ pub struct ActuatorManager {
     pending_fut: Option<StateFut>,
 }
 
-
 impl ActuatorManager {
     pub fn new() -> Self {
-
         Self {
             state: Some(StateStore::Reset(Reset {
                 shared_state: Box::pin(Store::new()),
@@ -506,32 +486,23 @@ impl ActuatorManager {
     }
 
     pub fn reset_state(&mut self) -> std::io::Result<()> {
-
         if self.state.is_none() {
             return Err(io::Error::new(io::ErrorKind::Other, "No state to reset"));
         }
 
         self.state = Some(match self.state.take().unwrap() {
-            StateStore::Reset(_) => {
-                StateStore::Reset(Reset {
-                    shared_state: Box::pin(Store::new()),
-                })
-            }
-            StateStore::Scanning(scanning) => {
-                StateStore::Reset(Reset {
-                    shared_state: scanning.shared_state,
-                })
-            }
-            StateStore::Ready(ready) => {
-                StateStore::Reset(Reset {
-                    shared_state: ready.shared_state,
-                })
-            }
-            StateStore::Operate(operate) => {
-                StateStore::Reset(Reset {
-                    shared_state: operate.shared_state,
-                })
-            }
+            StateStore::Reset(_) => StateStore::Reset(Reset {
+                shared_state: Box::pin(Store::new()),
+            }),
+            StateStore::Scanning(scanning) => StateStore::Reset(Reset {
+                shared_state: scanning.shared_state,
+            }),
+            StateStore::Ready(ready) => StateStore::Reset(Reset {
+                shared_state: ready.shared_state,
+            }),
+            StateStore::Operate(operate) => StateStore::Reset(Reset {
+                shared_state: operate.shared_state,
+            }),
         });
 
         self.target = None;
@@ -547,19 +518,21 @@ impl Stream for ActuatorManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                // log::debug!("Polling pending future: {:?}", pending_fut);
-                // If the pending future is ready, we can transition to the next state
-                let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
-                // clear the pending future
-                unsafe { *this.pending_fut.get_unchecked_mut() = None; }
+            // log::debug!("Polling pending future: {:?}", pending_fut);
+            // If the pending future is ready, we can transition to the next state
+            let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
+            // clear the pending future
+            unsafe {
+                *this.pending_fut.get_unchecked_mut() = None;
+            }
 
-                let tag = st.tag();
-                *this.state = Some(st); // Update the state
-                if let Err(e) = result {
-                    error!("State transition failed: {:?}", e);
-                    return Poll::Ready(Some(Err(e)));
-                }
-                return Poll::Ready(Some(Ok(tag)));
+            let tag = st.tag();
+            *this.state = Some(st); // Update the state
+            if let Err(e) = result {
+                error!("State transition failed: {:?}", e);
+                return Poll::Ready(Some(Err(e)));
+            }
+            return Poll::Ready(Some(Ok(tag)));
         }
 
         // check if we have laready reached the specified target
@@ -573,7 +546,10 @@ impl Stream for ActuatorManager {
         // start new transition to reach the target state
         unsafe {
             *this.pending_fut.get_unchecked_mut() = Some(
-                this.state.take().expect("state must not be None").transition_fut()
+                this.state
+                    .take()
+                    .expect("state must not be None")
+                    .transition_fut(),
             );
         }
 

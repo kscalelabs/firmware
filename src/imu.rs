@@ -1,19 +1,12 @@
+use pin_project::pin_project;
 use std::pin::Pin;
 use std::task::ready;
 use tracing::{debug, error, info, warn};
-use pin_project::pin_project;
 
+use futures::{Stream, StreamExt, TryStream, TryStreamExt};
 use std::task::{Context, Poll};
-use futures::{
-    Stream,
-    StreamExt,
-    TryStream,
-    TryStreamExt
-};
 
-use crate::typestate_serial::{
-    self,
-};
+use crate::typestate_serial::{self};
 
 use crate::hiwonder::HiwonderImu;
 
@@ -33,7 +26,8 @@ struct Store {
 
 impl Store {
     pub fn new(devpath: &str) -> Self {
-        let port = typestate_serial::SerialPort::new(devpath, typestate_serial::SerialBaudRate::B9600);
+        let port =
+            typestate_serial::SerialPort::new(devpath, typestate_serial::SerialBaudRate::B9600);
         Self {
             bauds: vec![
                 typestate_serial::SerialBaudRate::B9600,
@@ -64,8 +58,7 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
 }
 
-impl State for Reset
-{
+impl State for Reset {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             *self.shared_state.as_mut().project().cur_idx = 0;
@@ -86,21 +79,30 @@ impl Scanning {
         // read data from the serial port
         let to = tokio::time::timeout(
             std::time::Duration::from_millis(500),
-            op_port.read_exact(&mut buf128)
+            op_port.read_exact(&mut buf128),
         );
 
         match to.await {
             Ok(Ok(_n)) => {
                 // print in hex
-                debug!("Read {:?} from IMU", buf128.iter().map(|b| format!("{:02x}", b)).collect::<Vec<_>>());
-            },
+                debug!(
+                    "Read {:?} from IMU",
+                    buf128
+                        .iter()
+                        .map(|b| format!("{:02x}", b))
+                        .collect::<Vec<_>>()
+                );
+            }
             Ok(Err(e)) => {
                 warn!("Error reading IMU data: {:?}", e);
                 return Err(e);
-            },
+            }
             Err(e) => {
                 warn!("Timed out reading from serial port: {:?}", e);
-                return Err(std::io::Error::new(std::io::ErrorKind::TimedOut, "Timed out reading from serial port"));
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::TimedOut,
+                    "Timed out reading from serial port",
+                ));
             }
         }
         // verify that its correct (e.g. checksum)
@@ -108,8 +110,7 @@ impl Scanning {
     }
 }
 
-impl State for Scanning
-{
+impl State for Scanning {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -120,15 +121,19 @@ impl State for Scanning
                 match ss.port.try_next().await {
                     Ok(Some(typestate_serial::StateTag::Operate)) => break,
                     Ok(_) => continue,
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Err(std::io::Error::new(std::io::ErrorKind::UnexpectedEof, 
-                            "serial port imu stream ended unexpectedly")),
-                    },
+                    Ok(None) => {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset {
+                                shared_state: self.shared_state,
+                            }),
+                            result: Err(std::io::Error::new(
+                                std::io::ErrorKind::UnexpectedEof,
+                                "serial port imu stream ended unexpectedly",
+                            )),
+                        };
+                    }
                     Err(e) => {
-                        return StateTransitionResult { 
+                        return StateTransitionResult {
                             state: StateStore::Reset(Reset {
                                 shared_state: self.shared_state,
                             }),
@@ -138,52 +143,71 @@ impl State for Scanning
                 }
             }
 
-            let typestate_serial::StateStore::Operate(op_port) = ss.port.as_mut().get_state_pinned()
-                .expect("serial port should be in Operate state") else {
+            let typestate_serial::StateStore::Operate(op_port) = ss
+                .port
+                .as_mut()
+                .get_state_pinned()
+                .expect("serial port should be in Operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(std::io::Error::new(std::io::ErrorKind::Other, "serial port is not in Operate state")),
+                    result: Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "serial port is not in Operate state",
+                    )),
                 };
             };
 
             if let Err(e) = Self::verify_imu(op_port).await {
-                    warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
-                    *ss.cur_idx += 1;
-                    let unpinned = unsafe { Pin::get_unchecked_mut(ss.port.as_mut()) };
-                    unpinned.reset_baud(ss.bauds[*ss.cur_idx]);
-                    return StateTransitionResult {
-                        state: StateStore::Scanning(Scanning {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Ok(()), // this is expected
-                    };
+                warn!(
+                    "Error verifying imu at baud {:?}: {:?}",
+                    ss.bauds[*ss.cur_idx], e
+                );
+                *ss.cur_idx += 1;
+                let unpinned = unsafe { Pin::get_unchecked_mut(ss.port.as_mut()) };
+                unpinned.reset_baud(ss.bauds[*ss.cur_idx]);
+                return StateTransitionResult {
+                    state: StateStore::Scanning(Scanning {
+                        shared_state: self.shared_state,
+                    }),
+                    result: Ok(()), // this is expected
+                };
             }
 
             match HiwonderImu::setup(op_port).await {
                 Ok(_) => {
-                    info!("Successfully setup IMU at baud: {:?}", ss.bauds[*ss.cur_idx]);
-                },
-                Err(e) => {
-                    warn!("Error setting up IMU: {:?} at baud: {:?}", e, ss.bauds[*ss.cur_idx]);
-                    return StateTransitionResult {
-                        state: StateStore::Reset(Reset {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Ok(()), // this is expected
-                    }
+                    info!(
+                        "Successfully setup IMU at baud: {:?}",
+                        ss.bauds[*ss.cur_idx]
+                    );
                 }
-            }
-
-            if let Err(e) = Self::verify_imu(op_port).await {
-                    warn!("Error verifying imu at baud {:?}: {:?}", ss.bauds[*ss.cur_idx], e);
+                Err(e) => {
+                    warn!(
+                        "Error setting up IMU: {:?} at baud: {:?}",
+                        e, ss.bauds[*ss.cur_idx]
+                    );
                     return StateTransitionResult {
                         state: StateStore::Reset(Reset {
                             shared_state: self.shared_state,
                         }),
                         result: Ok(()), // this is expected
                     };
+                }
+            }
+
+            if let Err(e) = Self::verify_imu(op_port).await {
+                warn!(
+                    "Error verifying imu at baud {:?}: {:?}",
+                    ss.bauds[*ss.cur_idx], e
+                );
+                return StateTransitionResult {
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
+                    result: Ok(()), // this is expected
+                };
             }
 
             // we are ready, flush everything
@@ -195,22 +219,27 @@ impl State for Scanning
                 }),
                 result: Ok(()),
             }
-
         }
     }
 }
 
 impl Operate {
-
     pub async fn process_feedback(&mut self, imu_data: &mut ImuData) -> std::io::Result<()> {
         let mut shared_state = &mut self.shared_state;
         let mut ss = shared_state.as_mut().project();
 
         // get operational serial port
 
-        let typestate_serial::StateStore::Operate(op_port) = ss.port.as_mut().get_state_pinned()
-            .expect("serial port should be in Operate state") else {
-            return Err(std::io::Error::new(std::io::ErrorKind::Other, "serial port is not in Operate state"));
+        let typestate_serial::StateStore::Operate(op_port) = ss
+            .port
+            .as_mut()
+            .get_state_pinned()
+            .expect("serial port should be in Operate state")
+        else {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "serial port is not in Operate state",
+            ));
         };
 
         let fdbk = HiwonderImu::parse_all(op_port).await?;
@@ -220,8 +249,7 @@ impl Operate {
     }
 }
 
-impl State for Operate
-{
+impl State for Operate {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
@@ -252,7 +280,7 @@ impl ImuManager {
             pending_fut: None,
         }
     }
-    
+
     pub fn set_target(&mut self, target: StateTag) {
         self.target = Some(target);
     }
@@ -277,18 +305,20 @@ impl Stream for ImuManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                // If the pending future is ready, we can transition to the next state
-                let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
-                // clear the pending future
-                unsafe { *this.pending_fut.get_unchecked_mut() = None; }
+            // If the pending future is ready, we can transition to the next state
+            let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
+            // clear the pending future
+            unsafe {
+                *this.pending_fut.get_unchecked_mut() = None;
+            }
 
-                let tag = st.tag();
-                *this.state = Some(st); // Update the state
-                if let Err(e) = result {
-                    error!("State transition failed: {:?}", e);
-                    return Poll::Ready(Some(Err(e)));
-                }
-                return Poll::Ready(Some(Ok(tag)));
+            let tag = st.tag();
+            *this.state = Some(st); // Update the state
+            if let Err(e) = result {
+                error!("State transition failed: {:?}", e);
+                return Poll::Ready(Some(Err(e)));
+            }
+            return Poll::Ready(Some(Ok(tag)));
         }
 
         // check if we have laready reached the specified target
@@ -302,7 +332,10 @@ impl Stream for ImuManager {
         // start new transition to reach the target state
         unsafe {
             *this.pending_fut.get_unchecked_mut() = Some(
-                this.state.take().expect("state must not be None").transition_fut()
+                this.state
+                    .take()
+                    .expect("state must not be None")
+                    .transition_fut(),
             );
         }
 
@@ -311,5 +344,3 @@ impl Stream for ImuManager {
         Poll::Pending
     }
 }
-
-

@@ -2,18 +2,12 @@ use crate::typestate_socket::BytesHandler;
 use std::io;
 use tracing::debug;
 
-use socket2::{
-    Domain,
-    Type,
-    Protocol
-};
-
+use socket2::{Domain, Protocol, Type};
 
 pub const CAN_MAX_DLEN: usize = 8; // Maximum Transmission Unit for CAN frames
 
 /// CAN frame structure taken from linux/include/uapi/linuxcan.h
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct CanFrame {
     pub can_id: u32,
@@ -24,7 +18,6 @@ pub struct CanFrame {
     pub can_data: [u8; CAN_MAX_DLEN],
 }
 
-
 impl From<CanFrame> for [u8; 16] {
     fn from(frame: CanFrame) -> Self {
         // SAFETY: CanFrame is POD and has the same size as [u8; std::mem::size_of::<CanFrame>()].
@@ -32,7 +25,7 @@ impl From<CanFrame> for [u8; 16] {
     }
 }
 
-impl <'a> From<&'a CanFrame> for &'a [u8] {
+impl<'a> From<&'a CanFrame> for &'a [u8] {
     fn from(frame: &'a CanFrame) -> Self {
         // SAFETY: CanFrame is POD and has the same size as [u8; std::mem::size_of::<CanFrame>()].
         // bytemuck::cast_ref(frame)
@@ -40,7 +33,7 @@ impl <'a> From<&'a CanFrame> for &'a [u8] {
     }
 }
 
-impl <'a> From<&'a mut CanFrame> for &'a mut [u8] {
+impl<'a> From<&'a mut CanFrame> for &'a mut [u8] {
     fn from(frame: &'a mut CanFrame) -> Self {
         // SAFETY: CanFrame is POD and has the same size as [u8; std::mem::size_of::<CanFrame>()].
         // bytemuck::cast_ref(frame)
@@ -61,13 +54,10 @@ impl <'a> From<&'a mut CanFrame> for &'a mut [u8] {
 //     }
 // }
 
-
-
 #[derive(Debug)]
 pub struct CanSocket {}
 
 impl BytesHandler for CanSocket {
-
     fn verify_read(_buf: &[u8]) -> io::Result<()> {
         // Implement your verification logic here
         debug!("Verifying CAN socket data... {:?}", _buf);
@@ -87,11 +77,8 @@ impl BytesHandler for CanSocket {
     }
 
     fn sockaddr(ifname: &str) -> socket2::SockAddr {
-
         let cstr = std::ffi::CString::new(ifname).unwrap();
-        let if_index = unsafe {
-            libc::if_nametoindex(cstr.as_ptr())
-        };
+        let if_index = unsafe { libc::if_nametoindex(cstr.as_ptr()) };
         let addr = libc::sockaddr_can {
             can_family: libc::AF_CAN as _,
             can_ifindex: if_index as i32,
@@ -99,9 +86,7 @@ impl BytesHandler for CanSocket {
         };
 
         // this can simply be casted to sockaddr_storage on x86 and aarch64 linux gnu
-        let mut sockaddr_storage: libc::sockaddr_storage = unsafe {
-            std::mem::zeroed()
-        };
+        let mut sockaddr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
         unsafe {
             std::ptr::copy_nonoverlapping(
                 &addr as *const _ as *const u8,
@@ -118,7 +103,6 @@ impl BytesHandler for CanSocket {
         }
         // sockaddr
     }
-
 }
 
 // Handler that reads raw Ethernet frames
@@ -129,7 +113,10 @@ impl BytesHandler for EthernetSocket {
     fn verify_read(buf: &[u8]) -> io::Result<()> {
         // inspect the first 14 bytes of the Ethernet header, for example:
         if buf.len() < 14 {
-            return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "frame too short"));
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "frame too short",
+            ));
         }
         // You could parse dst/src MAC and EtherType here
         debug!("Received Ethernet frame: {:02x?}", &buf[..14]);
@@ -155,9 +142,7 @@ impl BytesHandler for EthernetSocket {
     fn sockaddr(ifname: &str) -> socket2::SockAddr {
         // get the interface index
         let cstr = std::ffi::CString::new(ifname).unwrap();
-        let if_index = unsafe {
-            libc::if_nametoindex(cstr.as_ptr())
-        } as i32;
+        let if_index = unsafe { libc::if_nametoindex(cstr.as_ptr()) } as i32;
         // build a sockaddr_ll struct
         let sll = libc::sockaddr_ll {
             sll_family: libc::AF_PACKET as libc::c_ushort,
@@ -181,11 +166,6 @@ impl BytesHandler for EthernetSocket {
         }
 
         // wrap it in socket2::SockAddr
-        unsafe {
-            socket2::SockAddr::new(
-                storage,
-                std::mem::size_of::<libc::sockaddr_ll>() as u32,
-            )
-        }
+        unsafe { socket2::SockAddr::new(storage, std::mem::size_of::<libc::sockaddr_ll>() as u32) }
     }
 }

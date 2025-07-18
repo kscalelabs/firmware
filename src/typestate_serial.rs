@@ -1,21 +1,18 @@
-use tokio_serial::{SerialPortBuilderExt, SerialStream};
-#[allow(unused_imports)]
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{error, info, warn};
+use std::io;
 use std::marker::PhantomData;
 use std::time::Duration;
+#[allow(unused_imports)]
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
-use std::io;
+use tokio_serial::{SerialPortBuilderExt, SerialStream};
+use tracing::{error, info, warn};
 
+use futures::{Stream, StreamExt};
 use std::task::{Context, Poll};
-use futures::{
-    Stream,
-    StreamExt,
-};
 
+use pin_project::pin_project;
 use std::pin::Pin;
 use std::task::ready;
-use pin_project::pin_project;
 
 use crate::state_machine;
 state_machine!(Reset, Operate);
@@ -70,8 +67,7 @@ impl Reset {
     }
 }
 
-impl State for Reset
-{
+impl State for Reset {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let ss = self.shared_state.as_mut().project();
@@ -91,21 +87,18 @@ impl State for Reset
                         result: Ok(()),
                     }
                 }
-                Err(e) => {
-                     StateTransitionResult {
-                        state: StateStore::Reset(Reset {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Err(e.into()),
-                    }
-                }
+                Err(e) => StateTransitionResult {
+                    state: StateStore::Reset(Reset {
+                        shared_state: self.shared_state,
+                    }),
+                    result: Err(e.into()),
+                },
             }
         }
     }
 }
 
-impl State for Operate
-{
+impl State for Operate {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
@@ -205,7 +198,7 @@ impl SerialPort {
             pending_fut: None,
         }
     }
-    
+
     pub fn reset_baud(&mut self, baud: SerialBaudRate) -> std::io::Result<()> {
         // self.target = None;
         self.pending_fut = None;
@@ -223,9 +216,7 @@ impl SerialPort {
             unpinned.port.as_mut().unwrap().set_baud_rate(baud as u32)?
         }
 
-        self.state = Some(StateStore::Operate(Operate {
-            shared_state,
-        }));
+        self.state = Some(StateStore::Operate(Operate { shared_state }));
         Ok(())
     }
 
@@ -253,18 +244,20 @@ impl Stream for SerialPort {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                // If the pending future is ready, we can transition to the next state
-                let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
-                // clear the pending future
-                unsafe { *this.pending_fut.get_unchecked_mut() = None; }
+            // If the pending future is ready, we can transition to the next state
+            let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
+            // clear the pending future
+            unsafe {
+                *this.pending_fut.get_unchecked_mut() = None;
+            }
 
-                let tag = st.tag();
-                *this.state = Some(st); // Update the state
-                if let Err(e) = result {
-                    error!("State transition failed: {:?}", e);
-                    return Poll::Ready(Some(Err(e)));
-                }
-                return Poll::Ready(Some(Ok(tag)));
+            let tag = st.tag();
+            *this.state = Some(st); // Update the state
+            if let Err(e) = result {
+                error!("State transition failed: {:?}", e);
+                return Poll::Ready(Some(Err(e)));
+            }
+            return Poll::Ready(Some(Ok(tag)));
         }
 
         // check if we have laready reached the specified target
@@ -278,7 +271,10 @@ impl Stream for SerialPort {
         // start new transition to reach the target state
         unsafe {
             *this.pending_fut.get_unchecked_mut() = Some(
-                this.state.take().expect("state must not be None").transition_fut()
+                this.state
+                    .take()
+                    .expect("state must not be None")
+                    .transition_fut(),
             );
         }
 
@@ -287,7 +283,6 @@ impl Stream for SerialPort {
         Poll::Pending
     }
 }
-
 
 // #[derive(Debug)]
 // pub struct Localize;
@@ -321,15 +316,15 @@ pub struct SerialPort<State, Handler: BytesHandler> {
 
 
 impl <Handler: BytesHandler> SerialPort<Localize, Handler> {
-    /// Open the port at a *default* baud.  
+    /// Open the port at a *default* baud.
     /// You’ll probe other rates in `detect_baud`.
     pub async fn new(path: &str, handler: Handler) -> io::Result<Self> {
         let builder = tokio_serial::new(path, 9600);
         let port = builder.open_native_async()?;
-        Ok(SerialPort { 
-            port, 
+        Ok(SerialPort {
+            port,
             handler,
-            _state: PhantomData 
+            _state: PhantomData
         })
     }
 
@@ -374,8 +369,8 @@ impl <Handler: BytesHandler> SerialPort<Localize, Handler> {
                     // if we get here, we have a valid response
                     info!("baud {}: detected", baud);
                     // return the port in the next state
-                    return Ok(SerialPort { 
-                        port: self.port, 
+                    return Ok(SerialPort {
+                        port: self.port,
                         handler: self.handler,
                         _state: PhantomData
                     });

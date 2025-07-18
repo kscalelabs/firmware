@@ -1,7 +1,4 @@
-use crossterm::{
-    terminal,
-    event,
-};
+use crossterm::{event, terminal};
 
 use heapless::Deque;
 
@@ -12,10 +9,7 @@ pub struct KeyboardManager {
     raw_mode_enabled: bool,
 }
 
-use crate::policy_control::{
-    CommandType,
-    InputState,
-};
+use crate::policy_control::{CommandType, InputState};
 
 impl KeyboardManager {
     pub fn new() -> Self {
@@ -33,7 +27,9 @@ impl KeyboardManager {
             if let event::Event::Key(key) = event::read()? {
                 if key.kind == event::KeyEventKind::Press {
                     match key.code {
-                        event::KeyCode::Char('c') if key.modifiers.contains(event::KeyModifiers::CONTROL) => {
+                        event::KeyCode::Char('c')
+                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                        {
                             terminal::disable_raw_mode().unwrap_or(());
                             process::exit(130);
                         }

@@ -13,16 +13,12 @@ const START_BYTE: u8 = 0x55;
 const PACKET_SIZE: usize = 11; // data packets at 11 bytes
 const PAYLOAD_SIZE: usize = 8; // payload size in bytes
 
-
-
 use crate::robot_description::ImuFeedback;
 use crate::typestate_serial::Operate as OperationalPort;
 use crate::typestate_serial::SerialBaudRate;
 
 #[derive(Debug)]
-pub struct HiwonderImu {
-
-}
+pub struct HiwonderImu {}
 
 impl HiwonderImu {
     fn checksum(buffer: &[u8]) -> u8 {
@@ -32,28 +28,35 @@ impl HiwonderImu {
 
     pub fn verify_read(buf: &[u8]) -> io::Result<()> {
         // find the 0x55
-        let idx = buf.iter().position(|&b| b == 0x55)
+        let idx = buf
+            .iter()
+            .position(|&b| b == 0x55)
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "0x55 not found"))?;
         // check the length
         if buf.len() < idx + 11 {
-            return Err(io::Error::new(io::ErrorKind::InvalidData, "buffer too short"));
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "buffer too short",
+            ));
         }
         let checksum = Self::checksum(&buf[idx..idx + 11]);
 
-        (checksum == buf[idx + 10]).then_some(())
+        (checksum == buf[idx + 10])
+            .then_some(())
             .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "checksum mismatch"))
     }
 
     pub async fn setup(port: &mut OperationalPort) -> std::io::Result<()> {
         // send the unlock command
-        let mut cmd: [u8;5] = CommandType::unlock().into();
+        let mut cmd: [u8; 5] = CommandType::unlock().into();
         port.write(&cmd).await?;
         // must wait for unlock to take effect
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
 
         cmd = CommandType::enable_output(
-            OutputType::Acc | OutputType::Gyro | OutputType::Angle | OutputType::Quaternion
-        ).into();
+            OutputType::Acc | OutputType::Gyro | OutputType::Angle | OutputType::Quaternion,
+        )
+        .into();
         port.write(&cmd).await?;
 
         cmd = CommandType::set_frequency(ImuFrequency::Hz100).into();
@@ -72,16 +75,13 @@ impl HiwonderImu {
     }
 }
 
-
-
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
-#[derive(bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct HiwonderRawFrame {
     pub magic: u8, // 0x55
     pub frame_type: u8,
     pub data: [u8; PAYLOAD_SIZE], // 9 bytes of data
-    pub checksum: u8, // 1 byte checksum
+    pub checksum: u8,             // 1 byte checksum
 }
 
 impl HiwonderRawFrame {
@@ -96,25 +96,33 @@ impl HiwonderRawFrame {
 }
 
 impl HiwonderImu {
-    
     pub async fn parse_all(port: &mut OperationalPort) -> io::Result<ImuFeedback> {
         // read upto 1024
         let mut buf = [0u8; 1024];
         match port.read(&mut buf).await {
             Err(e) => return Err(e),
-            Ok(0) => return Err(io::Error::new(io::ErrorKind::UnexpectedEof, "No data read from port")),
+            Ok(0) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::UnexpectedEof,
+                    "No data read from port",
+                ));
+            }
             Ok(n) => {
                 if n < PACKET_SIZE {
-                    return Err(io::Error::new(io::ErrorKind::InvalidData, "Not enough data read"));
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidData,
+                        "Not enough data read",
+                    ));
                 }
             }
         }
 
         // find the start byte 0x55
-        let start_idx = buf.iter().position(|&b| b == START_BYTE)
-            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidData, "Start byte 0x55 not found"))?;
+        let start_idx = buf.iter().position(|&b| b == START_BYTE).ok_or_else(|| {
+            io::Error::new(io::ErrorKind::InvalidData, "Start byte 0x55 not found")
+        })?;
         let buf = &buf[start_idx..];
-        
+
         let mut fdbk: ImuFeedback = ImuFeedback::default();
         // now we parse this data
         buf.chunks_exact(PACKET_SIZE).for_each(|chunk| {
@@ -128,7 +136,6 @@ impl HiwonderImu {
     }
 
     fn merge_frame(frame: &HiwonderRawFrame, fdbk: &mut ImuFeedback) -> io::Result<()> {
-
         let frame = frame.clone().try_into()?;
         debug!("Parsed frame: {:?}", frame);
         match frame {
@@ -139,7 +146,12 @@ impl HiwonderImu {
             ReadFrame::Gyro { x, y, z, voltage } => {
                 fdbk.gyroscope = Some([x.into(), y.into(), z.into()]);
             }
-            ReadFrame::Angle { roll, pitch, yaw, version } => {
+            ReadFrame::Angle {
+                roll,
+                pitch,
+                yaw,
+                version,
+            } => {
                 fdbk.euler = Some([roll.into(), pitch.into(), yaw.into()]);
             }
             ReadFrame::Quaternion { w, x, y, z } => {
@@ -150,7 +162,10 @@ impl HiwonderImu {
                 fdbk.temperature = Some(temp.into());
             }
             _ => {
-                return Err(io::Error::new(io::ErrorKind::InvalidData, "Unsupported frame type"));
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Unsupported frame type",
+                ));
             }
         }
         Ok(())
@@ -170,7 +185,7 @@ pub enum CommandType {
 }
 
 impl CommandType {
-    pub fn generic() -> Self { 
+    pub fn generic() -> Self {
         CommandType::Generic(Command::new(Register::ReadAddr, [0, 0]))
     }
 
@@ -193,9 +208,9 @@ impl CommandType {
         CommandType::EnableOutput(Command::new(Register::Rsw, data))
     }
 
-    pub fn read_register(reg: Register) -> Self{
+    pub fn read_register(reg: Register) -> Self {
         CommandType::Generic(Command::new(Register::ReadAddr, [reg as u8, 0x00]))
-    } 
+    }
 
     pub fn save() -> Self {
         CommandType::Save(Command::new(Register::Save, [0x00, 0x00]))
@@ -214,7 +229,10 @@ impl CommandType {
     }
 
     pub fn set_baud_rate(baud_rate: SerialBaudRate) -> std::io::Result<Self> {
-        Ok(CommandType::SetBaudRate(Command::new(Register::Baud, baud_rate.try_into()?)))
+        Ok(CommandType::SetBaudRate(Command::new(
+            Register::Baud,
+            baud_rate.try_into()?,
+        )))
     }
 }
 
@@ -256,7 +274,7 @@ impl From<CommandType> for [u8; 5] {
         let cmd: Command = command.into();
         [
             (cmd.magic & 0xFF) as u8, // low byte
-            (cmd.magic >> 8) as u8,  // high byte
+            (cmd.magic >> 8) as u8,   // high byte
             cmd.register as u8,
             cmd.data[0],
             cmd.data[1],
@@ -590,21 +608,20 @@ pub enum ImuFrequency {
 }
 
 impl From<ImuFrequency> for [u8; 2] {
-
     fn from(value: ImuFrequency) -> Self {
         match value {
-            ImuFrequency::Hz0_2 =>  [0x01, 0x00],
-            ImuFrequency::Hz0_5 =>  [0x02, 0x00],
-            ImuFrequency::Hz1 =>    [0x03, 0x00],
-            ImuFrequency::Hz2 =>    [0x04, 0x00],
-            ImuFrequency::Hz5 =>    [0x05, 0x00],
-            ImuFrequency::Hz10 =>   [0x06, 0x00],
-            ImuFrequency::Hz20 =>   [0x07, 0x00],
-            ImuFrequency::Hz50 =>   [0x08, 0x00],
-            ImuFrequency::Hz100 =>  [0x09, 0x00],
-            ImuFrequency::Hz200 =>  [0x0B, 0x00],
+            ImuFrequency::Hz0_2 => [0x01, 0x00],
+            ImuFrequency::Hz0_5 => [0x02, 0x00],
+            ImuFrequency::Hz1 => [0x03, 0x00],
+            ImuFrequency::Hz2 => [0x04, 0x00],
+            ImuFrequency::Hz5 => [0x05, 0x00],
+            ImuFrequency::Hz10 => [0x06, 0x00],
+            ImuFrequency::Hz20 => [0x07, 0x00],
+            ImuFrequency::Hz50 => [0x08, 0x00],
+            ImuFrequency::Hz100 => [0x09, 0x00],
+            ImuFrequency::Hz200 => [0x0B, 0x00],
             ImuFrequency::Single => [0x0C, 0x00],
-            ImuFrequency::None =>   [0x0D, 0x00],
+            ImuFrequency::None => [0x0D, 0x00],
         }
     }
 }
@@ -614,20 +631,24 @@ impl TryFrom<SerialBaudRate> for [u8; 2] {
 
     fn try_from(value: SerialBaudRate) -> Result<Self, Self::Error> {
         Ok(match value {
-            SerialBaudRate::B4800     => [0x01, 0x00],
-            SerialBaudRate::B9600     => [0x02, 0x00],
-            SerialBaudRate::B19200    => [0x03, 0x00],
-            SerialBaudRate::B38400    => [0x04, 0x00],
-            SerialBaudRate::B57600    => [0x05, 0x00],
-            SerialBaudRate::B115200   => [0x06, 0x00],
-            SerialBaudRate::B230400   => [0x07, 0x00],
-            SerialBaudRate::B460800   => [0x08, 0x00],
-            SerialBaudRate::B921600   => [0x09, 0x00],
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "Invalid baud rate")),
+            SerialBaudRate::B4800 => [0x01, 0x00],
+            SerialBaudRate::B9600 => [0x02, 0x00],
+            SerialBaudRate::B19200 => [0x03, 0x00],
+            SerialBaudRate::B38400 => [0x04, 0x00],
+            SerialBaudRate::B57600 => [0x05, 0x00],
+            SerialBaudRate::B115200 => [0x06, 0x00],
+            SerialBaudRate::B230400 => [0x07, 0x00],
+            SerialBaudRate::B460800 => [0x08, 0x00],
+            SerialBaudRate::B921600 => [0x09, 0x00],
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "Invalid baud rate",
+                ));
+            }
         })
     }
 }
-
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -734,7 +755,3 @@ pub enum Register {
     NumberId5 = 0x83,    // Device ID 9-10 (Read-only)
     NumberId6 = 0x84,    // Device ID 11-12 (Read-only)
 }
-
-
-
-
