@@ -59,6 +59,7 @@ pub struct Operate {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             *self.shared_state.as_mut().project().cur_idx = 0;
@@ -89,7 +90,7 @@ impl Scanning {
                     "Read {:?} from IMU",
                     buf128
                         .iter()
-                        .map(|b| format!("{:02x}", b))
+                        .map(|b| format!("{b:02x}"))
                         .collect::<Vec<_>>()
                 );
             }
@@ -111,6 +112,7 @@ impl Scanning {
 }
 
 impl State for Scanning {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -153,10 +155,7 @@ impl State for Scanning {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(std::io::Error::new(
-                        std::io::ErrorKind::Other,
-                        "serial port is not in Operate state",
-                    )),
+                    result: Err(std::io::Error::other("serial port is not in Operate state")),
                 };
             };
 
@@ -236,10 +235,7 @@ impl Operate {
             .get_state_pinned()
             .expect("serial port should be in Operate state")
         else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "serial port is not in Operate state",
-            ));
+            return Err(std::io::Error::other("serial port is not in Operate state"));
         };
 
         let fdbk = HiwonderImu::parse_all(op_port).await?;
@@ -250,6 +246,7 @@ impl Operate {
 }
 
 impl State for Operate {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
@@ -268,6 +265,12 @@ pub struct ImuManager {
     target: Option<StateTag>,
     #[pin]
     pending_fut: Option<StateFut>,
+}
+
+impl Default for ImuManager {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ImuManager {

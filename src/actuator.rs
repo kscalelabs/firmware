@@ -79,6 +79,7 @@ impl Operate {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -105,6 +106,7 @@ impl State for Reset {
 }
 
 impl State for Ready {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
@@ -118,6 +120,7 @@ impl State for Ready {
 }
 
 impl State for Configure {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             if let Err(e) =
@@ -159,6 +162,7 @@ impl State for Configure {
 }
 
 impl State for Operate {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let shared_state = self.shared_state;
@@ -174,14 +178,11 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
     let mut ss = ss.project();
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
         // no operational socket, go back to configure state
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Socket is not in Operate state",
-        ));
+        return Err(std::io::Error::other("Socket is not in Operate state"));
     };
 
     for (i, client) in ss.actuator_clients.iter_mut().enumerate() {
-        let params = ActuatorRequestParams::Control(act_states[i].command.clone());
+        let params = ActuatorRequestParams::Control(act_states[i].command);
 
         let req = client.stage_request(&params);
         let res = op_socket.write(&req.into()).await;
@@ -201,10 +202,7 @@ async fn send_request(ss: Pin<&mut Store>, params: &ActuatorRequestParams) -> st
     let mut ss = ss.project();
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
         // no operational socket, go back to configure state
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Socket is not in Operate state",
-        ));
+        return Err(std::io::Error::other("Socket is not in Operate state"));
     };
 
     for client in ss.actuator_clients.iter_mut() {
@@ -234,18 +232,15 @@ async fn read_responses_update(
 
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
         // no operational socket, go back to configure state
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::Other,
-            "Socket is not in Operate state",
-        ));
+        return Err(std::io::Error::other("Socket is not in Operate state"));
     };
 
     let mut n = ss.actuator_clients.len();
 
     let mut handler = |can_frame: &CanFrame| {
-        let client_idx = (ss.response_to_client_idx)(&can_frame);
+        let client_idx = (ss.response_to_client_idx)(can_frame);
         if let Some(client) = ss.actuator_clients.get_mut(client_idx) {
-            match client.handle_response(&can_frame) {
+            match client.handle_response(can_frame) {
                 Ok(Some(fdbk)) => {
                     if let Some(ref mut act_states) = act_states {
                         if let Some(state) = act_states.get_mut(client_idx) {
@@ -253,10 +248,7 @@ async fn read_responses_update(
                         } else {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::NotFound,
-                                format!(
-                                    "No ActuatorFeedback found for client index {}",
-                                    client_idx
-                                ),
+                                format!("No ActuatorFeedback found for client index {client_idx}"),
                             ));
                         }
                     }
@@ -269,7 +261,7 @@ async fn read_responses_update(
         } else {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
-                format!("No client found for response with index {}", client_idx),
+                format!("No client found for response with index {client_idx}"),
             ));
         }
         Ok(())
@@ -302,7 +294,7 @@ async fn read_responses_update(
     }
 
     // drain the buffer
-    while let Ok(_) = op_socket.try_read(&mut read_data) {
+    while op_socket.try_read(&mut read_data).is_ok() {
         // Process the read data here
         let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
         let client_idx = (ss.response_to_client_idx)(&can_frame);
@@ -329,10 +321,7 @@ impl Store {
     pub fn new(ifname: &str, ids: Vec<ActuatorId>) -> Self {
         Self {
             ifname: ifname.to_string(),
-            actuator_clients: ids
-                .into_iter()
-                .map(|id| ActuatorCanClient::new(id))
-                .collect(),
+            actuator_clients: ids.into_iter().map(ActuatorCanClient::new).collect(),
             response_to_client_idx: |frame: &CanFrame| {
                 let id = actuator_can_id_from_response(frame);
                 ((id % 10) - 1) as usize

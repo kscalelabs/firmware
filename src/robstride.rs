@@ -30,34 +30,51 @@ impl From<ActuatorRequest> for crate::socketcan::CanFrame {
     }
 }
 
-impl Into<ActuatorResponse> for crate::socketcan::CanFrame {
-    fn into(mut self) -> ActuatorResponse {
-        self.can_id ^= 0x8000_0000; // remove EFF FLAG
-        let mux = mux_from_can_frame(&self);
+impl From<crate::socketcan::CanFrame> for ActuatorResponse {
+    fn from(mut val: crate::socketcan::CanFrame) -> Self {
+        val.can_id ^= 0x8000_0000; // remove EFF FLAG
+        let mux = mux_from_can_frame(&val);
         match mux {
-            0x00 => ActuatorResponse::ObtainId(bytemuck::must_cast::<Self, ObtainIdResponse>(self)),
-            0x02 => ActuatorResponse::Feedback(bytemuck::must_cast::<Self, FeedbackResponse>(self)),
-            _ => panic!("Unknown mux value: {}", mux),
+            0x00 => ActuatorResponse::ObtainId(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                ObtainIdResponse,
+            >(val)),
+            0x02 => ActuatorResponse::Feedback(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                FeedbackResponse,
+            >(val)),
+            _ => panic!("Unknown mux value: {mux}"),
         }
     }
 }
 
-impl Into<ActuatorRequest> for crate::socketcan::CanFrame {
-    fn into(mut self) -> ActuatorRequest {
-        self.can_id &= !0x80; // clear EFF FLAG
-        let mux = mux_from_can_frame(&self);
+impl From<crate::socketcan::CanFrame> for ActuatorRequest {
+    fn from(mut val: crate::socketcan::CanFrame) -> Self {
+        val.can_id &= !0x80; // clear EFF FLAG
+        let mux = mux_from_can_frame(&val);
         // TODO: change mux values from u8 to an enum
         match mux {
-            0x00 => ActuatorRequest::ObtainId(bytemuck::must_cast::<Self, ObtainIdRequest>(self)),
-            0x01 => {
-                ActuatorRequest::Control(bytemuck::must_cast::<Self, ControlCommandRequest>(self))
-            }
-            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<Self, ReadParamRequest>(self)),
-            0x03 => {
-                ActuatorRequest::MotorEnable(bytemuck::must_cast::<Self, MotorEnableRequest>(self))
-            }
-            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<Self, FeedbackRequest>(self)),
-            _ => panic!("Unknown mux value: {}", mux),
+            0x00 => ActuatorRequest::ObtainId(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                ObtainIdRequest,
+            >(val)),
+            0x01 => ActuatorRequest::Control(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                ControlCommandRequest,
+            >(val)),
+            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                ReadParamRequest,
+            >(val)),
+            0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                MotorEnableRequest,
+            >(val)),
+            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                FeedbackRequest,
+            >(val)),
+            _ => panic!("Unknown mux value: {mux}"),
         }
     }
 }
@@ -247,7 +264,7 @@ impl ReadParamRequest {
             mux: 0x11,
             index: index.to_le(),
             actuator_can_id,
-            host_id: host_id as u16,
+            host_id,
             len: 8,
             ..Default::default()
         }
@@ -448,27 +465,25 @@ impl ActuatorCanClient {
         response: &CanFrame,
     ) -> std::io::Result<Option<ActuatorFeedbackUpdate>> {
         if self.last_request.is_none() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "No current transaction to handle response for",
             ));
         }
 
         // Check if the response matches the current transaction
         if let Some(ref cur_req) = self.last_request {
-            if mux_from_can_frame(&response) != cur_req.response_mux() {
+            if mux_from_can_frame(response) != cur_req.response_mux() {
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!(
                         "Response ID {} does not match current transaction {}",
-                        mux_from_can_frame(&response),
+                        mux_from_can_frame(response),
                         cur_req.response_mux()
                     ),
                 ));
             }
         } else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "No current transaction to handle response for",
             ));
         }
@@ -578,7 +593,7 @@ impl From<u8> for RobstrideActuatorType {
             44 => RobstrideActuatorType::Robstride04, // right_knee_04
             45 => RobstrideActuatorType::Robstride02, // right_ankle_02
 
-            _ => panic!("Invalid Robstride actuator ID: {}", id),
+            _ => panic!("Invalid Robstride actuator ID: {id}"),
         }
     }
 }

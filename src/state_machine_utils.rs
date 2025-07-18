@@ -12,7 +12,7 @@ macro_rules! state_machine {
             }
 
             // 2) Transition result
-            struct StateTransitionResult {
+            pub struct StateTransitionResult {
                 state: StateStore,
                 result: ::std::io::Result<()>,
             }
@@ -27,7 +27,7 @@ macro_rules! state_machine {
             }
 
             // 5) Taggable trait and auto-impl for each state
-            trait Taggable {
+            pub trait Taggable {
                 fn tag(&self) -> StateTag;
             }
             $(
@@ -39,7 +39,7 @@ macro_rules! state_machine {
             )+
 
             // 6) State trait depends on Taggable
-            trait State: Taggable {
+            pub trait State: Taggable {
                 fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult>;
             }
 

@@ -181,6 +181,12 @@ pub struct ActuatorStateStore {
     pub actuator_states: EnumMap<ActuatorId, ActuatorState>, // 20 actuators
 }
 
+impl Default for ActuatorStateStore {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ActuatorStateStore {
     pub fn new() -> Self {
         Self {
@@ -210,6 +216,10 @@ impl ActuatorStateStore {
 
     pub fn len(&self) -> usize {
         self.actuator_states.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.actuator_states.len() == 0
     }
 }
 
@@ -324,6 +334,12 @@ pub struct RobotDescription {
     pub kd_scale: f64,
 }
 
+impl Default for RobotDescription {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RobotDescription {
     pub fn new() -> Self {
         let args = Args::parse();
@@ -408,6 +424,6 @@ impl RobotDescription {
             DataType::InitialHeading => 1,
             DataType::Time => 1,
         };
-        return vec![ret];
+        vec![ret]
     }
 }

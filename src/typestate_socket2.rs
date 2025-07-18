@@ -50,7 +50,7 @@ where
     Error,
 }
 
-struct StateTransitionResult<C, O>
+pub struct StateTransitionResult<C, O>
 where
     C: SocketConfigurator + Unpin,
     O: SocketOperator + Unpin,
@@ -301,9 +301,9 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SocketStorage::Configure(socket) => write!(f, "SocketStorage::Configure({:?})", socket),
+            SocketStorage::Configure(socket) => write!(f, "SocketStorage::Configure({socket:?})"),
             SocketStorage::ConfigureToOperate(_) => write!(f, "SocketStorage::ConfigureToOperate"),
-            SocketStorage::Operate(socket) => write!(f, "SocketStorage::Operate({:?})", socket),
+            SocketStorage::Operate(socket) => write!(f, "SocketStorage::Operate({socket:?})"),
         }
     }
 }

@@ -59,8 +59,7 @@ pub fn start_pipeline(
 
         // TODO use ring buffer that is allocated once
         // do not create a filled vec as we have a limit on max buffer size
-        let mut batch_buf: Vec<u8> = vec![];
-        batch_buf.reserve(BUF_SIZE);
+        let mut batch_buf: Vec<u8> = Vec::with_capacity(BUF_SIZE);
 
         while let Ok(evt) = rx.recv() {
             // Serialize event into batch_buf (ensure capacity)

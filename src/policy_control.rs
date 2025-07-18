@@ -36,7 +36,7 @@ impl CommandType {
             )),
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
-                format!("Unsupported input state dimensions: {}", dims),
+                format!("Unsupported input state dimensions: {dims}"),
             )),
         }
     }
@@ -226,7 +226,7 @@ impl BartControlVectorInputState {
 
 impl InputState for BartControlVectorInputState {
     fn update(&mut self, key: KeyEvent) -> std::io::Result<()> {
-        log::info!("Updating BartControlVectorInputState with key: {:?}", key);
+        log::info!("Updating BartControlVectorInputState with key: {key:?}");
         match key.code {
             KeyCode::Char('w') => self.cmds[ControlVectorDType::XVel] += self.step_size,
             KeyCode::Char('s') => self.cmds[ControlVectorDType::XVel] -= self.step_size,

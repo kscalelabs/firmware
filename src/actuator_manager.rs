@@ -53,6 +53,12 @@ pub struct Store {
     av_iface_idxs: std::collections::VecDeque<usize>,
 }
 
+impl Default for Store {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Store {
     pub fn new() -> Self {
         let iface_names = ["can0", "can1", "can2", "can3", "can4"].map(String::from);
@@ -127,10 +133,7 @@ impl Ready {
                 // enable the bus
                 rdy_bus.enable().await?;
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Bus is not in Operate state",
-                ));
+                return Err(io::Error::other("Bus is not in Operate state"));
             }
         }
         Ok(())
@@ -138,6 +141,7 @@ impl Ready {
 }
 
 impl State for Ready {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -180,10 +184,7 @@ impl State for Ready {
                     Ok(None) => {
                         return StateTransitionResult {
                             state: StateStore::Reset(Reset { shared_state }),
-                            result: Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                "No data received from bus",
-                            )),
+                            result: Err(io::Error::other("No data received from bus")),
                         };
                     }
                     Err(e) => {
@@ -211,6 +212,7 @@ impl State for Ready {
 }
 
 impl State for Scanning {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -254,10 +256,7 @@ impl State for Scanning {
                     Ok(None) => {
                         return StateTransitionResult {
                             state: StateStore::Reset(Reset { shared_state }),
-                            result: Err(io::Error::new(
-                                io::ErrorKind::Other,
-                                "No data received from bus",
-                            )),
+                            result: Err(io::Error::other("No data received from bus")),
                         };
                     }
                     Err(e) => {
@@ -294,6 +293,7 @@ impl State for Scanning {
 }
 
 impl State for Reset {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -316,10 +316,7 @@ impl Operate {
                 // enable the bus
                 op_bus.request_feedback().await?;
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Bus is not in Operate state",
-                ));
+                return Err(io::Error::other("Bus is not in Operate state"));
             }
         }
         Ok(())
@@ -340,10 +337,7 @@ impl Operate {
                     .process_feedback(act_states.slice_mut(i.into()))
                     .await?;
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Bus is not in Operate state",
-                ));
+                return Err(io::Error::other("Bus is not in Operate state"));
             }
         }
         Ok(())
@@ -359,10 +353,7 @@ impl Operate {
                 // enable the bus
                 op_bus.command(act_states.slice(BusTag::from(i))).await?;
             } else {
-                return Err(io::Error::new(
-                    io::ErrorKind::Other,
-                    "Bus is not in Operate state",
-                ));
+                return Err(io::Error::other("Bus is not in Operate state"));
             }
         }
         Ok(())
@@ -436,6 +427,7 @@ impl Operate {
 }
 
 impl State for Operate {
+    #[allow(clippy::manual_async_fn)]
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -466,6 +458,12 @@ pub struct ActuatorManager {
     pending_fut: Option<StateFut>,
 }
 
+impl Default for ActuatorManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ActuatorManager {
     pub fn new() -> Self {
         Self {
@@ -487,7 +485,7 @@ impl ActuatorManager {
 
     pub fn reset_state(&mut self) -> std::io::Result<()> {
         if self.state.is_none() {
-            return Err(io::Error::new(io::ErrorKind::Other, "No state to reset"));
+            return Err(io::Error::other("No state to reset"));
         }
 
         self.state = Some(match self.state.take().unwrap() {

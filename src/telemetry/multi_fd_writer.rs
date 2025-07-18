@@ -61,7 +61,7 @@ impl BufferedIoUring {
             )
         };
 
-        if raw_ptr == libc::MAP_FAILED {
+        if std::ptr::eq(raw_ptr, libc::MAP_FAILED) {
             panic!("mmap failed: {}", io::Error::last_os_error());
         }
         if unsafe { libc::mlock(raw_ptr, num_pages * PAGE_SIZE) } != 0 {

@@ -136,12 +136,12 @@ impl HiwonderImu {
     }
 
     fn merge_frame(frame: &HiwonderRawFrame, fdbk: &mut ImuFeedback) -> io::Result<()> {
-        let frame = frame.clone().try_into()?;
+        let frame = (*frame).try_into()?;
         debug!("Parsed frame: {:?}", frame);
         match frame {
             ReadFrame::Acceleration { x, y, z, temp } => {
                 fdbk.accelerometer = Some([x.into(), y.into(), z.into()]);
-                fdbk.temperature = Some(temp.into());
+                fdbk.temperature = Some(temp);
             }
             ReadFrame::Gyro { x, y, z, voltage } => {
                 fdbk.gyroscope = Some([x.into(), y.into(), z.into()]);
@@ -159,7 +159,7 @@ impl HiwonderImu {
             }
             ReadFrame::Magnetometer { x, y, z, temp } => {
                 fdbk.magnetometer = Some([x.into(), y.into(), z.into()]);
-                fdbk.temperature = Some(temp.into());
+                fdbk.temperature = Some(temp);
             }
             _ => {
                 return Err(io::Error::new(
@@ -329,7 +329,7 @@ impl TryFrom<u8> for FrameType {
             0x5F => Ok(FrameType::GenericRead),
             _ => Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Unknown frame type byte: {:#02x}", value),
+                format!("Unknown frame type byte: {value:#02x}"),
             )),
         }
     }
@@ -577,7 +577,7 @@ pub enum FusionAlgorithm {
 #[enumflags2::bitflags]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u16)]
-enum OutputType {
+pub enum OutputType {
     Time = 1 << 0,
     Acc = 1 << 1,
     Gyro = 1 << 2,
