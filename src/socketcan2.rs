@@ -1,10 +1,7 @@
+use crate::bytestream_fd::ByteStreamFd;
+use crate::typestate_socket2::{SocketConfigurator, SocketOperator};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tracing::error;
-use crate::typestate_socket2::{
-    SocketConfigurator,
-    SocketOperator,
-};
-use crate::bytestream_fd::ByteStreamFd;
 
 #[derive(Debug, Default)]
 pub struct SocketCanConfigurator;
@@ -36,9 +33,7 @@ impl SocketConfigurator for SocketCanConfigurator {
         };
 
         // this can simply be casted to sockaddr_storage on x86 and aarch64 linux gnu
-        let mut sockaddr_storage: libc::sockaddr_storage = unsafe {
-            std::mem::zeroed()
-        };
+        let mut sockaddr_storage: libc::sockaddr_storage = unsafe { std::mem::zeroed() };
 
         unsafe {
             std::ptr::copy_nonoverlapping(
@@ -80,15 +75,14 @@ impl SocketOperator for SocketCanOperator {
 
     async fn read(&mut self, msg: &mut Self::MsgType) -> std::io::Result<usize> {
         match self.bytestream_fd.read(msg).await {
-            Ok(0) => {
-                Err(std::io::Error::new(
-                    std::io::ErrorKind::UnexpectedEof, "Socket read returned 0 bytes"
-                ))
-            },
+            Ok(0) => Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                "Socket read returned 0 bytes",
+            )),
             Ok(n) => {
                 // println!("Socket read {} bytes", n);
                 Ok(n)
-            },
+            }
             Err(e) => {
                 error!("Socket read failed: {}", e);
                 Err(e)

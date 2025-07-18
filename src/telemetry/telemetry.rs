@@ -1,10 +1,6 @@
 use std::fs::OpenOptions;
 use std::io;
-use std::os::unix::io::{
-    AsFd,
-    AsRawFd,
-    OwnedFd,
-};
+use std::os::unix::io::{AsFd, AsRawFd, OwnedFd};
 
 use std::net::UdpSocket;
 use std::os::unix::fs::OpenOptionsExt;
@@ -13,22 +9,22 @@ use std::ptr;
 use std::thread;
 use std::time::Instant;
 
+use nix::libc;
 use std::sync::mpsc::Receiver;
 use tracing::error;
-use nix::libc;
 
-use crate::telemetry::forwarder::{
-    EventRecord,
-    FieldValue,
-};
+use crate::telemetry::forwarder::{EventRecord, FieldValue};
 use crate::telemetry::multi_fd_writer::MultiFdWriter;
 
 // 4 pages
 const BUF_SIZE: usize = 4 * 4096;
 
 /// spawns a thread that will handle the I/O operations (read events and write to disk)
-pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<thread::JoinHandle<()>> {
-    // Open log file for writing 
+pub fn start_pipeline(
+    rx: Receiver<EventRecord>,
+    log_path: &str,
+) -> io::Result<thread::JoinHandle<()>> {
+    // Open log file for writing
     let file = OpenOptions::new()
         .create(true)
         .truncate(true) // Ensure the file is empty at start
@@ -37,22 +33,19 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
         .open(log_path)?;
 
     /**
-    * Examples of additional file descriptors
-    * let udp = UdpSocket::bind("0.0.0.0:0")?;
-    * udp.connect("10.33.10.156:5656")?;
-    * ...
-    * OwnedFd::from(udp)
-    *
-    */
-
+     * Examples of additional file descriptors
+     * let udp = UdpSocket::bind("0.0.0.0:0")?;
+     * udp.connect("10.33.10.156:5656")?;
+     * ...
+     * OwnedFd::from(udp)
+     *
+     */
     // Spawn worker thread to handle I/O
     let jh = thread::spawn(move || {
         // Keep file alive for the entire thread duration
 
         // Create array of output file descriptors
-        let output_fds = vec![
-            OwnedFd::from(file),
-        ];
+        let output_fds = vec![OwnedFd::from(file)];
 
         let mut last_flush = Instant::now();
         // Create multi-fd writer for zero-copy writes to multiple destinations
@@ -96,7 +89,9 @@ pub fn start_pipeline(rx: Receiver<EventRecord>, log_path: &str) -> io::Result<t
             }
 
             // Reset buffer length without deallocating
-            unsafe { batch_buf.set_len(0); }
+            unsafe {
+                batch_buf.set_len(0);
+            }
             last_flush = Instant::now();
         }
 
@@ -143,4 +138,3 @@ fn serialize_event(evt: &EventRecord, buf: &mut Vec<u8>) {
         }
     }
 }
-

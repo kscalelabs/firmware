@@ -50,9 +50,7 @@ impl Page {
     /// A `&mut [u8]` of the unfilled tail.
     pub fn tail_mut(&mut self) -> &mut [u8] {
         // SAFETY: ptr.add(len) is within the same allocation
-        unsafe {
-            slice::from_raw_parts_mut(self.ptr.add(self.len), self.remaining())
-        }
+        unsafe { slice::from_raw_parts_mut(self.ptr.add(self.len), self.remaining()) }
     }
 
     /// Advance the “filled” counter by `n` bytes.
@@ -116,4 +114,3 @@ impl RingEntry {
         self.page.fill_from(rdr)
     }
 }
-

@@ -1,14 +1,13 @@
 use std::io;
 use std::marker::PhantomData;
-use tracing::{debug, error, info, warn};
-use std::time::Duration;
-use tokio::time::timeout;
-use tokio::io::unix::AsyncFd;
-use tokio::io::{AsyncReadExt, AsyncRead};
-use tokio::io::{AsyncWriteExt, AsyncWrite};
 use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::io::RawFd;
-
+use std::time::Duration;
+use tokio::io::unix::AsyncFd;
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncWrite, AsyncWriteExt};
+use tokio::time::timeout;
+use tracing::{debug, error, info, warn};
 
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
@@ -56,12 +55,10 @@ impl AsyncRead for ByteStreamFd {
 
         match result {
             // Successfully read some bytes
-            Ok(Ok(0)) => {
-                Poll::Ready(Err(io::Error::new(
-                    io::ErrorKind::UnexpectedEof,
-                    "Socket read returned 0 bytes",
-                )))
-            }
+            Ok(Ok(0)) => Poll::Ready(Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Socket read returned 0 bytes",
+            ))),
             Ok(Ok(n)) => {
                 // Fill the ReadBuf with the read bytes
                 buf.advance(n);
@@ -116,18 +113,12 @@ impl AsyncWrite for ByteStreamFd {
         }
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         // No internal buffer to flush, so we're always "flushed"
         Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         // Shutdown only the write side of the socket
         let mut ready = ready!(self.inner.poll_write_ready(cx))?;
         match ready.try_io(|_| {
@@ -139,8 +130,8 @@ impl AsyncWrite for ByteStreamFd {
                 Ok(())
             }
         }) {
-            Ok(Ok(()))      => Poll::Ready(Ok(())),
-            Ok(Err(e))      => Poll::Ready(Err(e)),
+            Ok(Ok(())) => Poll::Ready(Ok(())),
+            Ok(Err(e)) => Poll::Ready(Err(e)),
             Err(_would_block) => Poll::Pending,
         }
     }
@@ -165,8 +156,6 @@ pub enum SocketState<Handler: BytesHandler> {
     Recover(SocketPort<Recover, Handler>),
 }
 
-
-
 #[derive(Debug)]
 pub struct SocketPort<State, Handler: BytesHandler> {
     socket: socket2::Socket,
@@ -174,9 +163,7 @@ pub struct SocketPort<State, Handler: BytesHandler> {
     _state: PhantomData<State>,
 }
 
-
-
-impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
+impl<Handler: BytesHandler> SocketPort<Localize, Handler> {
     /// Open the socket at a *default* port.  
     /// You’ll probe other ports in `detect_port`.
     pub async fn new(ifname: &str, handler: Handler) -> io::Result<Self> {
@@ -191,10 +178,10 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
         info!("Socket created: {:?}", socket);
         let sockaddr = Handler::sockaddr(ifname);
         socket.bind(&sockaddr)?;
-        Ok(SocketPort { 
-            socket, 
+        Ok(SocketPort {
+            socket,
             handler,
-            _state: PhantomData 
+            _state: PhantomData,
         })
     }
 
@@ -205,9 +192,10 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
             inner: AsyncFd::new(self.socket.as_raw_fd())?,
         };
         match bytestream.read(&mut buf).await {
-            Ok(0) => {
-                Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Socket read returned 0 bytes"))
-            },
+            Ok(0) => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Socket read returned 0 bytes",
+            )),
             Ok(n) => {
                 debug!("Socket read {} bytes", n);
                 // verify the read bytes
@@ -220,7 +208,7 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
                     handler: self.handler,
                     _state: PhantomData,
                 })
-            },
+            }
             Err(e) => {
                 error!("Socket read failed: {}", e);
                 Err(e)
@@ -258,12 +246,9 @@ impl <Handler: BytesHandler> SocketPort<Localize, Handler> {
     pub async fn verify_read(&self, buf: &[u8]) -> io::Result<()> {
         Handler::verify_read(buf)
     }
-
-
 }
 
-impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
-
+impl<Handler: BytesHandler> SocketPort<Operate, Handler> {
     pub async fn new(ifname: &str, handler: Handler) -> io::Result<Self> {
         let socket = socket2::Socket::new(
             Handler::socket_domain(),
@@ -276,10 +261,10 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
         info!("Socket created: {:?}", socket);
         let sockaddr = Handler::sockaddr(ifname);
         socket.bind(&sockaddr)?;
-        Ok(SocketPort { 
-            socket, 
+        Ok(SocketPort {
+            socket,
             handler,
-            _state: PhantomData 
+            _state: PhantomData,
         })
     }
 
@@ -290,9 +275,10 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
             inner: AsyncFd::new(self.socket.as_raw_fd())?,
         };
         match bytestream.read(&mut buf).await {
-            Ok(0) => {
-                Err(io::Error::new(io::ErrorKind::UnexpectedEof, "Socket read returned 0 bytes"))
-            },
+            Ok(0) => Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "Socket read returned 0 bytes",
+            )),
             Ok(n) => {
                 // verify the read bytes
                 debug!("Socket read {} bytes", n);
@@ -301,14 +287,14 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
                 //     return Err(e);
                 // }
                 Ok(n)
-            },
+            }
             Err(e) => {
                 error!("Socket read failed: {}", e);
                 Err(e)
             }
         }
     }
-    
+
     pub async fn write(&self, buf: &[u8]) -> io::Result<usize> {
         // self.socket.write(buf).await?;
         // let sockaddr = Handler::sockaddr("vcan0");
@@ -318,9 +304,7 @@ impl <Handler: BytesHandler> SocketPort<Operate, Handler> {
             inner: AsyncFd::new(self.socket.as_raw_fd())?,
         };
         match bytestream.write(buf).await {
-            Ok(n) => {
-                Ok(n)
-            },
+            Ok(n) => Ok(n),
             Err(e) => {
                 error!("Socket write failed: {}", e);
                 Err(e)

@@ -1,10 +1,10 @@
 use std::fmt::Write;
-use std::time::Instant;
 use std::sync::mpsc::SyncSender;
+use std::time::Instant;
 
-use heapless::{self, Vec as HVec, String as HString};
-use tracing::{Event, Level, Subscriber};
+use heapless::{self, String as HString, Vec as HVec};
 use tracing::field::{Field, Visit};
+use tracing::{Event, Level, Subscriber};
 use tracing_subscriber::{
     layer::{Context, Layer},
     registry::LookupSpan,
@@ -42,7 +42,7 @@ pub struct EventRecord {
 }
 
 /// Visitor that slurps up _every_ field into our heapless Vec.
-struct FieldCollector<'a>( &'a mut HVec<FieldRecord, MAX_FIELDS> );
+struct FieldCollector<'a>(&'a mut HVec<FieldRecord, MAX_FIELDS>);
 
 impl<'a> Visit for FieldCollector<'a> {
     fn record_u64(&mut self, field: &Field, value: u64) {
@@ -109,4 +109,3 @@ where
         let _ = self.tx.send(rec);
     }
 }
-

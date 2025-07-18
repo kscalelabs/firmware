@@ -1,32 +1,19 @@
+use crate::actuator_manager::{self, ActuatorManager};
 use futures::{Stream, StreamExt, TryStream, TryStreamExt};
-use tracing::{debug, error, info, warn};
-use crate::actuator_manager::{
-    self,
-    ActuatorManager,
-};
 use pin_project::pin_project;
 use std::{
+    future::Future,
     io,
     pin::Pin,
-    future::Future,
     task::{Context, Poll, ready},
 };
+use tracing::{debug, error, info, warn};
 
-use crate::imu::{
-    self,
-    ImuManager,
-};
+use crate::imu::{self, ImuManager};
 
-use crate::robot_description::{
-    self,
-    RobotDescription,
-    ActuatorId,
-};
+use crate::robot_description::{self, ActuatorId, RobotDescription};
 
-use crate::inference::{
-    self,
-    ModelManager,
-};
+use crate::inference::{self, ModelManager};
 
 crate::state_machine!(Reset, Ready, Home, Policy);
 
@@ -53,11 +40,9 @@ pub struct Store {
 impl Store {
     pub fn new() -> Self {
         let robot_description = RobotDescription::new();
-        
-        let model_manager = ModelManager::new(
-            "model.kinfer",
-            &robot_description,
-        ).expect("Failed to create model manager");
+
+        let model_manager = ModelManager::new("model.kinfer", &robot_description)
+            .expect("Failed to create model manager");
 
         Self {
             robot_description,
@@ -92,29 +77,30 @@ struct Policy {
 
 impl Home {
     pub fn new(shared_state: Pin<Box<Store>>) -> Self {
-        Self { 
-            shared_state , 
+        Self {
+            shared_state,
             start: std::time::Instant::now(),
         }
     }
 
     // returns max error
-    pub fn step_controller(robot_desc: &mut RobotDescription) -> f64{
-        let (actuators, home_position) = (
-            &mut robot_desc.actuators,
-            &mut robot_desc.home_position,
-        );
+    pub fn step_controller(robot_desc: &mut RobotDescription) -> f64 {
+        let (actuators, home_position) = (&mut robot_desc.actuators, &mut robot_desc.home_position);
 
         let mut ret = 0.0f64;
         for (act_id, act_state) in actuators.actuator_states.iter_mut() {
             // feedback could be anywhere between [-4PI, 4PI]
             // home position is in [-PI, PI]
             // first we must normalize the feedback into [-PI, PI]
-            let mut normalized_feedback = robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
+            let mut normalized_feedback =
+                robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
 
             let err = home_position[act_id].qpos - normalized_feedback;
 
-            warn!("Actuator {:?} feedback: {}, home position: {}, error: {}", act_id, normalized_feedback, home_position[act_id].qpos, err);
+            warn!(
+                "Actuator {:?} feedback: {}, home position: {}, error: {}",
+                act_id, normalized_feedback, home_position[act_id].qpos, err
+            );
             // NOTE: these are currently not homed
             if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
                 ret = ret.max(err.abs());
@@ -132,23 +118,19 @@ impl Home {
     }
 }
 
-impl State for Reset
-{
+impl State for Reset {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
             StateTransitionResult {
-                state: StateStore::Ready(Ready {
-                    shared_state,
-                }),
+                state: StateStore::Ready(Ready { shared_state }),
                 result: Ok(()),
             }
         }
     }
 }
 
-impl State for Ready
-{
+impl State for Ready {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -163,34 +145,41 @@ impl State for Ready
                     Ok(Some(tag)) => {
                         debug!("IMU manager state: {:?}", tag);
                         continue;
-                    },
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state,
-                        }),
-                        result: Err(io::Error::new(io::ErrorKind::UnexpectedEof, 
-                            "IMU manager stream ended unexpectedly")),
-                    },
+                    }
+                    Ok(None) => {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                "IMU manager stream ended unexpectedly",
+                            )),
+                        };
+                    }
                     Err(e) => {
-                        return StateTransitionResult { 
-                            state: StateStore::Reset(Reset {
-                                shared_state,
-                            }),
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
                             result: Err(e),
                         };
                     }
                 }
             }
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
-                .expect("IMU manager should be in Operate state") else {
+            let imu::StateStore::Operate(op_imu_manager) = ss
+                .imu_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("IMU manager should be in Operate state")
+            else {
                 return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state,
-                    }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "IMU manager is not in Operate state")),
+                    state: StateStore::Reset(Reset { shared_state }),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "IMU manager is not in Operate state",
+                    )),
                 };
             };
-            op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+            op_imu_manager
+                .process_feedback(&mut ss.robot_description.imu)
+                .await;
             debug!("IMU state: {:#?}", ss.robot_description.imu);
             info!("Press Enter to continue..");
             ss.kb_manager.wait_for_enter().await;
@@ -204,19 +193,19 @@ impl State for Ready
                     Ok(Some(tag)) => {
                         debug!("Actuator manager state: {:?}", tag);
                         continue;
-                    },
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state,
-                        }),
-                        result: Err(io::Error::new(io::ErrorKind::UnexpectedEof, 
-                            "Actuator manager stream ended unexpectedly")),
-                    },
+                    }
+                    Ok(None) => {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                "Actuator manager stream ended unexpectedly",
+                            )),
+                        };
+                    }
                     Err(e) => {
-                        return StateTransitionResult { 
-                            state: StateStore::Reset(Reset {
-                                shared_state,
-                            }),
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
                             result: Err(e),
                         };
                     }
@@ -224,16 +213,20 @@ impl State for Ready
             }
 
             // reached target state
-            let actuator_manager::StateStore::Ready(rdy_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()
-                .expect("Actuator manager should be in Ready state") else {
+            let actuator_manager::StateStore::Ready(rdy_act_manager) = ss
+                .actuator_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("Actuator manager should be in Ready state")
+            else {
                 return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state,
-                    }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "Actuator manager is not in Ready state")),
+                    state: StateStore::Reset(Reset { shared_state }),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Actuator manager is not in Ready state",
+                    )),
                 };
             };
-
 
             // drive model manager to operate state
             let target = inference::StateTag::Operate;
@@ -244,19 +237,19 @@ impl State for Ready
                     Ok(Some(tag)) => {
                         debug!("model manager state: {:?}", tag);
                         continue;
-                    },
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state,
-                        }),
-                        result: Err(io::Error::new(io::ErrorKind::UnexpectedEof, 
-                            "model manager stream ended unexpectedly")),
-                    },
+                    }
+                    Ok(None) => {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                "model manager stream ended unexpectedly",
+                            )),
+                        };
+                    }
                     Err(e) => {
-                        return StateTransitionResult { 
-                            state: StateStore::Reset(Reset {
-                                shared_state,
-                            }),
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset { shared_state }),
                             result: Err(e),
                         };
                     }
@@ -264,13 +257,18 @@ impl State for Ready
             }
 
             // reached target state
-            let inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
-                .expect("Model Manager should be in operate state") else {
+            let inference::StateStore::Operate(op_model) = ss
+                .model_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("Model Manager should be in operate state")
+            else {
                 return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state,
-                    }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "Model manager is not in Operate state")),
+                    state: StateStore::Reset(Reset { shared_state }),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Model manager is not in Operate state",
+                    )),
                 };
             };
 
@@ -281,13 +279,12 @@ impl State for Ready
             return StateTransitionResult {
                 state: StateStore::Home(Home::new(shared_state)),
                 result: Ok(()),
-            }
+            };
         }
     }
 }
 
-impl State for Home
-{
+impl State for Home {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -301,15 +298,19 @@ impl State for Home
                 match ss.actuator_manager.try_next().await {
                     Ok(Some(actuator_manager::StateTag::Operate)) => break,
                     Ok(_) => continue,
-                    Ok(None) => return StateTransitionResult { 
-                        state: StateStore::Reset(Reset {
-                            shared_state: self.shared_state,
-                        }),
-                        result: Err(io::Error::new(io::ErrorKind::UnexpectedEof, 
-                            "Actuator manager stream ended unexpectedly")),
-                    },
+                    Ok(None) => {
+                        return StateTransitionResult {
+                            state: StateStore::Reset(Reset {
+                                shared_state: self.shared_state,
+                            }),
+                            result: Err(io::Error::new(
+                                io::ErrorKind::UnexpectedEof,
+                                "Actuator manager stream ended unexpectedly",
+                            )),
+                        };
+                    }
                     Err(e) => {
-                        return StateTransitionResult { 
+                        return StateTransitionResult {
                             state: StateStore::Reset(Reset {
                                 shared_state: self.shared_state,
                             }),
@@ -319,23 +320,37 @@ impl State for Home
                 }
             }
 
-            let actuator_manager::StateStore::Operate(op_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()
-                .expect("Actuator manager should be in Operate state") else {
+            let actuator_manager::StateStore::Operate(op_act_manager) = ss
+                .actuator_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("Actuator manager should be in Operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "Actuator manager is not in Operate state")),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Actuator manager is not in Operate state",
+                    )),
                 };
             };
 
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
-                .expect("IMU manager should be in Operate state") else {
+            let imu::StateStore::Operate(op_imu_manager) = ss
+                .imu_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("IMU manager should be in Operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "IMU manager is not in Operate state")),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "IMU manager is not in Operate state",
+                    )),
                 };
             };
 
@@ -355,7 +370,9 @@ impl State for Home
                 };
             }
 
-            op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+            op_imu_manager
+                .process_feedback(&mut ss.robot_description.imu)
+                .await;
             // run controller
 
             let err = Self::step_controller(&mut ss.robot_description);
@@ -366,7 +383,7 @@ impl State for Home
             // // sine wave with a period of 2 seconds and ampliture of 0.5 radians
             // let period = std::time::Duration::from_secs(2);
             // let amplitude = 0.5; // rad
-            // 
+            //
             // let angle = amplitude * (2.0 * std::f64::consts::PI * elapsed.as_secs_f64() / period.as_secs_f64()).sin();
 
             // for act_state in act_states.actuator_states.values_mut() {
@@ -376,7 +393,7 @@ impl State for Home
             //     act_state.command.kp = 1.0; // proportional gain
             //     act_state.command.kd = 1.0; // derivative gain
             // }
-            
+
             // send commadn to buses and wait for responses
             let act_states = &mut ss.robot_description.actuators;
             if let Err(e) = op_act_manager.send_command(act_states).await {
@@ -386,7 +403,6 @@ impl State for Home
                 };
             }
 
-
             warn!("error: {}", err);
             if err < 0.1 {
                 // can go to next state
@@ -394,7 +410,9 @@ impl State for Home
                 info!("Home position reached, press enter to run policy");
                 // we need to arm the imu with the initial value. Again, this needs to be done once
                 // when we transition to Policy state.
-                op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+                op_imu_manager
+                    .process_feedback(&mut ss.robot_description.imu)
+                    .await;
                 ss.robot_description.initial_imu = ss.robot_description.imu.clone();
                 ss.kb_manager.wait_for_enter().await;
 
@@ -403,7 +421,7 @@ impl State for Home
                         shared_state: self.shared_state,
                     }),
                     result: Ok(()),
-                }
+                };
             }
 
             return StateTransitionResult {
@@ -412,13 +430,12 @@ impl State for Home
                     start: self.start, // keep the start time to continue the sine wave
                 }),
                 result: Ok(()),
-            }
+            };
         }
     }
 }
 
-impl State for Policy
-{
+impl State for Policy {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = &mut self.shared_state;
@@ -431,23 +448,37 @@ impl State for Policy
             // ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
-            let actuator_manager::StateStore::Operate(op_act_manager) = ss.actuator_manager.as_mut().get_state_pinned()
-                .expect("Actuator manager should be in Operate state") else {
+            let actuator_manager::StateStore::Operate(op_act_manager) = ss
+                .actuator_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("Actuator manager should be in Operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "Actuator manager is not in Operate state")),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Actuator manager is not in Operate state",
+                    )),
                 };
             };
 
-            let imu::StateStore::Operate(op_imu_manager) = ss.imu_manager.as_mut().get_state_pinned()
-                .expect("IMU manager should be in Operate state") else {
+            let imu::StateStore::Operate(op_imu_manager) = ss
+                .imu_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("IMU manager should be in Operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "IMU manager is not in Operate state")),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "IMU manager is not in Operate state",
+                    )),
                 };
             };
 
@@ -467,7 +498,9 @@ impl State for Policy
                 };
             }
 
-            op_imu_manager.process_feedback(&mut ss.robot_description.imu).await;
+            op_imu_manager
+                .process_feedback(&mut ss.robot_description.imu)
+                .await;
             // log::info!("IMU state: {:#?}", ss.robot_description.imu);
             // let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
             //     ss.robot_description.imu.quaternion
@@ -475,13 +508,20 @@ impl State for Policy
             // let projected = unit_quat.conjugate() * nalgebra::Vector3::new(0.0, 0.0, -9.81);
             // log::info!("Project gravity: {}", projected.transpose());
 
-            let inference::StateStore::Operate(op_model) = ss.model_manager.as_mut().get_state_pinned()
-                .expect("Model Manager should be in operate state") else {
+            let inference::StateStore::Operate(op_model) = ss
+                .model_manager
+                .as_mut()
+                .get_state_pinned()
+                .expect("Model Manager should be in operate state")
+            else {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
                     }),
-                    result: Err(io::Error::new(io::ErrorKind::Other, "Model manager is not in Operate state")),
+                    result: Err(io::Error::new(
+                        io::ErrorKind::Other,
+                        "Model manager is not in Operate state",
+                    )),
                 };
             };
 
@@ -494,7 +534,7 @@ impl State for Policy
             // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
             //     if (id == ActuatorId::Rkp) {
             //         log::info!("Actuator {:?} command: {:?}", id, act_state.command);
-            //         
+            //
             //         log::info!("Actuator {:?} feedback: {:?}", id, act_state.feedback);
             //         // calculate next torque
             //         let ep = act_state.command.qpos - act_state.feedback.qpos;
@@ -526,9 +566,7 @@ impl State for Policy
             warn!("iteration took {:?}", start_time.elapsed());
             let mut shared_state = self.shared_state;
             StateTransitionResult {
-                state: StateStore::Policy(Policy {
-                    shared_state,
-                }),
+                state: StateStore::Policy(Policy { shared_state }),
                 result: Ok(()),
             }
         }
@@ -572,19 +610,21 @@ impl Stream for BehaviorManager {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                debug!("Polling pending future");
-                // If the pending future is ready, we can transition to the next state
-                let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
-                // clear the pending future
-                unsafe { *this.pending_fut.get_unchecked_mut() = None; }
+            debug!("Polling pending future");
+            // If the pending future is ready, we can transition to the next state
+            let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
+            // clear the pending future
+            unsafe {
+                *this.pending_fut.get_unchecked_mut() = None;
+            }
 
-                let tag = st.tag();
-                *this.state = Some(st); // Update the state
-                if let Err(e) = result {
-                    error!("State transition failed: {:?}", e);
-                    return Poll::Ready(Some(Err(e)));
-                }
-                return Poll::Ready(Some(Ok(tag)));
+            let tag = st.tag();
+            *this.state = Some(st); // Update the state
+            if let Err(e) = result {
+                error!("State transition failed: {:?}", e);
+                return Poll::Ready(Some(Err(e)));
+            }
+            return Poll::Ready(Some(Ok(tag)));
         }
 
         // check if we have laready reached the specified target
@@ -598,7 +638,10 @@ impl Stream for BehaviorManager {
         // start new transition to reach the target state
         unsafe {
             *this.pending_fut.get_unchecked_mut() = Some(
-                this.state.take().expect("state must not be None").transition_fut()
+                this.state
+                    .take()
+                    .expect("state must not be None")
+                    .transition_fut(),
             );
         }
 

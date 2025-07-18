@@ -1,41 +1,22 @@
+use crate::socketcan2::{SocketCanConfigurator, SocketCanOperator};
+use crate::typestate_socket2::{Socket, SocketGraph, SocketState, SocketStorage};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use tracing::{debug, error};
-use crate::typestate_socket2::{
-    SocketGraph,
-    SocketState,
-    SocketStorage,
-    Socket,
-};
-use crate::socketcan2::{
-    SocketCanConfigurator,
-    SocketCanOperator,
-};
 
-use std::fmt::Debug;
 use crate::socketcan::CanFrame;
+use std::fmt::Debug;
 
-use futures::{
-    Stream,
-    StreamExt,
-};
+use futures::{Stream, StreamExt};
 
 use std::vec::Vec;
 
 use crate::robstride::{
-    ActuatorCanClient,
-    ActuatorRequestParams,
-    actuator_can_id_from_response,
-    mux_from_can_frame,
+    ActuatorCanClient, ActuatorRequestParams, actuator_can_id_from_response, mux_from_can_frame,
 };
 
 use crate::robot_description::{
-    ActuatorId,
-    ActuatorFeedbackUpdate,
-    ActuatorFeedback,
-    ActuatorCommand,
-    ActuatorState,
-    BusTag,
+    ActuatorCommand, ActuatorFeedback, ActuatorFeedbackUpdate, ActuatorId, ActuatorState, BusTag,
 };
 
 use pin_project::pin_project;
@@ -67,7 +48,11 @@ pub struct Operate {
 
 impl Ready {
     pub async fn enable(&mut self) -> std::io::Result<()> {
-        send_request(self.shared_state.as_mut(), &ActuatorRequestParams::MotorEnable).await?;
+        send_request(
+            self.shared_state.as_mut(),
+            &ActuatorRequestParams::MotorEnable,
+        )
+        .await?;
         read_responses(self.shared_state.as_mut()).await
     }
 }
@@ -84,15 +69,16 @@ impl Operate {
         // read_responses(self.shared_state.as_mut()).await
     }
 
-    pub async fn process_feedback(&mut self, act_states: &mut [ActuatorState]) -> std::io::Result<()> {
+    pub async fn process_feedback(
+        &mut self,
+        act_states: &mut [ActuatorState],
+    ) -> std::io::Result<()> {
         // read_responses(self.shared_state.as_mut()).await
         read_responses_update(self.shared_state.as_mut(), Some(act_states)).await
     }
 }
 
-
-impl State for Reset
-{
+impl State for Reset {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let mut shared_state = self.shared_state;
@@ -103,17 +89,13 @@ impl State for Reset
                 Ok(_) => {
                     debug!("Socket graph operational");
                     StateTransitionResult {
-                        state: StateStore::Configure(Configure {
-                            shared_state,
-                        }),
+                        state: StateStore::Configure(Configure { shared_state }),
                         result: Ok(()),
                     }
                 }
                 Err(e) => {
                     StateTransitionResult {
-                        state: StateStore::Reset(Reset {
-                            shared_state,
-                        }), // go back to reset state on error
+                        state: StateStore::Reset(Reset { shared_state }), // go back to reset state on error
                         result: Err(e),
                     }
                 }
@@ -122,8 +104,7 @@ impl State for Reset
     }
 }
 
-impl State for Ready
-{
+impl State for Ready {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             StateTransitionResult {
@@ -136,11 +117,12 @@ impl State for Ready
     }
 }
 
-impl State for Configure
-{
+impl State for Configure {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
-            if let Err(e) = send_request(self.shared_state.as_mut(), &ActuatorRequestParams::ObtainId).await {
+            if let Err(e) =
+                send_request(self.shared_state.as_mut(), &ActuatorRequestParams::ObtainId).await
+            {
                 return StateTransitionResult {
                     state: StateStore::Reset(Reset {
                         shared_state: self.shared_state,
@@ -154,7 +136,7 @@ impl State for Configure
             // wait for responses for 10ms
             let to = tokio::time::timeout(
                 std::time::Duration::from_millis(10),
-                read_responses(self.shared_state.as_mut())
+                read_responses(self.shared_state.as_mut()),
             );
 
             if let Err(e) = to.await {
@@ -176,15 +158,12 @@ impl State for Configure
     }
 }
 
-impl State for Operate
-{
+impl State for Operate {
     fn transition_fut(self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let shared_state = self.shared_state;
             StateTransitionResult {
-                state: StateStore::Operate(Operate {
-                    shared_state,
-                }),
+                state: StateStore::Operate(Operate { shared_state }),
                 result: Ok(()),
             }
         }
@@ -202,10 +181,7 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
     };
 
     for (i, client) in ss.actuator_clients.iter_mut().enumerate() {
-        
-        let params = ActuatorRequestParams::Control(
-            act_states[i].command.clone()
-        );
+        let params = ActuatorRequestParams::Control(act_states[i].command.clone());
 
         let req = client.stage_request(&params);
         let res = op_socket.write(&req.into()).await;
@@ -221,7 +197,7 @@ async fn send_commands(ss: Pin<&mut Store>, act_states: &[ActuatorState]) -> std
     Ok(())
 }
 
-async fn send_request(ss: Pin<&mut Store> , params: &ActuatorRequestParams) -> std::io::Result<()> {
+async fn send_request(ss: Pin<&mut Store>, params: &ActuatorRequestParams) -> std::io::Result<()> {
     let mut ss = ss.project();
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
         // no operational socket, go back to configure state
@@ -250,9 +226,10 @@ async fn read_responses(ss: Pin<&mut Store>) -> std::io::Result<()> {
     read_responses_update(ss, None).await
 }
 
-
-
-async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut [ActuatorState]>) -> std::io::Result<()> {
+async fn read_responses_update(
+    ss: Pin<&mut Store>,
+    mut act_states: Option<&mut [ActuatorState]>,
+) -> std::io::Result<()> {
     let mut ss = ss.project();
 
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
@@ -276,12 +253,15 @@ async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut 
                         } else {
                             return Err(std::io::Error::new(
                                 std::io::ErrorKind::NotFound,
-                                format!("No ActuatorFeedback found for client index {}", client_idx),
+                                format!(
+                                    "No ActuatorFeedback found for client index {}",
+                                    client_idx
+                                ),
                             ));
                         }
                     }
                 }
-                Ok(None) => {},
+                Ok(None) => {}
                 Err(e) => {
                     return Err(e);
                 }
@@ -330,7 +310,6 @@ async fn read_responses_update(ss: Pin<&mut Store>, mut act_states: Option<&mut 
         handler(&can_frame)?;
     }
 
-
     // }
 
     Ok(())
@@ -350,9 +329,10 @@ impl Store {
     pub fn new(ifname: &str, ids: Vec<ActuatorId>) -> Self {
         Self {
             ifname: ifname.to_string(),
-            actuator_clients: ids.into_iter().map(|id| {
-                ActuatorCanClient::new(id)
-            }).collect(),
+            actuator_clients: ids
+                .into_iter()
+                .map(|id| ActuatorCanClient::new(id))
+                .collect(),
             response_to_client_idx: |frame: &CanFrame| {
                 let id = actuator_can_id_from_response(frame);
                 ((id % 10) - 1) as usize
@@ -370,7 +350,6 @@ impl Store {
         }
     }
 }
-
 
 impl Debug for ActuatorBus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -399,7 +378,7 @@ impl ActuatorBus {
             pending_fut: None,
         }
     }
-    
+
     pub fn set_target(&mut self, target: StateTag) {
         // let mut this = self.as_mut().project();
         // *this.target = Some(target);
@@ -421,9 +400,7 @@ impl ActuatorBus {
         let unpinned = unsafe { Pin::get_unchecked_mut(shared_state.as_mut()) };
         unpinned.reset_iface(ifname);
 
-        self.state = Some(StateStore::Reset(Reset {
-            shared_state,
-        }));
+        self.state = Some(StateStore::Reset(Reset { shared_state }));
     }
 
     pub fn get_state_pinned(self: Pin<&mut Self>) -> Option<&mut StateStore> {
@@ -442,19 +419,21 @@ impl Stream for ActuatorBus {
         let mut this = self.project();
 
         if let Some(pending_fut) = this.pending_fut.as_mut().as_pin_mut() {
-                // log::debug!("Polling pending future: {:?}", pending_fut);
-                // If the pending future is ready, we can transition to the next state
-                let StateTransitionResult{ state: st, result } = ready!(pending_fut.poll(cx));
-                // clear the pending future
-                unsafe { *this.pending_fut.get_unchecked_mut() = None; }
+            // log::debug!("Polling pending future: {:?}", pending_fut);
+            // If the pending future is ready, we can transition to the next state
+            let StateTransitionResult { state: st, result } = ready!(pending_fut.poll(cx));
+            // clear the pending future
+            unsafe {
+                *this.pending_fut.get_unchecked_mut() = None;
+            }
 
-                let tag = st.tag();
-                *this.state = Some(st); // Update the state
-                if let Err(e) = result {
-                    error!("State transition failed: {:?}", e);
-                    return Poll::Ready(Some(Err(e)));
-                }
-                return Poll::Ready(Some(Ok(tag)));
+            let tag = st.tag();
+            *this.state = Some(st); // Update the state
+            if let Err(e) = result {
+                error!("State transition failed: {:?}", e);
+                return Poll::Ready(Some(Err(e)));
+            }
+            return Poll::Ready(Some(Ok(tag)));
         }
 
         // check if we have laready reached the specified target
@@ -468,7 +447,10 @@ impl Stream for ActuatorBus {
         // start new transition to reach the target state
         unsafe {
             *this.pending_fut.get_unchecked_mut() = Some(
-                this.state.take().expect("state must not be None").transition_fut()
+                this.state
+                    .take()
+                    .expect("state must not be None")
+                    .transition_fut(),
             );
         }
 

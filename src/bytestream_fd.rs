@@ -1,17 +1,15 @@
-
-use tokio::io::unix::AsyncFd;
-use tracing::{debug, warn};
-use tokio::io::{AsyncReadExt, AsyncRead};
-use tokio::io::{AsyncWriteExt, AsyncWrite};
-use tokio::io::ReadBuf;
 use std::os::fd::AsRawFd;
+use tokio::io::ReadBuf;
+use tokio::io::unix::AsyncFd;
+use tokio::io::{AsyncRead, AsyncReadExt};
+use tokio::io::{AsyncWrite, AsyncWriteExt};
+use tracing::{debug, warn};
 // use std::os::fd::{AsFd, AsRawFd};
 use std::os::unix::io::RawFd;
 use std::pin::Pin;
 use std::task::{Context, Poll, ready};
 
 use std::io::{self, ErrorKind};
-
 
 #[derive(Debug)]
 pub struct ByteStreamFd {
@@ -47,7 +45,6 @@ impl Drop for ByteStreamFd {
     }
 }
 
-
 impl AsyncRead for ByteStreamFd {
     fn poll_read(
         self: Pin<&mut Self>,
@@ -81,7 +78,7 @@ impl AsyncRead for ByteStreamFd {
                     return Poll::Ready(Err(io::Error::new(
                         io::ErrorKind::UnexpectedEof,
                         "socket read returned 0 bytes",
-                    )))
+                    )));
                 }
                 // Successfully read some bytes
                 Ok(Ok(n)) => {
@@ -108,13 +105,8 @@ impl AsyncWrite for ByteStreamFd {
     ) -> Poll<io::Result<usize>> {
         loop {
             // 1) syscall immediately
-            let ret = unsafe {
-                libc::write(
-                    self.inner.as_raw_fd(),
-                    buf.as_ptr() as *const _,
-                    buf.len(),
-                )
-            };
+            let ret =
+                unsafe { libc::write(self.inner.as_raw_fd(), buf.as_ptr() as *const _, buf.len()) };
             if ret >= 0 {
                 return Poll::Ready(Ok(ret as usize));
             }
@@ -131,18 +123,12 @@ impl AsyncWrite for ByteStreamFd {
         }
     }
 
-    fn poll_flush(
-        self: Pin<&mut Self>,
-        _cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_flush(self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         // no buffering, always flushed
         Poll::Ready(Ok(()))
     }
 
-    fn poll_shutdown(
-        self: Pin<&mut Self>,
-        cx: &mut Context<'_>,
-    ) -> Poll<io::Result<()>> {
+    fn poll_shutdown(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<io::Result<()>> {
         loop {
             // 1) try shutdown syscall
             let ret = unsafe { libc::shutdown(self.inner.as_raw_fd(), libc::SHUT_WR) };
