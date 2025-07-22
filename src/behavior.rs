@@ -15,6 +15,7 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 
 use crate::inference::{self, ModelManager};
 
+use crate::robstride_utils::RobstrideActuatorParam;
 crate::state_machine!(Reset, Ready, Home, Policy);
 
 impl std::fmt::Debug for Store {
@@ -355,6 +356,27 @@ impl State for Home {
                     result: Err(e),
                 };
             }
+
+            // process initial feedback
+            let act_states = ss.robot_description.actuator_states_mut();
+            if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
+            // request motor current feedback
+            if let Err(e) = op_act_manager
+                .request_param(RobstrideActuatorParam::Iqf)
+                .await
+            {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
             // and wait for responses
             let act_states = ss.robot_description.actuator_states_mut();
             if let Err(e) = op_act_manager.process_feedback(act_states).await {
@@ -370,6 +392,8 @@ impl State for Home {
             // run controller
 
             let err = Self::step_controller(ss.robot_description);
+
+            let act_states = ss.robot_description.actuator_states_mut();
             // TODO
             // get time since start
 
@@ -397,6 +421,12 @@ impl State for Home {
                 };
             }
 
+            if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
             warn!("error: {}", err);
             if err < 0.1 {
                 // can go to next state
@@ -471,6 +501,25 @@ impl State for Policy {
                 };
             };
 
+            // request motor current feedback
+            if let Err(e) = op_act_manager
+                .request_param(RobstrideActuatorParam::Iqf)
+                .await
+            {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
+
+            // and wait for responses
+            let act_states = ss.robot_description.actuator_states_mut();
+            if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                return StateTransitionResult {
+                    state: StateStore::Home(Home::new(self.shared_state)),
+                    result: Err(e),
+                };
+            }
             // request initial feedback to seed the state
             if let Err(e) = op_act_manager.request_feedback().await {
                 return StateTransitionResult {

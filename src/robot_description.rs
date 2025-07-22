@@ -24,6 +24,7 @@ pub struct ActuatorFeedback {
     pub kd: f64,     // Velocity gain
     pub temp: f64,   // Temperature
     pub faults: u32, // Faults
+    pub amps: f64,   // Current in Amperes
 }
 
 impl ActuatorFeedback {
@@ -49,6 +50,9 @@ impl ActuatorFeedback {
         if let Some(faults) = update.faults {
             self.faults = faults;
         }
+        if let Some(amps) = update.amps {
+            self.amps = amps;
+        }
     }
 }
 
@@ -60,6 +64,7 @@ pub struct ActuatorFeedbackUpdate {
     pub kd: Option<f64>,
     pub temp: Option<f64>,
     pub faults: Option<u32>,
+    pub amps: Option<f64>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

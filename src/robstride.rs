@@ -1,6 +1,8 @@
 use crate::socketcan::CAN_MAX_DLEN;
 use tracing::{debug, warn};
 
+use tracing::info;
+
 use crate::socketcan::CanFrame;
 
 use crate::robot_description::{ActuatorCommand, ActuatorFeedbackUpdate, ActuatorId};
@@ -42,6 +44,10 @@ impl From<crate::socketcan::CanFrame> for ActuatorResponse {
             0x02 => ActuatorResponse::Feedback(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
                 FeedbackResponse,
+            >(val)),
+            0x11 => ActuatorResponse::ReadParam(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                ReadParamResponse,
             >(val)),
             _ => panic!("Unknown mux value: {mux}"),
         }
@@ -86,6 +92,7 @@ impl RobstrideActuatorFrame for ControlCommandRequest {}
 impl RobstrideActuatorFrame for FeedbackRequest {}
 impl RobstrideActuatorFrame for FeedbackResponse {}
 impl RobstrideActuatorFrame for ReadParamRequest {}
+impl RobstrideActuatorFrame for ReadParamResponse {}
 impl RobstrideActuatorFrame for MotorEnableRequest {}
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
@@ -271,6 +278,23 @@ impl ReadParamRequest {
     }
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+pub struct ReadParamResponse {
+    pub host_id: u8,
+    pub actuator_can_id: u8,
+    res_id: u8,
+    mux: u8, /* 0x11 */
+
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    index: u16,
+    res1: u16,
+    value: u32,
+}
+
 #[derive(Debug, Clone)]
 pub enum ActuatorRequest {
     ObtainId(ObtainIdRequest),
@@ -283,7 +307,7 @@ pub enum ActuatorRequest {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ActuatorRequestParams {
     ObtainId,
-    ReadParam,
+    ReadParam(RobstrideActuatorParam),
     MotorEnable,
     Control(ActuatorCommand),
     Feedback,
@@ -305,6 +329,7 @@ impl ActuatorRequest {
 pub enum ActuatorResponse {
     ObtainId(ObtainIdResponse),
     Feedback(FeedbackResponse),
+    ReadParam(ReadParamResponse),
 }
 
 #[allow(dead_code)]
@@ -313,6 +338,7 @@ impl ActuatorResponse {
         match self {
             ActuatorResponse::ObtainId(req) => req.mux,
             ActuatorResponse::Feedback(req) => req.mux,
+            ActuatorResponse::ReadParam(req) => req.mux,
         }
     }
 }
@@ -332,6 +358,10 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
         }
         0x02 => {
             bytemuck::must_cast::<crate::socketcan::CanFrame, FeedbackResponse>(*frame)
+                .actuator_can_id as u8
+        }
+        0x11 => {
+            bytemuck::must_cast::<crate::socketcan::CanFrame, ReadParamResponse>(*frame)
                 .actuator_can_id as u8
         }
         _ => {
@@ -399,11 +429,9 @@ impl ActuatorCanClient {
             ActuatorRequestParams::ObtainId => {
                 ActuatorRequest::ObtainId(ObtainIdRequest::new(self.host_id, self.actuator_can_id))
             }
-            ActuatorRequestParams::ReadParam => ActuatorRequest::ReadParam(ReadParamRequest::new(
-                self.host_id,
-                self.actuator_can_id,
-                0x7005,
-            )),
+            ActuatorRequestParams::ReadParam(param) => ActuatorRequest::ReadParam(
+                ReadParamRequest::new(self.host_id, self.actuator_can_id, *param as u16),
+            ),
             ActuatorRequestParams::MotorEnable => ActuatorRequest::MotorEnable(
                 MotorEnableRequest::new(self.host_id, self.actuator_can_id),
             ),
@@ -437,7 +465,7 @@ impl ActuatorCanClient {
         // Stage the request based on the provided parameters
         self.state = match params {
             ActuatorRequestParams::ObtainId => ActuatorClientState::AwaitingIdRequest,
-            ActuatorRequestParams::ReadParam => ActuatorClientState::AwaitingReadParamRequest,
+            ActuatorRequestParams::ReadParam(_) => ActuatorClientState::AwaitingReadParamRequest,
             ActuatorRequestParams::MotorEnable => ActuatorClientState::AwaitingMotorEnableRequest,
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
@@ -512,6 +540,22 @@ impl ActuatorCanClient {
                 self.state = ActuatorClientState::Ready;
                 Ok(Some(self.update_from_feedback(&resp)))
             }
+            ActuatorResponse::ReadParam(resp) => {
+                debug!("Received Feedback response: {:?}", resp);
+                if resp.actuator_can_id != self.actuator_can_id {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Feedback response does not match expected actuator CAN ID",
+                    ));
+                }
+                self.state = ActuatorClientState::Ready;
+                let param = RobstrideActuatorParam::from_address(resp.index).unwrap();
+                let value = f32::from_bits(resp.value);
+                match param {
+                    RobstrideActuatorParam::Iqf => Ok(Some(self.update_from_current(&value))),
+                    _ => Ok(None),
+                }
+            }
         }
     }
 
@@ -533,6 +577,20 @@ impl ActuatorCanClient {
             kd: None,
             temp: None,
             faults: None,
+            amps: None,
+        }
+    }
+
+    pub fn update_from_current(&self, amps: &f32) -> ActuatorFeedbackUpdate {
+        ActuatorFeedbackUpdate {
+            qpos: None,
+            qvel: None,
+            qfrc: None,
+            kp: None,
+            kd: None,
+            temp: None,
+            faults: None,
+            amps: Some(*amps as f64),
         }
     }
 
