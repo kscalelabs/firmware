@@ -29,7 +29,6 @@ pub fn start_pipeline(
         .create(true)
         .truncate(true) // Ensure the file is empty at start
         .write(true)
-        .custom_flags(libc::O_DIRECT) // Use O_DIRECT for zero-copy
         .open(log_path)?;
 
     /**
