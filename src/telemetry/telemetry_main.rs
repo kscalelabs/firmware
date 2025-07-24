@@ -1,3 +1,4 @@
+use crate::messaging::PolicyStepDescriptorPod;
 use std::fs::OpenOptions;
 use std::io;
 use std::os::unix::io::{AsFd, AsRawFd, OwnedFd};
@@ -50,7 +51,7 @@ pub fn start_pipeline(
         let node = NodeBuilder::new().create::<ipc::Service>().unwrap();
         let service = node
             .service_builder(&"My/Funk/ServiceName".try_into().unwrap())
-            .publish_subscribe::<u64>()
+            .publish_subscribe::<PolicyStepDescriptorPod>()
             .open_or_create()
             .unwrap();
         let mut subscriber = service.subscriber_builder().create().unwrap();
@@ -74,13 +75,22 @@ pub fn start_pipeline(
 
         // first receive random data
 
-        while let Ok(evt) = rx.recv() {
+        // while let Ok(evt) = rx.recv() {
+        while node.wait(std::time::Duration::from_millis(10)).is_ok() {
             // println!("waiting for initial data from subscriber...");
-            if let Some(sample) = subscriber.receive().unwrap() {
-                println!("received: {:?}", *sample);
+            // std::thread::sleep(std::time::Duration::from_millis(10));
+            let recvd = subscriber.receive().unwrap();
+            if recvd.is_none() {
+                continue;
             }
+            let sample = recvd.unwrap();
+            let json_str = serde_json::to_string(&*sample)
+                .map_err(std::io::Error::other)
+                .unwrap();
             // Serialize event into batch_buf (ensure capacity)
-            serialize_event(&evt, &mut batch_buf);
+            // serialize_event(json_str, &mut batch_buf);
+            batch_buf.extend_from_slice(json_str.as_bytes());
+            batch_buf.extend_from_slice(b"\n");
 
             // Flush when half-buffer or timeout reached
             // Feed buffer data to multi-fd writer
