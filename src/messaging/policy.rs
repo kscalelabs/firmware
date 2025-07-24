@@ -1,4 +1,4 @@
-use crate::policy_control::CommandType;
+use crate::inference::ModelInputType;
 use crate::robot_description::{ActuatorId, DataType, RobotDescription};
 use enum_map::EnumMap;
 use ort;
@@ -16,47 +16,8 @@ pub struct PolicyStepDescriptorPod {
     pub projected_g: Option<[f32; 3]>,
     pub accel: Option<[f32; 3]>,
     pub gyro: Option<[f32; 3]>,
-    pub command: Option<EnumMap<ActuatorId, f32>>,
+    pub command: [Option<f32>; 7],
     pub output: Option<EnumMap<ActuatorId, f32>>,
-}
-
-#[derive(Debug)]
-pub enum ModelInputType {
-    DataType(DataType),
-    Command(CommandType),
-    Carry,
-}
-
-impl TryFrom<&ort::session::Input> for ModelInputType {
-    type Error = std::io::Error;
-    fn try_from(input: &ort::session::Input) -> Result<Self, Self::Error> {
-        match input.name.as_str() {
-            "carry" => Ok(ModelInputType::Carry),
-            "command" => {
-                if input.input_type.tensor_shape().is_none() {
-                    return Err(std::io::Error::other(
-                        "Command input must have a tensor shape",
-                    ));
-                }
-
-                let dims = input.input_type.tensor_shape().unwrap();
-                if dims.len() != 1 {
-                    return Err(std::io::Error::other(
-                        "Command input must have a 1D tensor shape",
-                    ));
-                }
-
-                let dims = dims[0];
-                Ok(ModelInputType::Command(CommandType::from_dims(
-                    dims as usize,
-                )?))
-            }
-            _ => {
-                let data_type = DataType::try_from(input)?;
-                Ok(ModelInputType::DataType(data_type))
-            }
-        }
-    }
 }
 
 impl PolicyStepDescriptorPod {
@@ -67,6 +28,7 @@ impl PolicyStepDescriptorPod {
     pub fn from_session(step_session: &ort::session::Session) -> std::io::Result<Self> {
         let mut ret = Self::default();
         for input in step_session.inputs.iter() {
+            let length = *input.input_type.tensor_shape().unwrap().first().unwrap() as usize;
             let model_input_type = ModelInputType::try_from(input)?;
 
             match model_input_type {
@@ -99,7 +61,7 @@ impl PolicyStepDescriptorPod {
                     }
                 },
                 ModelInputType::Command(_) => {
-                    ret.command = Some(EnumMap::default());
+                    // command array is already initialized to [None; 7] by default
                 }
                 ModelInputType::Carry => {
                     // carry is not a data type, so we skip it
@@ -206,10 +168,9 @@ impl PolicyStepDescriptorPod {
                 }
             },
             ModelInputType::Command(_) => {
-                let dst = self.command.as_mut().unwrap();
-                for (i, &actuator_id) in cmd_idx_to_actuator_id.iter().enumerate() {
-                    if i < src.len() {
-                        dst[actuator_id] = src[i];
+                for (i, &value) in src.iter().enumerate() {
+                    if i < 7 {
+                        self.command[i] = Some(value);
                     }
                 }
             }

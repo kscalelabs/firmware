@@ -1,3 +1,3 @@
 pub mod policy;
 
-pub use policy::{ModelInputType, PolicyStepDescriptorPod};
+pub use policy::PolicyStepDescriptorPod;
