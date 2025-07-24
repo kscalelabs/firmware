@@ -16,7 +16,9 @@ use tracing::error;
 use crate::telemetry::forwarder::{EventRecord, FieldValue};
 use crate::telemetry::multi_fd_writer::MultiFdWriter;
 
+use iceoryx2::port::listener::Listener;
 use iceoryx2::prelude::*;
+use iceoryx2::waitset::{WaitSet, WaitSetBuilder};
 
 // 4 pages
 const BUF_SIZE: usize = 4 * 4096;
@@ -51,7 +53,7 @@ pub fn start_pipeline(
             .publish_subscribe::<u64>()
             .open_or_create()
             .unwrap();
-        let subscriber = service.subscriber_builder().create().unwrap();
+        let mut subscriber = service.subscriber_builder().create().unwrap();
 
         // Create array of output file descriptors
         let output_fds = vec![OwnedFd::from(file)];
@@ -70,7 +72,13 @@ pub fn start_pipeline(
         // do not create a filled vec as we have a limit on max buffer size
         let mut batch_buf: Vec<u8> = Vec::with_capacity(BUF_SIZE);
 
+        // first receive random data
+
         while let Ok(evt) = rx.recv() {
+            // println!("waiting for initial data from subscriber...");
+            if let Some(sample) = subscriber.receive().unwrap() {
+                println!("received: {:?}", *sample);
+            }
             // Serialize event into batch_buf (ensure capacity)
             serialize_event(&evt, &mut batch_buf);
 

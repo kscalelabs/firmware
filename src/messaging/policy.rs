@@ -1,23 +1,99 @@
 use crate::inference::ModelInputType;
 use crate::robot_description::{ActuatorId, DataType, RobotDescription};
-use enum_map::EnumMap;
+use bytemuck::{Pod, Zeroable};
+use enum_map::{Enum, EnumArray, EnumMap};
+use iceoryx2::prelude::*;
 use ort;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Default)]
+use std::ops::{Deref, DerefMut};
+
+#[repr(transparent)]
+#[derive(Copy, Clone, Debug, Serialize)]
+pub struct PodEnumMap<K, V>(pub EnumMap<K, V>)
+where
+    V: Zeroable,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy;
+
+// 3) unsafe‑impl the bytemuck traits, bounding V: Pod/Zeroable
+unsafe impl<K, V> Zeroable for PodEnumMap<K, V>
+where
+    V: Zeroable,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+{
+}
+
+unsafe impl<K, V> Pod for PodEnumMap<K, V>
+where
+    V: Pod,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+{
+}
+
+unsafe impl<K, V> ZeroCopySend for PodEnumMap<K, V>
+where
+    V: Pod,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+{
+}
+
+impl<K, V> Default for PodEnumMap<K, V>
+where
+    V: Pod,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+    K: Enum, // or EnumArray<V>, whichever your EnumMap::default() needs
+    V: Default,
+{
+    fn default() -> Self {
+        PodEnumMap(EnumMap::default())
+    }
+}
+
+/// Allow `&PodEnumMap` → `&EnumMap` so you get indexing, `iter()`, etc.
+impl<K, V> Deref for PodEnumMap<K, V>
+where
+    V: Pod,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+{
+    type Target = EnumMap<K, V>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+/// Allow mutable indexing too
+impl<K, V> DerefMut for PodEnumMap<K, V>
+where
+    V: Pod,
+    K: EnumArray<V> + std::marker::Copy + 'static,
+    <K as EnumArray<V>>::Array: std::marker::Copy,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Serialize, Default, ZeroCopySend)]
 pub struct PolicyStepDescriptorPod {
     pub step_id: Option<u64>,
     pub t_us: Option<u64>,
-    pub joint_angles: Option<EnumMap<ActuatorId, f32>>,
-    pub joint_vels: Option<EnumMap<ActuatorId, f32>>,
+    pub joint_angles: Option<PodEnumMap<ActuatorId, f32>>,
+    pub joint_vels: Option<PodEnumMap<ActuatorId, f32>>,
     pub initial_heading: Option<f32>,
-    pub joint_amps: Option<EnumMap<ActuatorId, f32>>,
+    pub joint_amps: Option<PodEnumMap<ActuatorId, f32>>,
     pub quaternion: Option<[f32; 4]>,
     pub projected_g: Option<[f32; 3]>,
     pub accel: Option<[f32; 3]>,
     pub gyro: Option<[f32; 3]>,
     pub command: [Option<f32>; 7],
-    pub output: Option<EnumMap<ActuatorId, f32>>,
+    pub output: Option<PodEnumMap<ActuatorId, f32>>,
 }
 
 impl PolicyStepDescriptorPod {
@@ -34,12 +110,12 @@ impl PolicyStepDescriptorPod {
             match model_input_type {
                 ModelInputType::DataType(data_type) => match data_type {
                     DataType::JointAngles => {
-                        ret.joint_angles = Some(EnumMap::default());
-                        ret.output = Some(EnumMap::default());
-                        ret.joint_amps = Some(EnumMap::default());
+                        ret.joint_angles = Some(PodEnumMap::default());
+                        ret.output = Some(PodEnumMap::default());
+                        ret.joint_amps = Some(PodEnumMap::default());
                     }
                     DataType::JointAngularVelocities => {
-                        ret.joint_vels = Some(EnumMap::default());
+                        ret.joint_vels = Some(PodEnumMap::default());
                     }
                     DataType::InitialHeading => {
                         ret.initial_heading = Some(0.0);

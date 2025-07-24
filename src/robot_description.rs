@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 use enum_map::{Enum, EnumMap, enum_map};
 use heapless::Deque;
+use iceoryx2::prelude::*;
 use nalgebra as na;
 use tracing::info;
 

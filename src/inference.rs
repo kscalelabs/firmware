@@ -1,9 +1,9 @@
 use crate::messaging::PolicyStepDescriptorPod;
 use crate::robot_description::{self, ActuatorId, RobotDescription};
+use iceoryx2::port::publisher::Publisher;
+use iceoryx2::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, trace, warn};
-
-use iceoryx2::prelude::*;
 
 pub type PolicyStepDescriptor = PolicyStepDescriptorPod;
 
@@ -102,6 +102,8 @@ pub struct Store {
     actuator_id_to_cmd_idx: enum_map::EnumMap<ActuatorId, usize>,
     step_description: PolicyStepDescriptor,
     kb_manager: crate::keyboard::KeyboardManager,
+    node: Node<ipc::Service>,
+    publisher: Publisher<ipc::Service, PolicyStepDescriptor, ()>,
 }
 
 impl Store {
@@ -368,6 +370,15 @@ impl Store {
                 .unwrap()
         });
 
+        let node = NodeBuilder::new().create::<ipc::Service>().unwrap();
+        let service = node
+            .service_builder(&"My/Funk/ServiceName".try_into().unwrap())
+            .publish_subscribe::<PolicyStepDescriptor>()
+            .open_or_create()
+            .unwrap();
+
+        let publisher = service.publisher_builder().create().unwrap();
+
         Ok(Self {
             init_session,
             step_session,
@@ -377,6 +388,8 @@ impl Store {
             actuator_id_to_cmd_idx,
             step_description,
             kb_manager: crate::keyboard::KeyboardManager::new(),
+            node,
+            publisher,
         })
     }
 }
@@ -439,6 +452,7 @@ impl Operate {
             actuator_id_to_cmd_idx,
             step_description,
             kb_manager,
+            publisher,
             ..
         } = self.shared_state.as_mut().project();
 
@@ -524,6 +538,11 @@ impl Operate {
         step_description.fill_from_description(robot_description, cmd_idx_to_actuator_id);
 
         step_description.finalize();
+
+        let sample = publisher.loan_uninit().unwrap();
+        let sample = sample.write_payload(step_description.clone());
+        sample.send().unwrap();
+
         let json_str = serde_json::to_string(&step_description).map_err(std::io::Error::other)?;
         trace!(policy_step = json_str);
 
