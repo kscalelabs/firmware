@@ -1,5 +1,5 @@
 use crate::robot_description::{self, ActuatorId, RobotDescription};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, trace, warn};
 
 #[derive(Debug, Clone, Serialize, Default)]
@@ -176,32 +176,13 @@ impl PolicyStepDescriptor {
     }
 
     /// fills additional fields from robot description
-    pub fn fill_from_description(&mut self, robot_description: &RobotDescription) {
+    pub fn fill_from_description(
+        &mut self,
+        robot_description: &RobotDescription,
+        cmd_idx_to_actuator_id: &[ActuatorId],
+    ) {
         // create the output to actuator id map
         // TODO: read from metadata to create this
-        let mut cmd_idx_to_actuator_id = [
-            ActuatorId::Rsp,
-            ActuatorId::Rsr,
-            ActuatorId::Rsy,
-            ActuatorId::Rep,
-            ActuatorId::Rwr,
-            ActuatorId::Lsp,
-            ActuatorId::Lsr,
-            ActuatorId::Lsy,
-            ActuatorId::Lep,
-            ActuatorId::Lwr,
-            ActuatorId::Rhp,
-            ActuatorId::Rhr,
-            ActuatorId::Rhy,
-            ActuatorId::Rkp,
-            ActuatorId::Rap,
-            ActuatorId::Lhp,
-            ActuatorId::Lhr,
-            ActuatorId::Lhy,
-            ActuatorId::Lkp,
-            ActuatorId::Lap,
-        ];
-
         let Some(ref mut dst) = self.joint_amps else {
             // if joint_amps is not set, we just return
             return;
@@ -457,7 +438,7 @@ impl Store {
         // Extract and validate entries
         let mut init_fn: Option<Vec<u8>> = None;
         let mut step_fn: Option<Vec<u8>> = None;
-        let mut _metadata: Option<String> = None;
+        let mut metadata: Option<PolicyMetadata> = None;
 
         for entry in archive.entries()? {
             let mut entry = entry?;
@@ -466,8 +447,7 @@ impl Store {
                 "metadata.json" => {
                     let mut contents = String::new();
                     entry.read_to_string(&mut contents)?;
-                    log::info!("Loaded metadata: {contents}");
-                    _metadata = Some(contents);
+                    metadata = Some(serde_json::from_str(&contents)?);
                 }
                 "init_fn.onnx" => {
                     let mut contents = Vec::new();
@@ -485,6 +465,15 @@ impl Store {
                 }
             }
         }
+
+        if metadata.is_none() {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "metadata.json not found in archive",
+            ));
+        }
+
+        let metadata = metadata.unwrap();
 
         use std::io::{Error, ErrorKind};
         let mut init_session = Session::builder()
@@ -556,31 +545,11 @@ impl Store {
             }
         }
 
-        // create the output to actuator id map
-        // TODO: read from metadata to create this
-        let mut cmd_idx_to_actuator_id = vec![
-            ActuatorId::Rsp,
-            ActuatorId::Rsr,
-            ActuatorId::Rsy,
-            ActuatorId::Rep,
-            ActuatorId::Rwr,
-            ActuatorId::Lsp,
-            ActuatorId::Lsr,
-            ActuatorId::Lsy,
-            ActuatorId::Lep,
-            ActuatorId::Lwr,
-            ActuatorId::Rhp,
-            ActuatorId::Rhr,
-            ActuatorId::Rhy,
-            ActuatorId::Rkp,
-            ActuatorId::Rap,
-            ActuatorId::Lhp,
-            ActuatorId::Lhr,
-            ActuatorId::Lhy,
-            ActuatorId::Lkp,
-            ActuatorId::Lap,
-        ];
-
+        let mut cmd_idx_to_actuator_id =
+            Vec::<ActuatorId>::with_capacity(metadata.joint_names.len());
+        for dof in metadata.joint_names.iter() {
+            cmd_idx_to_actuator_id.push(try_dof_to_actuator_id(dof)?);
+        }
         let actuator_id_to_cmd_idx = enum_map::EnumMap::from_fn(|actuator_id| {
             cmd_idx_to_actuator_id
                 .iter()
@@ -741,7 +710,7 @@ impl Operate {
         }
 
         // fill the step description with the current state
-        step_description.fill_from_description(robot_description);
+        step_description.fill_from_description(robot_description, cmd_idx_to_actuator_id);
 
         step_description.finalize();
         let json_str = serde_json::to_string(&step_description).map_err(std::io::Error::other)?;
@@ -982,4 +951,44 @@ impl Stream for ModelManager {
         cx.waker().wake_by_ref();
         Poll::Pending
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PolicyMetadata {
+    pub joint_names: Vec<String>,
+    pub num_commands: u32,
+    pub carry_size: Vec<u32>,
+}
+
+// map these strings to ActuatorId
+fn try_dof_to_actuator_id(dof: &str) -> std::io::Result<ActuatorId> {
+    let res = match dof {
+        "dof_right_shoulder_pitch_03" => ActuatorId::Rsp,
+        "dof_right_shoulder_roll_03" => ActuatorId::Rsr,
+        "dof_right_shoulder_yaw_02" => ActuatorId::Rsy,
+        "dof_right_elbow_02" => ActuatorId::Rep,
+        "dof_right_wrist_00" => ActuatorId::Rwr,
+        "dof_left_shoulder_pitch_03" => ActuatorId::Lsp,
+        "dof_left_shoulder_roll_03" => ActuatorId::Lsr,
+        "dof_left_shoulder_yaw_02" => ActuatorId::Lsy,
+        "dof_left_elbow_02" => ActuatorId::Lep,
+        "dof_left_wrist_00" => ActuatorId::Lwr,
+        "dof_right_hip_pitch_04" => ActuatorId::Rhp,
+        "dof_right_hip_roll_03" => ActuatorId::Rhr,
+        "dof_right_hip_yaw_03" => ActuatorId::Rhy,
+        "dof_right_knee_04" => ActuatorId::Rkp,
+        "dof_right_ankle_02" => ActuatorId::Rap,
+        "dof_left_hip_pitch_04" => ActuatorId::Lhp,
+        "dof_left_hip_roll_03" => ActuatorId::Lhr,
+        "dof_left_hip_yaw_03" => ActuatorId::Lhy,
+        "dof_left_knee_04" => ActuatorId::Lkp,
+        "dof_left_ankle_02" => ActuatorId::Lap,
+        _ => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                format!("Unknown dof: {dof}"),
+            ));
+        }
+    };
+    Ok(res)
 }
