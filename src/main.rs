@@ -20,6 +20,8 @@ pub mod telemetry;
 pub mod typestate_socket;
 pub mod typestate_socket2;
 
+pub mod messaging;
+
 pub mod git_hash {
     include!(concat!(env!("OUT_DIR"), "/git_hash.rs"));
 }

@@ -16,6 +16,8 @@ use tracing::error;
 use crate::telemetry::forwarder::{EventRecord, FieldValue};
 use crate::telemetry::multi_fd_writer::MultiFdWriter;
 
+use iceoryx2::prelude::*;
+
 // 4 pages
 const BUF_SIZE: usize = 4 * 4096;
 
@@ -42,6 +44,14 @@ pub fn start_pipeline(
     // Spawn worker thread to handle I/O
     let jh = thread::spawn(move || {
         // Keep file alive for the entire thread duration
+
+        let node = NodeBuilder::new().create::<ipc::Service>().unwrap();
+        let service = node
+            .service_builder(&"My/Funk/ServiceName".try_into().unwrap())
+            .publish_subscribe::<u64>()
+            .open_or_create()
+            .unwrap();
+        let subscriber = service.subscriber_builder().create().unwrap();
 
         // Create array of output file descriptors
         let output_fds = vec![OwnedFd::from(file)];

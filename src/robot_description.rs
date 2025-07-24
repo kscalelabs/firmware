@@ -149,7 +149,7 @@ impl BusTag {
 }
 
 #[repr(usize)]
-#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+#[derive(Enum, Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub enum ActuatorId {
     Lsp,
     Lsr,
