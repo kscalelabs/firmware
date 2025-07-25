@@ -4,6 +4,8 @@ use heapless::Deque;
 use nalgebra as na;
 use tracing::info;
 
+use crate::config::Config;
+
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
     // rem_euclid gives a value in [0, 2π)
@@ -310,23 +312,6 @@ pub enum DataType {
     Time,
 }
 
-use clap::Parser;
-#[derive(Debug, Parser)]
-#[command(name = "faux-rtos", about = "Parse three floats")]
-pub struct Args {
-    /// scale factor for the policy
-    #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
-    policy_scale: f64,
-
-    /// proportional gain scale
-    #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
-    kp_scale: f64,
-
-    /// derivative gain scale
-    #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
-    kd_scale: f64,
-}
-
 pub struct RobotDescription {
     pub actuators: ActuatorStateStore,
     pub imu: ImuData,
@@ -339,24 +324,16 @@ pub struct RobotDescription {
     pub kd_scale: f64,
 }
 
-impl Default for RobotDescription {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RobotDescription {
-    pub fn new() -> Self {
-        let args = Args::parse();
-        info!("Args; {:?}", args);
+    pub fn new(config: &Config) -> Self {
         Self {
             actuators: ActuatorStateStore::new(),
             imu: ImuData::default(),
             initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
-            kp_scale: args.kp_scale,
-            kd_scale: args.kd_scale,
-            policy_scale: args.policy_scale,
+            kp_scale: config.kp_scale,
+            kd_scale: config.kd_scale,
+            policy_scale: config.policy_scale,
             home_position: enum_map! {
                 ActuatorId::Lsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Lsr => ActuatorCommand { qpos: (10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },

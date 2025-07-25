@@ -8,6 +8,7 @@ pub mod actuator;
 pub mod actuator_manager;
 pub mod behavior;
 pub mod bytestream_fd;
+pub mod config;
 pub mod imu;
 pub mod inference;
 pub mod keyboard;
@@ -28,6 +29,8 @@ use std::task::{Context, Poll};
 
 use crate::robstride::{ObtainIdRequest, ObtainIdResponse};
 
+use config::Config;
+
 use socketcan::CanFrame;
 pub mod robstride;
 pub mod robstride_utils;
@@ -44,10 +47,11 @@ use tracing::{Level, Metadata, debug, error, info, trace, warn};
 use tracing_subscriber::{EnvFilter, Layer, fmt, layer::SubscriberExt};
 
 use std::sync::mpsc;
+use std::path::PathBuf;
 
 use clap::Parser;
 #[derive(Debug, Parser)]
-#[command(name = "faux-rtos", about = "Parse three floats")]
+#[command(name = "faux-rtos", about = "Parse three floats and a path")]
 pub struct Args {
     /// scale factor for the policy
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
@@ -61,13 +65,13 @@ pub struct Args {
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
     kd_scale: f64,
 
-    /// derivative gain scale
+    /// path to log file
     #[arg(long, value_name = "PATH", default_value = "events.log")]
-    kinfer_log_path: String,
+    kinfer_log_path: PathBuf,
 }
 
-async fn driver() -> std::io::Result<()> {
-    let mut behavior_manager = behavior::BehaviorManager::new();
+async fn driver(config: &Config) -> std::io::Result<()> {
+    let mut behavior_manager = behavior::BehaviorManager::new(config);
     let mut pinned = unsafe { Pin::new_unchecked(&mut behavior_manager) };
     loop {
         // iterate over each SlowCounter in sc_vec
@@ -99,12 +103,22 @@ async fn driver() -> std::io::Result<()> {
 }
 
 fn main() {
+    // Parse command line arguments
     let args = Args::parse();
+
+    let config = Config {
+        policy_scale: args.policy_scale,
+        kp_scale: args.kp_scale,
+        kd_scale: args.kd_scale,
+        log_path: args.kinfer_log_path,
+    };
+
+
     // Setup telemetry before we do anything else
     let (tx, rx) = mpsc::sync_channel::<EventRecord>(1024 * 1024);
 
     // Spawn the thread that will format and log our data
-    let jh = start_pipeline(rx, &args.kinfer_log_path).expect("Failed to start telemetry pipeline");
+    let jh = start_pipeline(rx, &config.log_path).expect("Failed to start telemetry pipeline");
 
     let trace_only_filter = tracing_subscriber::filter::FilterFn::new(|metadata: &Metadata| {
         metadata.level() == &Level::TRACE && metadata.target().starts_with("faux_rtos")
@@ -142,7 +156,7 @@ fn main() {
     // handle driver and SIGINT
     let drv = async {
         tokio::select! {
-            result = driver() => {
+            result = driver(&config) => {
                 match result {
                     Ok(_) => {
                         info!("Driver finished successfully");
