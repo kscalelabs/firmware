@@ -5,6 +5,7 @@ use std::os::unix::io::{AsFd, AsRawFd, OwnedFd};
 use std::net::UdpSocket;
 use std::os::unix::fs::OpenOptionsExt;
 
+use std::path::PathBuf;
 use std::ptr;
 use std::thread;
 use std::time::Instant;
@@ -24,6 +25,20 @@ pub fn start_pipeline(
     rx: Receiver<EventRecord>,
     log_path: &str,
 ) -> io::Result<thread::JoinHandle<()>> {
+
+    println!("log path: {:?}", log_path);
+
+    let log_path = std::path::Path::new(log_path);
+
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    let log_path = log_path.canonicalize()
+    .unwrap_or_else(|_| panic!("Failed to canonicalize log path"));
+
+    println!("log path: {:?}", log_path);
+
     // Open log file for writing
     let file = OpenOptions::new()
         .create(true)

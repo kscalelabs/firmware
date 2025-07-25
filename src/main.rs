@@ -60,6 +60,10 @@ pub struct Args {
     /// derivative gain scale
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
     kd_scale: f64,
+
+    /// derivative gain scale
+    #[arg(long, value_name = "PATH", default_value = "events.log")]
+    kinfer_log_path: String,
 }
 
 async fn driver() -> std::io::Result<()> {
@@ -95,11 +99,12 @@ async fn driver() -> std::io::Result<()> {
 }
 
 fn main() {
+    let args = Args::parse();
     // Setup telemetry before we do anything else
     let (tx, rx) = mpsc::sync_channel::<EventRecord>(1024 * 1024);
 
     // Spawn the thread that will format and log our data
-    let jh = start_pipeline(rx, "events.log").expect("Failed to start telemetry pipeline");
+    let jh = start_pipeline(rx, &args.kinfer_log_path).expect("Failed to start telemetry pipeline");
 
     let trace_only_filter = tracing_subscriber::filter::FilterFn::new(|metadata: &Metadata| {
         metadata.level() == &Level::TRACE && metadata.target().starts_with("faux_rtos")
