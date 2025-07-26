@@ -9,6 +9,8 @@ use std::{
 };
 use tracing::{debug, error, info, warn};
 
+use crate::config::Config;
+
 use crate::imu::{self, ImuManager};
 
 use crate::robot_description::{self, ActuatorId, RobotDescription};
@@ -38,15 +40,9 @@ pub struct Store {
     kb_manager: crate::keyboard::KeyboardManager,
 }
 
-impl Default for Store {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Store {
-    pub fn new() -> Self {
-        let robot_description = RobotDescription::new();
+    pub fn new(config: &Config) -> Self {
+        let robot_description = RobotDescription::new(config);
 
         let model_manager = ModelManager::new("model.kinfer", &robot_description)
             .expect("Failed to create model manager");
@@ -619,17 +615,11 @@ pub struct BehaviorManager {
     pending_fut: Option<StateFut>,
 }
 
-impl Default for BehaviorManager {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl BehaviorManager {
-    pub fn new() -> Self {
+    pub fn new(config: &Config) -> Self {
         Self {
             state: Some(StateStore::Reset(Reset {
-                shared_state: Box::pin(Store::new()),
+                shared_state: Box::pin(Store::new(config)),
             })),
             target: None,
             pending_fut: None,

@@ -5,13 +5,14 @@ use std::os::unix::io::{AsFd, AsRawFd, OwnedFd};
 use std::net::UdpSocket;
 use std::os::unix::fs::OpenOptionsExt;
 
+use std::path::Path;
 use std::ptr;
 use std::thread;
 use std::time::Instant;
 
 use nix::libc;
 use std::sync::mpsc::Receiver;
-use tracing::error;
+use tracing::{info, error};
 
 use crate::telemetry::forwarder::{EventRecord, FieldValue};
 use crate::telemetry::multi_fd_writer::MultiFdWriter;
@@ -22,8 +23,15 @@ const BUF_SIZE: usize = 4 * 4096;
 /// spawns a thread that will handle the I/O operations (read events and write to disk)
 pub fn start_pipeline(
     rx: Receiver<EventRecord>,
-    log_path: &str,
+    log_path: &Path,
 ) -> io::Result<thread::JoinHandle<()>> {
+
+    if let Some(parent) = log_path.parent() {
+        std::fs::create_dir_all(parent)?;
+    }
+
+    info!("Logging to: {:?}", log_path);
+
     // Open log file for writing
     let file = OpenOptions::new()
         .create(true)
