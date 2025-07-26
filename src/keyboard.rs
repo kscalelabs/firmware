@@ -30,24 +30,24 @@ impl KeyboardManager {
     ) -> std::io::Result<()> {
         // drain the buffered events
         while event::poll(Duration::from_millis(0))? {
-            if let event::Event::Key(key) = event::read()? {
-                if key.kind == event::KeyEventKind::Press {
-                    match key.code {
-                        event::KeyCode::Char('c')
-                            if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
-                        {
-                            terminal::disable_raw_mode().unwrap_or(());
-                            process::exit(130);
-                        }
-                        event::KeyCode::Esc | event::KeyCode::Char('x') => {
-                            terminal::disable_raw_mode().unwrap_or(());
-                            process::exit(0);
-                        }
-                        _ => {
-                            pending_events
-                                .push_back(key)
-                                .map_err(|_| io::Error::other("Event queue is full"))?;
-                        }
+            if let event::Event::Key(key) = event::read()?
+                && key.kind == event::KeyEventKind::Press
+            {
+                match key.code {
+                    event::KeyCode::Char('c')
+                        if key.modifiers.contains(event::KeyModifiers::CONTROL) =>
+                    {
+                        terminal::disable_raw_mode().unwrap_or(());
+                        process::exit(130);
+                    }
+                    event::KeyCode::Esc | event::KeyCode::Char('x') => {
+                        terminal::disable_raw_mode().unwrap_or(());
+                        process::exit(0);
+                    }
+                    _ => {
+                        pending_events
+                            .push_back(key)
+                            .map_err(|_| io::Error::other("Event queue is full"))?;
                     }
                 }
             }

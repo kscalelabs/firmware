@@ -243,6 +243,24 @@ impl Operate {
 
         Ok(())
     }
+
+    pub fn clear(&mut self) -> std::io::Result<()> {
+        let mut shared_state = &mut self.shared_state;
+        let mut ss = shared_state.as_mut().project();
+
+        // get operational serial port
+        let typestate_serial::StateStore::Operate(op_port) = ss
+            .port
+            .as_mut()
+            .get_state_pinned()
+            .expect("serial port should be in Operate state")
+        else {
+            return Err(std::io::Error::other("serial port is not in Operate state"));
+        };
+
+        op_port.clear(tokio_serial::ClearBuffer::All);
+        Ok(())
+    }
 }
 
 impl State for Operate {
