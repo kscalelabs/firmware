@@ -1,200 +1,11 @@
+use crate::messaging::PolicyStepDescriptorPod;
 use crate::robot_description::{self, ActuatorId, RobotDescription};
+use iceoryx2::port::publisher::Publisher;
+use iceoryx2::prelude::*;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, trace, warn};
 
-#[derive(Debug, Clone, Serialize, Default)]
-pub struct PolicyStepDescriptor {
-    pub step_id: Option<u64>,
-    pub t_us: Option<u64>,
-    pub joint_angles: Option<Vec<f32>>,
-    pub joint_vels: Option<Vec<f32>>,
-    pub initial_heading: Option<f32>,
-    pub joint_amps: Option<Vec<f32>>,
-    pub quaternion: Option<Vec<f32>>,
-    pub projected_g: Option<Vec<f32>>,
-    pub accel: Option<Vec<f32>>,
-    pub gyro: Option<Vec<f32>>,
-    pub command: Option<Vec<f32>>,
-    pub output: Option<Vec<f32>>,
-}
-
-impl PolicyStepDescriptor {
-    pub fn from_session(step_session: &ort::session::Session) -> std::io::Result<Self> {
-        let mut ret = Self::default();
-        for input in step_session.inputs.iter() {
-            let name = input.name.clone();
-            let length = *input.input_type.tensor_shape().unwrap().first().unwrap() as usize;
-
-            let model_input_type = ModelInputType::try_from(input)?;
-
-            match model_input_type {
-                ModelInputType::DataType(data_type) => match data_type {
-                    DataType::JointAngles => {
-                        ret.joint_angles = Some(vec![0.0; length]);
-                        ret.output = Some(vec![0.0; length]);
-                        // always add joint_amps
-                        ret.joint_amps = Some(vec![0.0; length]);
-                    }
-                    DataType::JointAngularVelocities => {
-                        ret.joint_vels = Some(vec![0.0; length]);
-                    }
-                    DataType::InitialHeading => {
-                        ret.initial_heading = Some(0.0);
-                    }
-                    DataType::Quaternion => {
-                        ret.quaternion = Some(vec![0.0; 4]);
-                    }
-                    DataType::ProjectedGravity => {
-                        ret.projected_g = Some(vec![0.0; 3]);
-                    }
-                    DataType::Accelerometer => {
-                        ret.accel = Some(vec![0.0; 3]);
-                    }
-                    DataType::Gyroscope => {
-                        ret.gyro = Some(vec![0.0; 3]);
-                    }
-                    DataType::Time => {
-                        ret.t_us = Some(0);
-                    }
-                },
-                ModelInputType::Command(_) => {
-                    ret.command = Some(vec![0.0; length]);
-                }
-                ModelInputType::Carry => {
-                    // carry is not a data type, so we skip it
-                }
-            }
-        }
-
-        Ok(ret)
-    }
-
-    pub fn fill_outputs(&mut self, outputs: &ort::session::SessionOutputs) -> std::io::Result<()> {
-        let commands = outputs[0]
-            .try_extract_array::<f32>()
-            .map_err(std::io::Error::other)?
-            .into_dimensionality::<ndarray::Dim<[usize; 1]>>()
-            .map_err(std::io::Error::other)?;
-
-        let dst = self.output.as_mut().unwrap();
-        dst.iter_mut().zip(commands.iter()).for_each(|(d, s)| {
-            *d = *s;
-        });
-
-        Ok(())
-    }
-
-    pub fn finalize(&mut self) {
-        if let Some(ref mut step_id) = self.step_id {
-            *step_id += 1;
-        } else {
-            self.step_id = Some(0);
-        }
-        self.timestamp_now();
-    }
-
-    fn timestamp_now(&mut self) {
-        self.t_us = Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
-                .as_micros() as u64,
-        );
-    }
-
-    pub fn fill_input(
-        &mut self,
-        input_type: &ModelInputType,
-        input_val: &ort::session::SessionInputValue,
-    ) -> std::io::Result<()> {
-        let ort::session::SessionInputValue::Owned(src) = input_val else {
-            return Err(std::io::Error::other("Expected Owned tensor"));
-        };
-        let mut src = src
-            .try_extract_array::<f32>()
-            .map_err(std::io::Error::other)?;
-
-        // copy into the appropriate field
-        match input_type {
-            ModelInputType::DataType(data_type) => match data_type {
-                DataType::JointAngles => {
-                    let dst = self.joint_angles.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::JointAngularVelocities => {
-                    let dst = self.joint_vels.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::InitialHeading => {
-                    self.initial_heading = Some(src[0]);
-                }
-                DataType::Quaternion => {
-                    let dst = self.quaternion.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::ProjectedGravity => {
-                    let dst = self.projected_g.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::Accelerometer => {
-                    let dst = self.accel.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::Gyroscope => {
-                    let dst = self.gyro.as_mut().unwrap();
-                    dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                        *d = *s;
-                    });
-                }
-                DataType::Time => {
-                    self.t_us = Some(src[0] as u64);
-                }
-            },
-            ModelInputType::Command(_) => {
-                let dst = self.command.as_mut().unwrap();
-                dst.iter_mut().zip(src.iter()).for_each(|(d, s)| {
-                    *d = *s;
-                });
-            }
-            ModelInputType::Carry => {
-                // carry is not a data type, so we skip it
-                return Ok(());
-            }
-        };
-
-        Ok(())
-    }
-
-    /// fills additional fields from robot description
-    pub fn fill_from_description(
-        &mut self,
-        robot_description: &RobotDescription,
-        cmd_idx_to_actuator_id: &[ActuatorId],
-    ) {
-        // create the output to actuator id map
-        // TODO: read from metadata to create this
-        let Some(ref mut dst) = self.joint_amps else {
-            // if joint_amps is not set, we just return
-            return;
-        };
-
-        for (i, act_id) in cmd_idx_to_actuator_id.iter().enumerate() {
-            dst[i] = robot_description.actuators.actuator_states[*act_id]
-                .feedback
-                .amps as f32;
-        }
-    }
-}
+pub type PolicyStepDescriptor = PolicyStepDescriptorPod;
 
 use futures::{Stream, StreamExt, TryStream, TryStreamExt};
 use std::{
@@ -291,6 +102,8 @@ pub struct Store {
     actuator_id_to_cmd_idx: enum_map::EnumMap<ActuatorId, usize>,
     step_description: PolicyStepDescriptor,
     kb_manager: crate::keyboard::KeyboardManager,
+    node: Node<ipc::Service>,
+    publisher: Publisher<ipc::Service, PolicyStepDescriptor, ()>,
 }
 
 impl Store {
@@ -557,6 +370,15 @@ impl Store {
                 .unwrap()
         });
 
+        let node = NodeBuilder::new().create::<ipc::Service>().unwrap();
+        let service = node
+            .service_builder(&"My/Funk/ServiceName".try_into().unwrap())
+            .publish_subscribe::<PolicyStepDescriptor>()
+            .open_or_create()
+            .unwrap();
+
+        let publisher = service.publisher_builder().create().unwrap();
+
         Ok(Self {
             init_session,
             step_session,
@@ -566,6 +388,8 @@ impl Store {
             actuator_id_to_cmd_idx,
             step_description,
             kb_manager: crate::keyboard::KeyboardManager::new(),
+            node,
+            publisher,
         })
     }
 }
@@ -628,6 +452,7 @@ impl Operate {
             actuator_id_to_cmd_idx,
             step_description,
             kb_manager,
+            publisher,
             ..
         } = self.shared_state.as_mut().project();
 
@@ -680,13 +505,13 @@ impl Operate {
         let outputs = step_session.run(inputs).map_err(std::io::Error::other)?;
 
         step_description
-            .fill_outputs(&outputs)
+            .fill_outputs(&outputs, cmd_idx_to_actuator_id)
             .map_err(std::io::Error::other)?;
 
         // put the carry output back into the input
         for (input_type, input_val) in step_input_types.iter().zip(step_input_vec.iter_mut()) {
             step_description
-                .fill_input(input_type, input_val)
+                .fill_input(input_type, input_val, cmd_idx_to_actuator_id)
                 .map_err(std::io::Error::other)?;
 
             if let ModelInputType::Carry = input_type {
@@ -713,6 +538,11 @@ impl Operate {
         step_description.fill_from_description(robot_description, cmd_idx_to_actuator_id);
 
         step_description.finalize();
+
+        let sample = publisher.loan_uninit().unwrap();
+        let sample = sample.write_payload(step_description.clone());
+        sample.send().unwrap();
+
         let json_str = serde_json::to_string(&step_description).map_err(std::io::Error::other)?;
         trace!(policy_step = json_str);
 

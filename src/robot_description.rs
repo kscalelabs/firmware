@@ -1,6 +1,7 @@
 use crossterm::event::KeyEvent;
 use enum_map::{Enum, EnumMap, enum_map};
 use heapless::Deque;
+use iceoryx2::prelude::*;
 use nalgebra as na;
 use tracing::info;
 
@@ -149,7 +150,7 @@ impl BusTag {
 }
 
 #[repr(usize)]
-#[derive(Enum, Debug, Clone, Copy, PartialEq)]
+#[derive(Enum, Debug, Clone, Copy, PartialEq, serde::Serialize)]
 pub enum ActuatorId {
     Lsp,
     Lsr,
