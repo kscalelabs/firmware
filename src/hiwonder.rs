@@ -1,5 +1,5 @@
 use std::io;
-use tracing::debug;
+use tracing::{debug, warn};
 
 /**
 
@@ -99,6 +99,7 @@ impl HiwonderImu {
     pub async fn parse_all(port: &mut OperationalPort) -> io::Result<ImuFeedback> {
         // read upto 1024
         let mut buf = [0u8; 1024];
+
         match port.read(&mut buf).await {
             Err(e) => return Err(e),
             Ok(0) => {
@@ -128,6 +129,11 @@ impl HiwonderImu {
         buf.chunks_exact(PACKET_SIZE).for_each(|chunk| {
             let frame: &HiwonderRawFrame = bytemuck::from_bytes(chunk);
             if frame.checksum() != frame.checksum {
+                warn!(
+                    "Checksum mismatch for frame: expected {}, got {}",
+                    frame.checksum(),
+                    frame.checksum,
+                );
                 return;
             }
             Self::merge_frame(frame, &mut fdbk);
