@@ -164,6 +164,13 @@ impl InputState for ControlVectorInputState {
             KeyCode::Char('q') => self.cmds[ControlVectorDType::YawRate] += self.step_size,
             KeyCode::Char('e') => self.cmds[ControlVectorDType::YawRate] -= self.step_size,
 
+            KeyCode::Char('W') => self.cmds[ControlVectorDType::XVel] += self.step_size * 5.0,
+            KeyCode::Char('S') => self.cmds[ControlVectorDType::XVel] -= self.step_size * 5.0,
+            KeyCode::Char('A') => self.cmds[ControlVectorDType::YVel] += self.step_size * 5.0,
+            KeyCode::Char('D') => self.cmds[ControlVectorDType::YVel] -= self.step_size * 5.0,
+            KeyCode::Char('Q') => self.cmds[ControlVectorDType::YawRate] += self.step_size * 5.0,
+            KeyCode::Char('E') => self.cmds[ControlVectorDType::YawRate] -= self.step_size * 5.0,
+
             KeyCode::Char('z') => self.cmds.iter_mut().for_each(|(_, cmd)| *cmd = 0.0),
             KeyCode::Char(' ') => self.cmds.iter_mut().for_each(|(_, cmd)| *cmd = 0.0),
             _ => {} // Ignore other keys
