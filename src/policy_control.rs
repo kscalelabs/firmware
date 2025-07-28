@@ -159,10 +159,13 @@ impl InputState for ControlVectorInputState {
         match key.code {
             KeyCode::Char('w') => self.cmds[ControlVectorDType::XVel] += self.step_size,
             KeyCode::Char('s') => self.cmds[ControlVectorDType::XVel] -= self.step_size,
-            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
-            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] += self.step_size,
-            KeyCode::Char('q') => self.cmds[ControlVectorDType::YawRate] -= self.step_size,
-            KeyCode::Char('e') => self.cmds[ControlVectorDType::YawRate] += self.step_size,
+            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] += self.step_size,
+            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
+            KeyCode::Char('q') => self.cmds[ControlVectorDType::YawRate] += self.step_size,
+            KeyCode::Char('e') => self.cmds[ControlVectorDType::YawRate] -= self.step_size,
+
+            KeyCode::Char('z') => self.cmds.iter_mut().for_each(|(_, cmd)| *cmd = 0.0),
+            KeyCode::Char(' ') => self.cmds.iter_mut().for_each(|(_, cmd)| *cmd = 0.0),
             _ => {} // Ignore other keys
         }
         Ok(())
@@ -190,10 +193,10 @@ impl InputState for ExpandedControlVectorInputState {
         match key.code {
             KeyCode::Char('w') => self.cmds[ControlVectorDType::XVel] += self.step_size,
             KeyCode::Char('s') => self.cmds[ControlVectorDType::XVel] -= self.step_size,
-            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
-            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] += self.step_size,
-            KeyCode::Char('q') => self.cmds[ControlVectorDType::Yaw] -= self.step_size,
-            KeyCode::Char('e') => self.cmds[ControlVectorDType::Yaw] += self.step_size,
+            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] += self.step_size,
+            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
+            KeyCode::Char('q') => self.cmds[ControlVectorDType::Yaw] += self.step_size,
+            KeyCode::Char('e') => self.cmds[ControlVectorDType::Yaw] -= self.step_size,
             KeyCode::Char('r') => self.cmds[ControlVectorDType::Roll] += self.step_size,
             KeyCode::Char('f') => self.cmds[ControlVectorDType::Roll] -= self.step_size,
             KeyCode::Char('t') => self.cmds[ControlVectorDType::Pitch] += self.step_size,
@@ -230,10 +233,10 @@ impl InputState for BartControlVectorInputState {
         match key.code {
             KeyCode::Char('w') => self.cmds[ControlVectorDType::XVel] += self.step_size,
             KeyCode::Char('s') => self.cmds[ControlVectorDType::XVel] -= self.step_size,
-            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
-            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] += self.step_size,
-            KeyCode::Char('q') => self.cmds[ControlVectorDType::YawRate] -= self.step_size,
-            KeyCode::Char('e') => self.cmds[ControlVectorDType::YawRate] += self.step_size,
+            KeyCode::Char('a') => self.cmds[ControlVectorDType::YVel] += self.step_size,
+            KeyCode::Char('d') => self.cmds[ControlVectorDType::YVel] -= self.step_size,
+            KeyCode::Char('q') => self.cmds[ControlVectorDType::YawRate] += self.step_size,
+            KeyCode::Char('e') => self.cmds[ControlVectorDType::YawRate] -= self.step_size,
             KeyCode::Char('r') => self.cmds[ControlVectorDType::Roll] += self.step_size,
             KeyCode::Char('f') => self.cmds[ControlVectorDType::Roll] -= self.step_size,
             KeyCode::Char('t') => self.cmds[ControlVectorDType::Pitch] += self.step_size,

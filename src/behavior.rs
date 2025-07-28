@@ -471,8 +471,8 @@ impl State for Policy {
             // Note we need to do this only once when we enter raw mode. However, our current
             // transition function is simply a return. This can be fixed by refactoring this
             // function to be a loop instead of returning to Policy State
-            // ss.kb_manager.enable_raw_mode().expect("Failed to enable raw mode");
-            // ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
+            ss.kb_manager.enable_raw_mode().expect("Failed to enable raw mode");
+            ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
             let actuator_manager::StateStore::Operate(op_act_manager) = ss

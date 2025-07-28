@@ -641,6 +641,7 @@ impl Operate {
                     while let Some(key_event) = robot_description.kb_pending_events.pop_front() {
                         cmd.update(key_event);
                     }
+                    info!("Command is: {:?}", cmd);
 
                     // set the command input to zero
                     let ort::session::SessionInputValue::Owned(arr) = input_val else {
