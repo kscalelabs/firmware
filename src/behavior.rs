@@ -562,10 +562,10 @@ impl State for Policy {
                 };
             };
 
-            warn!("Reading took {:?}", start_time.elapsed());
+            // warn!("Reading took {:?}", start_time.elapsed());
             let policy_stamp = std::time::Instant::now();
             op_model.step_controller(ss.robot_description);
-            warn!("Policy step took {:?}", policy_stamp.elapsed());
+            // warn!("Policy step took {:?}", policy_stamp.elapsed());
 
             // print out the commands
             // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
@@ -598,9 +598,9 @@ impl State for Policy {
                     result: Err(e),
                 };
             }
-            warn!("Send command took {:?}", send_stamp.elapsed());
+            // warn!("Send command took {:?}", send_stamp.elapsed());
             tokio::time::sleep(std::time::Duration::from_millis(14)).await;
-            warn!("iteration took {:?}", start_time.elapsed());
+            // warn!("iteration took {:?}", start_time.elapsed());
             let mut shared_state = self.shared_state;
             StateTransitionResult {
                 state: StateStore::Policy(Policy { shared_state }),
