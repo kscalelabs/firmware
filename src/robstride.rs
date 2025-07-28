@@ -364,6 +364,31 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
             bytemuck::must_cast::<crate::socketcan::CanFrame, ReadParamResponse>(*frame)
                 .actuator_can_id as u8
         }
+        0x15 => {
+            warn!("Fault frame recieved: {:?}", frame);
+            let can_id = frame.can_id & !(1 << 31);
+            let fault_value: [u8; 4] = frame.can_data[0..3].try_into().unwrap_or([0,0,0,0]);
+            let warn_value: [u8; 4] = frame.can_data[4..7].try_into().unwrap_or([0,0,0,0]);
+
+            let overtemp = fault_value[0] & 1 << 0 != 0;
+            let driverfault = fault_value[0] & 1 << 1 != 0;
+            let undervoltage = fault_value[0] & 1 << 2 !=  0;
+            let overvoltage = fault_value[0]& 1 << 3 !=  0;
+            let encuncal = fault_value[0] & 1 << 7 !=  0;
+            let gridlock = fault_value[1] & 1 << 6 != 0;
+
+            let faultstring = [
+                if overtemp {"Overtemp"} else {""},
+                if driverfault {"driverfault"} else {""},
+                if undervoltage {"undervoltage"} else {""},
+                if overvoltage {"overvoltage"} else {""},
+                if encuncal {"enc_uncalibrated"} else {""},
+                if gridlock {"gridlock_i2t_overload"} else {""},
+            ].join(" ");
+            warn!("can_id: {:#X}, fault_byte0: {:#b}, fault_byte1: {:#b} warn_bytes: {:#b}", can_id, fault_value[0], fault_value[1], warn_value[0]);
+            warn!("can_id: {:#X}, faults: {}, warn: {:#b}", can_id, faultstring, warn_value[0]);
+            0x7F
+        }
         _ => {
             warn!(
                 "Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F",
