@@ -54,6 +54,84 @@ impl ActuatorFeedback {
             self.amps = amps;
         }
     }
+
+    pub fn has_faults(&self) -> bool {
+        self.faults != 0
+    }
+
+    pub fn has_fault(&self, fault_flag: u32) -> bool {
+        (self.faults & fault_flag) != 0
+    }
+
+    pub fn fault_description(&self) -> String {
+        if !self.has_faults() {
+            return "No faults".to_string();
+        }
+        
+        let mut faults = Vec::new();
+        
+        // Check CAN response faults
+        if self.has_fault(crate::actuator::can_response_faults::UNCALIBRATED) {
+            faults.push("Uncalibrated".to_string());
+        }
+        if self.has_fault(crate::actuator::can_response_faults::GRIDLOCK_OVERLOAD) {
+            faults.push("Gridlock Overload".to_string());
+        }
+        if self.has_fault(crate::actuator::can_response_faults::MAGNETIC_ENCODING) {
+            faults.push("Magnetic Encoding Fault".to_string());
+        }
+        if self.has_fault(crate::actuator::can_response_faults::OVERTEMPERATURE) {
+            faults.push("Over-temperature".to_string());
+        }
+        if self.has_fault(crate::actuator::can_response_faults::OVERCURRENT) {
+            faults.push("Over-current".to_string());
+        }
+        if self.has_fault(crate::actuator::can_response_faults::UNDERVOLTAGE) {
+            faults.push("Undervoltage".to_string());
+        }
+        
+        // Check detailed motor faults (when available from register reads)
+        if self.has_fault(crate::actuator::motor_fault::MOTOR_OVERTEMP) {
+            faults.push("Motor Over-temperature (>145°C)".to_string());
+        }
+        if self.has_fault(crate::actuator::motor_fault::DRIVER_FAULT) {
+            faults.push("Driver Fault".to_string());
+        }
+        if self.has_fault(crate::actuator::motor_fault::ENCODER_UNCALIBRATED) {
+            faults.push("Encoder Uncalibrated (Register)".to_string());
+        }
+        if self.has_fault(crate::actuator::motor_fault::STALL_I2T_OVERLOAD) {
+            faults.push("Stall/I²t Overload".to_string());  
+        }
+        
+        // Add communication error constant (not from registers)
+        const COMMUNICATION_ERROR: u32 = 0x20;
+        if self.has_fault(COMMUNICATION_ERROR) {
+            faults.push("Communication Error".to_string());
+        }
+        
+        faults.join(", ")
+    }
+    
+    /// Check if the actuator is safe to operate (no critical faults)
+    pub fn is_safe_to_operate(&self) -> bool {
+        // Critical faults that make operation unsafe
+        let critical_faults = crate::actuator::can_response_faults::OVERTEMPERATURE
+            | crate::actuator::can_response_faults::OVERCURRENT
+            | crate::actuator::motor_fault::MOTOR_OVERTEMP
+            | crate::actuator::motor_fault::DRIVER_FAULT
+            | crate::actuator::motor_fault::STALL_I2T_OVERLOAD;
+            
+        !self.has_fault(critical_faults)
+    }
+    
+    /// Check if temperature is within safe operating range
+    pub fn is_temperature_safe(&self) -> bool {
+        const MAX_SAFE_TEMP: f64 = 80.0; // Celsius
+        const MIN_SAFE_TEMP: f64 = -20.0; // Celsius
+        
+        self.temp >= MIN_SAFE_TEMP && self.temp <= MAX_SAFE_TEMP
+    }
 }
 
 pub struct ActuatorFeedbackUpdate {

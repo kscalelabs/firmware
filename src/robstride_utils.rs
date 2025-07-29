@@ -222,6 +222,10 @@ pub enum RobstrideActuatorParam {
     EPScanTime = 0x7026,
     CanTimeout = 0x7028,
     ZeroSta = 0x7029,
+    MotorFault = 0x3022,
+    WarnStatus = 0x3023,
+    DrvFault1 = 0x3024,
+    DrvFault2 = 0x3025,
 }
 
 impl RobstrideActuatorParam {
@@ -251,6 +255,10 @@ impl RobstrideActuatorParam {
             0x7026 => Some(Self::EPScanTime),
             0x7028 => Some(Self::CanTimeout),
             0x7029 => Some(Self::ZeroSta),
+            0x3022 => Some(Self::MotorFault),
+            0x3023 => Some(Self::WarnStatus),
+            0x3024 => Some(Self::DrvFault1),
+            0x3025 => Some(Self::DrvFault2),
             _ => None,
         }
     }
