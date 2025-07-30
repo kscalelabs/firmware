@@ -8,7 +8,7 @@ use std::{
     task::{Context, Poll, ready},
     time::Duration,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::imu::{self, ImuManager};
 
@@ -17,6 +17,8 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 use crate::inference::{self, ModelManager};
 
 use crate::robstride_utils::RobstrideActuatorParam;
+use crate::udp_command::UdpCommandManager;
+
 crate::state_machine!(Reset, Ready, Home, Policy);
 
 impl std::fmt::Debug for Store {
@@ -37,6 +39,7 @@ pub struct Store {
     #[pin]
     model_manager: ModelManager,
     kb_manager: crate::keyboard::KeyboardManager,
+    udp_manager: UdpCommandManager,
 }
 
 impl Default for Store {
@@ -52,12 +55,17 @@ impl Store {
         let model_manager = ModelManager::new("model.kinfer", &robot_description)
             .expect("Failed to create model manager");
 
+        let udp_manager = futures::executor::block_on(async {
+            UdpCommandManager::new(10000).await.expect("Failed to create UDP manager")
+        });
+
         Self {
             robot_description,
             actuator_manager: ActuatorManager::new(),
             imu_manager: ImuManager::new(),
             model_manager,
             kb_manager: crate::keyboard::KeyboardManager::new(),
+            udp_manager,
         }
     }
 }
@@ -428,7 +436,7 @@ impl State for Home {
                     result: Err(e),
                 };
             }
-            warn!("error: {}", err);
+            error!("error: {}", err);
             if err < 0.1 {
                 // can go to next state
                 info!("error to home: {}", err);
@@ -476,17 +484,37 @@ impl State for Policy {
             // ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
-            
+
             let mut interval = tokio::time::interval(Duration::from_millis(20));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut iteration_start = std::time::Instant::now();
-
 
             loop {
                 interval.tick().await; // Wait for next 20ms deadline
 
                 let total_iteration_time = iteration_start.elapsed();
                 iteration_start = std::time::Instant::now();
+
+                // Drain UDP buffer
+                let udp_update_start = std::time::Instant::now();
+                if let Err(e) = ss.udp_manager.try_update_command().await {
+                    warn!("UDP command update failed: {:?}", e);
+                }
+                let udp_update_time = udp_update_start.elapsed();
+
+                // Get Current Command
+                let udp_cmd = ss.udp_manager.get_current_command();
+                if ss.udp_manager.has_recent_command() {
+                    // 🔄 Bridge UDP commands to policy system
+                    ss.robot_description.udp_command_state.x = udp_cmd.x;
+                    ss.robot_description.udp_command_state.y = udp_cmd.y;
+                    ss.robot_description.udp_command_state.yaw = udp_cmd.yaw;
+                    ss.robot_description.udp_command_state.timestamp = Some(std::time::Instant::now());
+                } else {
+                    // Clear UDP command state when no recent command (timeout)
+                    ss.robot_description.udp_command_state = Default::default();
+                }
+
 
                 let actuator_manager::StateStore::Operate(op_act_manager) = ss
                     .actuator_manager
@@ -575,10 +603,10 @@ impl State for Policy {
                     };
                 };
 
-                warn!("Reading took {:?}", start_time.elapsed());
+                trace!("Reading took {:?}", start_time.elapsed());
                 let policy_stamp = std::time::Instant::now();
                 op_model.step_controller(ss.robot_description);
-                warn!("Policy step took {:?}", policy_stamp.elapsed());
+                trace!("Policy step took {:?}", policy_stamp.elapsed());
 
                 // print out the commands
                 // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
@@ -611,8 +639,9 @@ impl State for Policy {
                         result: Err(e),
                     };
                 }
-                warn!("Send command took {:?}", send_stamp.elapsed());
-                warn!("iteration took {:?}", total_iteration_time);
+                trace!("Send command took {:?}", send_stamp.elapsed());
+                trace!("UDP update took {:?}", udp_update_time);
+                trace!("iteration took {:?}", total_iteration_time);
             }
         }
     }

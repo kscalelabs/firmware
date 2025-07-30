@@ -49,6 +49,10 @@ impl From<crate::socketcan::CanFrame> for ActuatorResponse {
                 crate::socketcan::CanFrame,
                 ReadParamResponse,
             >(val)),
+            0x15 => ActuatorResponse::Fault(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                FaultResponse,
+            >(val)),
             _ => panic!("Unknown mux value: {mux}"),
         }
     }
@@ -268,6 +272,75 @@ impl FeedbackRequest {
 
 #[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
+pub struct FaultResponse {
+    host_id: u8,
+    pub actuator_can_id: u8,
+    reserved1: u8,  // Split the u16 into two u8 fields to match the pattern
+    mux: u8, /* 0x15 */
+    
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    
+    // Data field (8 bytes total) - matches CAN_MAX_DLEN
+    // Based on the fault table: Byte0~3 fault value, Byte4~7 warning value
+    pub fault_value: u32,    // 4 bytes
+    pub warning_value: u32,  // 4 bytes
+}
+
+impl FaultResponse {
+    /// Check if any faults are present
+    pub fn has_faults(&self) -> bool {
+        self.fault_value != 0
+    }
+    
+    /// Check if any warnings are present
+    pub fn has_warnings(&self) -> bool {
+        self.warning_value != 0
+    }
+    
+    /// Get fault descriptions based on the fault table
+    pub fn get_fault_descriptions(&self) -> Vec<String> {
+        let mut faults = Vec::new();
+        let fault = self.fault_value;
+        
+        if fault & (1 << 0) != 0 {
+            faults.push("Motor overtemperature fault (default 145°C)".to_string());
+        }
+        if fault & (1 << 1) != 0 {
+            faults.push("Driver chip fault".to_string());
+        }
+        if fault & (1 << 2) != 0 {
+            faults.push("Undervoltage fault".to_string());
+        }
+        if fault & (1 << 3) != 0 {
+            faults.push("Overvoltage fault".to_string());
+        }
+        if fault & (1 << 7) != 0 {
+            faults.push("Encoder not calibrated".to_string());
+        }
+        if fault & (1 << 14) != 0 {
+            faults.push("Gridlock/overload fault".to_string());
+        }
+        
+        faults
+    }
+    
+    pub fn get_warning_descriptions(&self) -> Vec<String> {
+        let mut warnings = Vec::new();
+        let warning = self.warning_value;
+        
+        if warning & (1 << 0) != 0 {
+            warnings.push("Motor overtemperature warning (default 135°C)".to_string());
+        }
+        
+        warnings
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
 pub struct ReadParamRequest {
     pub actuator_can_id: u8,
     pub host_id: u16,
@@ -347,6 +420,7 @@ pub enum ActuatorResponse {
     ObtainId(ObtainIdResponse),
     Feedback(FeedbackResponse),
     ReadParam(ReadParamResponse),
+    Fault(FaultResponse),
 }
 
 #[allow(dead_code)]
@@ -356,6 +430,7 @@ impl ActuatorResponse {
             ActuatorResponse::ObtainId(req) => req.mux,
             ActuatorResponse::Feedback(req) => req.mux,
             ActuatorResponse::ReadParam(req) => req.mux,
+            ActuatorResponse::Fault(req) => req.mux,
         }
     }
 }
@@ -381,10 +456,16 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
             bytemuck::must_cast::<crate::socketcan::CanFrame, ReadParamResponse>(*frame)
                 .actuator_can_id as u8
         }
+        0x15 => {
+            // For fault frames, extract servo ID directly from CAN ID 
+            // since the fault table shows servo ID is in bits 23-8 of CAN ID
+            actuator_id_from_can_id(frame.can_id)
+        }
         _ => {
+            let can_id = frame.can_id;
             warn!(
-                "Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F",
-                mux
+                "Unknown mux value: 0x{:02X} in actuator_can_id_from_response, CAN ID: 0x{:08X}, returning 0x7F",
+                mux, can_id
             );
             0x7F // Return a default value if the mux is unknown
         }
@@ -605,6 +686,30 @@ impl ActuatorCanClient {
                     _ => Ok(None),
                 }
             }
+            ActuatorResponse::Fault(resp) => {
+                // Copy packed struct fields to local variables to avoid alignment issues
+                let actuator_id = resp.actuator_can_id;
+                let fault_value = resp.fault_value;
+                let warning_value = resp.warning_value;
+                
+                // Fault frames are unsolicited, so we don't check transaction state
+                warn!("Received fault frame from servo {}: fault_value=0x{:08X}, warning_value=0x{:08X}", 
+                      actuator_id, fault_value, warning_value);
+                      
+                if resp.has_faults() {
+                    let faults = resp.get_fault_descriptions();
+                    warn!("Servo {} FAULTS: {:?}", actuator_id, faults);
+                }
+                
+                if resp.has_warnings() {
+                    let warnings = resp.get_warning_descriptions();
+                    warn!("Servo {} WARNINGS: {:?}", actuator_id, warnings);
+                }
+                
+                // Fault frames don't affect the client state - they're just informational
+                Ok(None)
+            }
+            
         }
     }
 

@@ -4,6 +4,14 @@ use heapless::Deque;
 use nalgebra as na;
 use tracing::info;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UdpCommandState {
+    pub x: f32,
+    pub y: f32,
+    pub yaw: f32,
+    pub timestamp: Option<std::time::Instant>,
+}
+
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
     // rem_euclid gives a value in [0, 2π)
@@ -133,6 +141,7 @@ impl ActuatorFeedback {
         self.temp >= MIN_SAFE_TEMP && self.temp <= MAX_SAFE_TEMP
     }
 }
+
 
 pub struct ActuatorFeedbackUpdate {
     pub qpos: Option<f64>,
@@ -410,6 +419,7 @@ pub struct RobotDescription {
     pub imu: ImuData,
     pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
+    pub udp_command_state: UdpCommandState,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
@@ -432,6 +442,7 @@ impl RobotDescription {
             imu: ImuData::default(),
             initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
+            udp_command_state: UdpCommandState::default(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,

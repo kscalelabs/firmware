@@ -19,6 +19,7 @@ pub mod state_machine_utils;
 pub mod telemetry;
 pub mod typestate_socket;
 pub mod typestate_socket2;
+pub mod udp_command;
 
 pub mod git_hash {
     include!(concat!(env!("OUT_DIR"), "/git_hash.rs"));

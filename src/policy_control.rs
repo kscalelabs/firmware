@@ -3,6 +3,8 @@ use enum_dispatch::enum_dispatch;
 use enum_map::{Enum, EnumMap};
 use ndarray::ArrayViewMut1;
 
+// UdpControlVectorInputState is now defined in udp_command.rs
+
 #[enum_dispatch(InputState)]
 #[derive(Debug)]
 pub enum CommandType {
@@ -11,12 +13,17 @@ pub enum CommandType {
     ControlVectorInputState,
     ExpandedControlVectorInputState,
     BartControlVectorInputState,
+    UdpControlVectorInputState(crate::udp_command::UdpControlVectorInputState),
 }
 
 #[enum_dispatch]
 pub trait InputState {
     fn update(&mut self, key: KeyEvent) -> std::io::Result<()>;
     fn extract(&mut self, arr: ArrayViewMut1<f32>) -> std::io::Result<()>;
+    fn extract_with_robot(&mut self, arr: ArrayViewMut1<f32>, _robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
+        // Default implementation calls the regular extract method
+        self.extract(arr)
+    }
 }
 
 impl CommandType {
@@ -25,9 +32,12 @@ impl CommandType {
             4 => Ok(CommandType::SimpleJoystickInputState(
                 SimpleJoystickInputState::new(),
             )),
-            3 => Ok(CommandType::ControlVectorInputState(
-                ControlVectorInputState::new(),
+            3 => Ok(CommandType::UdpControlVectorInputState(
+                crate::udp_command::UdpControlVectorInputState::new(),
             )),
+            /*3 => Ok(CommandType::ControlVectorInputState(
+                ControlVectorInputState::new(),
+            )),*/
             6 => Ok(CommandType::ExpandedControlVectorInputState(
                 ExpandedControlVectorInputState::new(),
             )),
