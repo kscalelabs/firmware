@@ -72,18 +72,20 @@ impl From<crate::socketcan::CanFrame> for ActuatorRequest {
                 crate::socketcan::CanFrame,
                 ControlCommandRequest,
             >(val)),
-            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<
+            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
-                ReadParamRequest,
+                FeedbackRequest,
             >(val)),
             0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
                 MotorEnableRequest,
             >(val)),
-            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<
+            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
-                FeedbackRequest,
+                ReadParamRequest,
             >(val)),
+           
+        
             _ => panic!("Unknown mux value: {mux}"),
         }
     }

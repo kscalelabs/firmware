@@ -484,6 +484,12 @@ async fn read_responses_update(
     };
 
     let n = ss.actuator_clients.len();
+    
+    // Pre-compute servo ID mapping to avoid borrow conflicts
+    let servo_id_map: Vec<u8> = ss.actuator_clients.iter()
+        .map(|client| client.actuator_can_id)
+        .collect();
+    
     let mut handler = |can_frame: &CanFrame| {
         let client_idx = (ss.response_to_client_idx)(can_frame);
         if let Some(client) = ss.actuator_clients.get_mut(client_idx) {
@@ -534,29 +540,33 @@ async fn read_responses_update(
                             if !seen[client_idx] {
                                 rem -= 1;
                                 seen[client_idx] = true;
-                                debug!("First response from actuator {}", client_idx);
+                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                debug!("First response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
                             } else {
-                                debug!("Duplicate response from actuator {}", client_idx);
+                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                debug!("Duplicate response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
                             }
                             
                             let can_id = can_frame.can_id; // Copy to local variable first
-                            debug!("Received CAN frame from actuator {}: ID=0x{:x}", client_idx, can_id);
+                            let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                            debug!("Received CAN frame from actuator {} (servo_id: {}) on {}: ID=0x{:x}", client_idx, servo_id, ss.ifname, can_id);
 
                             if let Err(e) = handler(&can_frame) {
-                                warn!("Handler error for actuator {}: {:?}", client_idx, e);
+                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                warn!("Handler error for actuator {} (servo_id: {}) on {}: {:?}", client_idx, servo_id, ss.ifname, e);
                                 // Continue processing other responses
                             }
                         } else {
                             let can_id = can_frame.can_id;
                             let actual_servo_id = actuator_can_id_from_response(&can_frame);
                             warn!(
-                                "Invalid client_idx {} from CAN frame (servo_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
-                                client_idx, actual_servo_id, can_id, n - 1
+                                "Invalid client_idx {} from CAN frame on {} (servo_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
+                                client_idx, ss.ifname, actual_servo_id, can_id, n - 1
                             );
                         }
                     }
                     Err(e) => {
-                        warn!("Socket read error: {:?}", e);
+                        warn!("Socket read error on {}: {:?}", ss.ifname, e);
                         break; // Exit on socket errors, but don't fail the whole operation
                     }
                 }
@@ -567,13 +577,29 @@ async fn read_responses_update(
     
     match overall_timeout.await {
         Ok(Ok(_)) => {
-            debug!("All {} actuators responded within timeout", n);
+            debug!("All {} actuators responded within timeout on {}", n, ss.ifname);
         }
         Ok(Err(e)) => {
-            warn!("Socket error during response reading: {:?}", e);
+            warn!("Socket error during response reading on {}: {:?}", ss.ifname, e);
         }
         Err(_) => {
-            warn!("Overall timeout waiting for responses");
+            // Collect missing servo IDs for detailed logging
+            let missing_servo_ids: Vec<u8> = seen.iter()
+                .enumerate()
+                .filter_map(|(client_idx, &responded)| {
+                    if !responded {
+                        servo_id_map.get(client_idx).copied()
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            
+            let missing_count = missing_servo_ids.len();
+            warn!(
+                "Overall timeout waiting for responses on {}: Missing responses from {} actuators: {:?}", 
+                ss.ifname, missing_count, missing_servo_ids
+            );
         }
     }
 
@@ -587,15 +613,20 @@ async fn read_responses_update(
                 let client_idx = (ss.response_to_client_idx)(&can_frame);
 
                 let can_id = can_frame.can_id; // Copy to local variable first
-                debug!("Draining CAN frame from actuator {}: ID=0x{:x}", client_idx, can_id);
+                let servo_id = if client_idx < n {
+                    servo_id_map.get(client_idx).copied().unwrap_or(0xFF)
+                } else {
+                    actuator_can_id_from_response(&can_frame)
+                };
+                debug!("Draining CAN frame from actuator {} (servo_id: {}) on {}: ID=0x{:x}", client_idx, servo_id, ss.ifname, can_id);
 
                 if client_idx < n {
                     if !seen[client_idx] {
                         seen[client_idx] = true;
-                        debug!("Late response from actuator {}", client_idx);
+                        debug!("Late response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
                     }
                     if let Err(e) = handler(&can_frame) {
-                        warn!("Handler error during drain for actuator {}: {:?}", client_idx, e);
+                        warn!("Handler error during drain for actuator {} (servo_id: {}) on {}: {:?}", client_idx, servo_id, ss.ifname, e);
                     }
                 }
                 drain_count += 1;
