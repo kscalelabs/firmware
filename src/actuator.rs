@@ -547,7 +547,12 @@ async fn read_responses_update(
                                 // Continue processing other responses
                             }
                         } else {
-                            warn!("Invalid client_idx {} from CAN frame", client_idx);
+                            let can_id = can_frame.can_id;
+                            let actual_servo_id = actuator_can_id_from_response(&can_frame);
+                            warn!(
+                                "Invalid client_idx {} from CAN frame (servo_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
+                                client_idx, actual_servo_id, can_id, n - 1
+                            );
                         }
                     }
                     Err(e) => {

@@ -4,7 +4,7 @@ use nix::libc;
 use std::collections::VecDeque;
 use std::io;
 use std::os::unix::io::{AsRawFd, BorrowedFd, OwnedFd, RawFd};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 const PAGE_SIZE: usize = 4096;
 
@@ -163,7 +163,7 @@ impl MultiFdWriter {
                     .page
                     .fill_from(&mut std::io::Cursor::new(vec![0; entry.page.remaining()]))
                     .map_err(std::io::Error::other)?;
-                println!(
+                trace!(
                     "Flushing entry: idx={}, remaining: {}",
                     entry.idx(),
                     entry.page.remaining()
@@ -177,7 +177,7 @@ impl MultiFdWriter {
         self.drain_ready_list()?;
 
         while self.io_stats.user_owned < self.ring.num_pages {
-            println!(
+            trace!(
                 "Flushing MultiFdWriter, user_owned: {}, num_pages: {}",
                 self.io_stats.user_owned, self.ring.num_pages
             );
@@ -241,7 +241,7 @@ impl MultiFdWriter {
 
     fn submit_buffer(&mut self, data: Vec<u8>) -> io::Result<()> {
         // copy vector into buffered io uring
-        println!("Submitting buffer of size: {}", data.len());
+        trace!("Submitting buffer of size: {}", data.len());
         if data.len() > PAGE_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -300,7 +300,7 @@ impl MultiFdWriter {
                     )),
                 );
                 self.ring.pending_ops[entry.idx()] += 1;
-                println!(
+                trace!(
                     "Pushing write operation for entry idx={} with ptr={:p} and len={}",
                     entry.idx(),
                     entry.as_ptr(),
