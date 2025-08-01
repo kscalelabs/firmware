@@ -602,7 +602,11 @@ impl ActuatorCanClient {
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
         };
-        self.build_request(params).into()
+        let request = self.build_request(params);
+        let expected_response_mux = request.response_mux();
+        debug!("Staging request for actuator {}: {:?}, expecting response mux 0x{:02X}", 
+               self.actuator_can_id, params, expected_response_mux);
+        request.into()
     }
 
     pub fn set_last_request(&mut self, transaction: CanFrame) {
@@ -624,20 +628,60 @@ impl ActuatorCanClient {
         &mut self,
         response: &CanFrame,
     ) -> std::io::Result<Option<ActuatorFeedbackUpdate>> {
+        let response_mux = mux_from_can_frame(response);
+        
+        // Handle unsolicited responses first (no transaction validation needed)
+        if response_mux == 0x15 { // Fault response - unsolicited
+            match (*response).into() {
+                ActuatorResponse::Fault(resp) => {
+                    // Copy packed struct fields to local variables to avoid alignment issues
+                    let actuator_id = resp.actuator_can_id;
+                    let fault_value = resp.fault_value;
+                    let warning_value = resp.warning_value;
+                    
+                    // Fault frames are unsolicited, so we don't check transaction state
+                    /*warn!("Received fault frame from servo {}: fault_value=0x{:08X}, warning_value=0x{:08X}", 
+                          actuator_id, fault_value, warning_value);
+                          
+                    if resp.has_faults() {
+                        let faults = resp.get_fault_descriptions();
+                        warn!("Servo {} FAULTS: {:?}", actuator_id, faults);
+                    }
+                    
+                    if resp.has_warnings() {
+                        let warnings = resp.get_warning_descriptions();
+                        warn!("Servo {} WARNINGS: {:?}", actuator_id, warnings);
+                    }*/
+                    
+                    // Fault frames don't affect the client state - they're just informational
+                    return Ok(None);
+                }
+                _ => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Expected fault response for mux 0x15",
+                    ));
+                }
+            }
+        }
+        
+        // For solicited responses, validate transaction state
         if self.last_request.is_none() {
             return Err(std::io::Error::other(
                 "No current transaction to handle response for",
             ));
         }
-
+    
         // Check if the response matches the current transaction
         if let Some(ref cur_req) = self.last_request {
-            if mux_from_can_frame(response) != cur_req.response_mux() {
+            if response_mux != cur_req.response_mux() {
+                warn!("Transaction mismatch: received response mux 0x{:02X} but expected 0x{:02X} for actuator {}", 
+                      response_mux, cur_req.response_mux(), self.actuator_can_id);
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!(
                         "Response ID {} does not match current transaction {}",
-                        mux_from_can_frame(response),
+                        response_mux,
                         cur_req.response_mux()
                     ),
                 ));
@@ -647,8 +691,8 @@ impl ActuatorCanClient {
                 "No current transaction to handle response for",
             ));
         }
-
-        // convert can frame into ActuatorResponse
+    
+        // convert can frame into ActuatorResponse for solicited responses
         match (*response).into() {
             ActuatorResponse::ObtainId(resp) => {
                 debug!("Received ObtainId response: {:?}", resp);
@@ -670,6 +714,7 @@ impl ActuatorCanClient {
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
+                self.last_request = None; // Clear the last request to avoid re-using it
                 Ok(Some(self.update_from_feedback(&resp, response)))
             }
             ActuatorResponse::ReadParam(resp) => {
@@ -681,6 +726,7 @@ impl ActuatorCanClient {
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
+                self.last_request = None; // Clear the last request to avoid re-using it
                 let param = RobstrideActuatorParam::from_address(resp.index).unwrap();
                 let value = f32::from_bits(resp.value);
                 match param {
@@ -688,30 +734,13 @@ impl ActuatorCanClient {
                     _ => Ok(None),
                 }
             }
-            ActuatorResponse::Fault(resp) => {
-                // Copy packed struct fields to local variables to avoid alignment issues
-                let actuator_id = resp.actuator_can_id;
-                let fault_value = resp.fault_value;
-                let warning_value = resp.warning_value;
-                
-                // Fault frames are unsolicited, so we don't check transaction state
-                warn!("Received fault frame from servo {}: fault_value=0x{:08X}, warning_value=0x{:08X}", 
-                      actuator_id, fault_value, warning_value);
-                      
-                if resp.has_faults() {
-                    let faults = resp.get_fault_descriptions();
-                    warn!("Servo {} FAULTS: {:?}", actuator_id, faults);
-                }
-                
-                if resp.has_warnings() {
-                    let warnings = resp.get_warning_descriptions();
-                    warn!("Servo {} WARNINGS: {:?}", actuator_id, warnings);
-                }
-                
-                // Fault frames don't affect the client state - they're just informational
-                Ok(None)
+            ActuatorResponse::Fault(_) => {
+                // This should not happen since fault responses are handled above
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Fault response should have been handled as unsolicited",
+                ))
             }
-            
         }
     }
 

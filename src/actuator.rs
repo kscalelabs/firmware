@@ -508,7 +508,7 @@ async fn read_responses_update(
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    warn!("Error handling response from actuator {}: {:?}", client_idx, e);
+                    //warn!("Error handling response from actuator {}: {:?}", client_idx, e);
                     // Don't propagate individual response errors - be more tolerant
                 }
             }
@@ -523,7 +523,7 @@ async fn read_responses_update(
     let mut rem = n; // Wait for responses from all actuators
     
     // Use overall timeout to prevent infinite hanging, but much longer than before
-    const OVERALL_TIMEOUT_MS: u64 = 100; // 100ms total should be plenty
+    const OVERALL_TIMEOUT_MS: u64 = 100; // This is not good, please do better
     let overall_timeout = tokio::time::timeout(
         std::time::Duration::from_millis(OVERALL_TIMEOUT_MS),
         async {
