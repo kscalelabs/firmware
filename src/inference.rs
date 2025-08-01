@@ -205,6 +205,14 @@ impl PolicyStepDescriptor {
                     .qfrc as f32;
             }
         }
+
+        if let Some(ref mut temp_dst) = self.joint_temps {
+            for (i, act_id) in cmd_idx_to_actuator_id.iter().enumerate() {
+                temp_dst[i] = robot_description.actuators.actuator_states[*act_id]
+                    .feedback
+                    .temp as f32;
+            }
+        }
     }
 }
 
