@@ -721,10 +721,10 @@ async fn read_responses_update(
     let n = ss.actuator_clients.len();
     
     // Pre-compute servo ID mapping to avoid borrow conflicts
-    let servo_id_map: Vec<u8> = ss.actuator_clients.iter()
+    let servo_ids: Vec<u8> = ss.actuator_clients.iter()
         .map(|client| client.actuator_can_id)
         .collect();
-    
+
     let mut handler = |can_frame: &CanFrame| {
         let client_idx = (ss.response_to_client_idx)(can_frame);
         if let Some(client) = ss.actuator_clients.get_mut(client_idx) {
@@ -775,19 +775,20 @@ async fn read_responses_update(
                             if !seen[client_idx] {
                                 rem -= 1;
                                 seen[client_idx] = true;
-                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                // Extract servo_id directly from the CAN frame - no borrow conflicts
+                                let servo_id = actuator_can_id_from_response(&can_frame);
                                 debug!("First response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
                             } else {
-                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
                                 debug!("Duplicate response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
                             }
                             
                             let can_id = can_frame.can_id; // Copy to local variable first
-                            let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                            let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
                             debug!("Received CAN frame from actuator {} (servo_id: {}) on {}: ID=0x{:x}", client_idx, servo_id, ss.ifname, can_id);
 
                             if let Err(e) = handler(&can_frame) {
-                                let servo_id = servo_id_map.get(client_idx).copied().unwrap_or(0xFF);
+                                let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
                                 warn!("Handler error for actuator {} (servo_id: {}) on {}: {:?}", client_idx, servo_id, ss.ifname, e);
                                 // Continue processing other responses
                             }
@@ -818,23 +819,16 @@ async fn read_responses_update(
             warn!("Socket error during response reading on {}: {:?}", ss.ifname, e);
         }
         Err(_) => {
-            // Collect missing servo IDs for detailed logging
-            let missing_servo_ids: Vec<u8> = seen.iter()
+            // Count without collecting
+            let missing_count = seen.iter()
                 .enumerate()
-                .filter_map(|(client_idx, &responded)| {
-                    if !responded {
-                        servo_id_map.get(client_idx).copied()
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            
-            let missing_count = missing_servo_ids.len();
-            warn!(
-                "Overall timeout waiting for responses on {}: Missing responses from {} actuators: {:?}", 
-                ss.ifname, missing_count, missing_servo_ids
-            );
+                .filter(|&(_, responded)| !responded)
+                .count();
+
+            if missing_count > 0 {
+                warn!("Overall timeout waiting for responses on {}: Missing responses from {} actuators", 
+                      ss.ifname, missing_count);
+            }
         }
     }
 
@@ -849,7 +843,7 @@ async fn read_responses_update(
 
                 let can_id = can_frame.can_id; // Copy to local variable first
                 let servo_id = if client_idx < n {
-                    servo_id_map.get(client_idx).copied().unwrap_or(0xFF)
+                    servo_ids.get(client_idx).copied().unwrap_or(0xFF)
                 } else {
                     actuator_can_id_from_response(&can_frame)
                 };
@@ -871,21 +865,25 @@ async fn read_responses_update(
     }
 
     // Log communication health but don't fail
-    let missing_responses: Vec<usize> = seen.iter()
-        .enumerate()
-        .filter_map(|(idx, &responded)| if !responded { Some(idx) } else { None })
-        .collect();
+    // Instead of collecting every cycle, iterate directly
+    let mut missing_count = 0;
+    let mut any_missing = false;
 
-    if !missing_responses.is_empty() {
-        warn!("Missing responses from {} actuators: {:?}", missing_responses.len(), missing_responses);
-        
-        if let Some(ref mut act_states) = act_states {
-            for &idx in &missing_responses {
+    // Set fault flags and count in one pass - no allocation
+    if let Some(ref mut act_states) = act_states {
+        for (idx, &responded) in seen.iter().enumerate() {
+            if !responded {
+                any_missing = true;
+                missing_count += 1;
                 if let Some(state) = act_states.get_mut(idx) {
                     state.feedback.faults |= 0x20; // Communication error flag
                 }
             }
         }
+    }
+
+    if any_missing {
+        warn!("Missing responses from {} actuators", missing_count);
     } else {
         debug!("All {} actuators responded", n);
     }
