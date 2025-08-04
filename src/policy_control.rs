@@ -2,6 +2,7 @@ use crossterm::event::{KeyCode, KeyEvent};
 use enum_dispatch::enum_dispatch;
 use enum_map::{Enum, EnumMap};
 use ndarray::ArrayViewMut1;
+use std::io;
 
 // UdpControlVectorInputState is now defined in udp_command.rs
 
@@ -14,6 +15,7 @@ pub enum CommandType {
     ExpandedControlVectorInputState,
     BartControlVectorInputState,
     UdpControlVectorInputState(crate::udp_command::UdpControlVectorInputState),
+    UdpExpandedControlVectorInputState(crate::udp_command::UdpExpandedControlVectorInputState),
 }
 
 #[enum_dispatch]
@@ -38,8 +40,8 @@ impl CommandType {
             /*3 => Ok(CommandType::ControlVectorInputState(
                 ControlVectorInputState::new(),
             )),*/
-            6 => Ok(CommandType::ExpandedControlVectorInputState(
-                ExpandedControlVectorInputState::new(),
+            6 => Ok(CommandType::UdpExpandedControlVectorInputState(
+                crate::udp_command::UdpExpandedControlVectorInputState::new(),
             )),
             7 => Ok(CommandType::BartControlVectorInputState(
                 BartControlVectorInputState::new(),
@@ -194,6 +196,7 @@ impl ExpandedControlVectorInputState {
         }
     }
 }
+
 
 impl InputState for ExpandedControlVectorInputState {
     fn update(&mut self, key: KeyEvent) -> std::io::Result<()> {

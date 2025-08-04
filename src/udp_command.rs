@@ -195,6 +195,57 @@ pub struct UdpControlVectorInputState {
     last_command: UdpCommand,
 }
 
+#[derive(Debug)]
+pub struct UdpExpandedControlVectorInputState {
+    udp_manager: Option<UdpCommandManager>,
+    last_command: UdpCommand,
+}
+
+impl UdpExpandedControlVectorInputState {
+    pub fn new() -> Self {
+        Self {
+            udp_manager: None,
+            last_command: UdpCommand::default(),
+        }
+    }
+
+    pub async fn initialize(&mut self, port: u16) -> io::Result<()> {
+        self.udp_manager = Some(UdpCommandManager::new(port).await?);
+        Ok(())
+    }
+
+    pub async fn update_from_udp(&mut self) -> io::Result<()> {
+        if let Some(ref mut manager) = self.udp_manager {
+            manager.try_update_command().await?;
+            self.last_command = manager.get_current_command();
+        }
+        Ok(())
+    }
+}
+
+impl crate::policy_control::InputState for UdpExpandedControlVectorInputState {
+    fn update(&mut self, _key: crossterm::event::KeyEvent) -> std::io::Result<()> {
+        // For UDP control, we ignore keyboard events
+        Ok(())
+    }
+
+    fn extract(&mut self, mut arr: ndarray::ArrayViewMut1<f32>) -> std::io::Result<()> {
+        // Map UDP command to expanded control vector
+        arr[0] = self.last_command.x;
+        arr[1] = self.last_command.y;
+        arr[2] = self.last_command.yaw;
+        arr[3] = 0.0;  // Height
+        arr[4] = 0.0;  // Pitch
+        arr[5] = 0.0;  // Roll
+        Ok(())
+    }
+
+    fn extract_with_robot(&mut self, mut arr: ndarray::ArrayViewMut1<f32>, _robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
+        // Delegate to primary extract method since we don't need robot state
+        self.extract(arr)
+    }
+}
+
 impl UdpControlVectorInputState {
     pub fn new() -> Self {
         Self {
