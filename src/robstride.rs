@@ -6,6 +6,7 @@ use tracing::info;
 use crate::socketcan::CanFrame;
 
 use crate::robot_description::{ActuatorCommand, ActuatorFeedbackUpdate, ActuatorId};
+use crate::actuator::{CanResponseFault, MotorFault, SystemFault, FaultDecoder};
 
 use crate::robstride_utils::*;
 
@@ -302,41 +303,23 @@ impl FaultResponse {
         self.warning_value != 0
     }
     
-    /// Get fault descriptions based on the fault table
+    // Get fault descriptions
     pub fn get_fault_descriptions(&self) -> Vec<String> {
-        let mut faults = Vec::new();
-        let fault = self.fault_value;
-        
-        if fault & (1 << 0) != 0 {
-            faults.push("Motor overtemperature fault (default 145°C)".to_string());
-        }
-        if fault & (1 << 1) != 0 {
-            faults.push("Driver chip fault".to_string());
-        }
-        if fault & (1 << 2) != 0 {
-            faults.push("Undervoltage fault".to_string());
-        }
-        if fault & (1 << 3) != 0 {
-            faults.push("Overvoltage fault".to_string());
-        }
-        if fault & (1 << 7) != 0 {
-            faults.push("Encoder not calibrated".to_string());
-        }
-        if fault & (1 << 14) != 0 {
-            faults.push("Gridlock/overload fault".to_string());
-        }
-        
-        faults
+        use crate::actuator::MotorFault;
+        MotorFault::from_bitmask(self.fault_value)
+        .iter()
+        .map(|fault| fault.to_string())
+        .collect()
     }
     
     pub fn get_warning_descriptions(&self) -> Vec<String> {
         let mut warnings = Vec::new();
         let warning = self.warning_value;
-        
+
         if warning & (1 << 0) != 0 {
             warnings.push("Motor overtemperature warning (default 135°C)".to_string());
         }
-        
+
         warnings
     }
 }
@@ -783,27 +766,26 @@ impl ActuatorCanClient {
         }
     }
 
-    /// Convert protocol fault flags (bits 21-16) to standardized fault format
     fn convert_protocol_faults_to_standard(&self, protocol_faults: u8) -> u32 {
         let mut standard_faults = 0u32;
         
         if protocol_faults & protocol_fault_flags::UNCALIBRATED != 0 {
-            standard_faults |= can_response_faults::UNCALIBRATED;
+            standard_faults |= CanResponseFault::Uncalibrated.bit_value();
         }
         if protocol_faults & protocol_fault_flags::GRIDLOCK_OVERLOAD != 0 {
-            standard_faults |= can_response_faults::GRIDLOCK_OVERLOAD;
+            standard_faults |= CanResponseFault::GridlockOverload.bit_value();
         }
         if protocol_faults & protocol_fault_flags::MAGNETIC_ENCODING != 0 {
-            standard_faults |= can_response_faults::MAGNETIC_ENCODING;
+            standard_faults |= CanResponseFault::MagneticEncoding.bit_value();
         }
         if protocol_faults & protocol_fault_flags::OVERTEMPERATURE != 0 {
-            standard_faults |= can_response_faults::OVERTEMPERATURE;
+            standard_faults |= CanResponseFault::Overtemperature.bit_value();
         }
         if protocol_faults & protocol_fault_flags::OVERCURRENT != 0 {
-            standard_faults |= can_response_faults::OVERCURRENT;
+            standard_faults |= CanResponseFault::Overcurrent.bit_value();
         }
         if protocol_faults & protocol_fault_flags::UNDERVOLTAGE != 0 {
-            standard_faults |= can_response_faults::UNDERVOLTAGE;
+            standard_faults |= CanResponseFault::Undervoltage.bit_value();
         }
         
         standard_faults
@@ -915,5 +897,3 @@ impl From<u8> for RobstrideActuatorType {
         }
     }
 }
-
-use crate::actuator::{FaultDecoder, can_response_faults};

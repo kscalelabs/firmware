@@ -3,6 +3,7 @@ use enum_map::{Enum, EnumMap, enum_map};
 use heapless::Deque;
 use nalgebra as na;
 use tracing::info;
+use crate::actuator::{CanResponseFault, MotorFault, SystemFault};
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct UdpCommandState {
@@ -71,66 +72,38 @@ impl ActuatorFeedback {
         (self.faults & fault_flag) != 0
     }
 
+
     pub fn fault_description(&self) -> String {
         if !self.has_faults() {
             return "No faults".to_string();
         }
         
-        let mut faults = Vec::new();
+        let mut descriptions = Vec::new();
         
-        // Check CAN response faults
-        if self.has_fault(crate::actuator::can_response_faults::UNCALIBRATED) {
-            faults.push("Uncalibrated".to_string());
-        }
-        if self.has_fault(crate::actuator::can_response_faults::GRIDLOCK_OVERLOAD) {
-            faults.push("Gridlock Overload".to_string());
-        }
-        if self.has_fault(crate::actuator::can_response_faults::MAGNETIC_ENCODING) {
-            faults.push("Magnetic Encoding Fault".to_string());
-        }
-        if self.has_fault(crate::actuator::can_response_faults::OVERTEMPERATURE) {
-            faults.push("Over-temperature".to_string());
-        }
-        if self.has_fault(crate::actuator::can_response_faults::OVERCURRENT) {
-            faults.push("Over-current".to_string());
-        }
-        if self.has_fault(crate::actuator::can_response_faults::UNDERVOLTAGE) {
-            faults.push("Undervoltage".to_string());
+        descriptions.extend(
+            CanResponseFault::from_bitmask(self.faults)
+                .iter()
+                .map(|f| f.to_string())
+        );
+        
+        descriptions.extend(
+            MotorFault::from_bitmask(self.faults)
+                .iter()
+                .map(|f| f.to_string())
+        );
+        
+        // Check system fault
+        if self.faults & SystemFault::CommunicationError.bit_value() != 0 {
+            descriptions.push(SystemFault::CommunicationError.to_string());
         }
         
-        // Check detailed motor faults (when available from register reads)
-        if self.has_fault(crate::actuator::motor_fault::MOTOR_OVERTEMP) {
-            faults.push("Motor Over-temperature (>145°C)".to_string());
-        }
-        if self.has_fault(crate::actuator::motor_fault::DRIVER_FAULT) {
-            faults.push("Driver Fault".to_string());
-        }
-        if self.has_fault(crate::actuator::motor_fault::ENCODER_UNCALIBRATED) {
-            faults.push("Encoder Uncalibrated (Register)".to_string());
-        }
-        if self.has_fault(crate::actuator::motor_fault::STALL_I2T_OVERLOAD) {
-            faults.push("Stall/I²t Overload".to_string());  
-        }
-        
-        // Add communication error constant (not from registers)
-        const COMMUNICATION_ERROR: u32 = 0x20;
-        if self.has_fault(COMMUNICATION_ERROR) {
-            faults.push("Communication Error".to_string());
-        }
-        
-        faults.join(", ")
+        descriptions.join(", ")
     }
     
     /// Check if the actuator is safe to operate (no critical faults)
     pub fn is_safe_to_operate(&self) -> bool {
-        // Critical faults that make operation unsafe
-        let critical_faults = crate::actuator::can_response_faults::OVERTEMPERATURE
-            | crate::actuator::can_response_faults::OVERCURRENT
-            | crate::actuator::motor_fault::MOTOR_OVERTEMP
-            | crate::actuator::motor_fault::DRIVER_FAULT
-            | crate::actuator::motor_fault::STALL_I2T_OVERLOAD;
-            
-        !self.has_fault(critical_faults)
+        !MotorFault::has_critical_faults_in_mask(self.faults) 
+            && !CanResponseFault::has_critical_faults_in_mask(self.faults)
     }
     
     /// Check if temperature is within safe operating range

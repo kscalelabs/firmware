@@ -48,66 +48,446 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
 }
 
-/// Primary motor fault word (indexes 0x3022 / CAN Types 02, 21, 24).
-/// Use `u32` to match the 32‑bit field.
-pub mod motor_fault {
-    pub const MOTOR_OVERTEMP:        u32 = 1 << 0;   // >145 °C
-    pub const DRIVER_FAULT:          u32 = 1 << 1;   // See drv_fault::* below
-    pub const UNDERVOLTAGE:          u32 = 1 << 2;   // VBUS < 12 V
-    pub const OVERVOLTAGE:           u32 = 1 << 3;   // VBUS > 60 V
-    pub const ENCODER_UNCALIBRATED:  u32 = 1 << 7;   // Encoder not zeroed
-    pub const STALL_I2T_OVERLOAD:    u32 = 1 << 14;  // Stall / I²t limit
+use std::fmt::{self, Display};
+
+// Motor faults enum with bit values and descriptions
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MotorFault {
+    MotorOvertemp,      // >145 °C
+    DriverFault,        // See drv_fault::* below
+    Undervoltage,       // VBUS < 12 V
+    Overvoltage,        // VBUS > 60 V
+    EncoderUncalibrated, // Encoder not zeroed
+    StallI2tOverload,   // Stall / I²t limit
 }
 
-/// DRV8353  FAULT_STATUS 1   (mirrored at RS03 index 0x3024)
-/// Source: TI SLVSDY6A (Aug‑18, rev. Jun‑19) §8.6.1.1
-pub mod drv_fault1 {
-    pub const FAULT_OR:  u16 = 1 << 10; // Logic‑OR of *all* faults (mirrors nFAULT pin)
-    pub const VDS_OCP:   u16 = 1 <<  9; // Global drain‑source over‑current monitor event
-    pub const GDF:       u16 = 1 <<  8; // Gate‑driver fault (charge‑pump or VDS monitor mismatch)
-    pub const UVLO:      u16 = 1 <<  7; // Device VCC undervoltage lock‑out
-    pub const OTSD:      u16 = 1 <<  6; // Over‑temperature shutdown (≈ 150 °C, latched)
-    pub const VDS_HA:    u16 = 1 <<  5; // Phase‑A high‑side VDS over‑current
-    pub const VDS_LA:    u16 = 1 <<  4; // Phase‑A low‑side  VDS over‑current
-    pub const VDS_HB:    u16 = 1 <<  3; // Phase‑B high‑side VDS over‑current
-    pub const VDS_LB:    u16 = 1 <<  2; // Phase‑B low‑side  VDS over‑current
-    pub const VDS_HC:    u16 = 1 <<  1; // Phase‑C high‑side VDS over‑current
-    pub const VDS_LC:    u16 = 1 <<  0; // Phase‑C low‑side  VDS over‑current
+impl MotorFault {
+     pub fn critical_faults() -> &'static [Self] {
+        &[Self::MotorOvertemp, Self::DriverFault, Self::StallI2tOverload]
+    }
+
+    pub fn has_critical_faults_in_mask(mask: u32) -> bool {
+        Self::critical_faults()
+            .iter()
+            .any(|fault| mask & fault.bit_value() != 0)
+    }
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::MotorOvertemp => 1 << 0,
+            Self::DriverFault => 1 << 1,
+            Self::Undervoltage => 1 << 2,
+            Self::Overvoltage => 1 << 3,
+            Self::EncoderUncalibrated => 1 << 7,
+            Self::StallI2tOverload => 1 << 14,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::MotorOvertemp,
+            Self::DriverFault,
+            Self::Undervoltage,
+            Self::Overvoltage,
+            Self::EncoderUncalibrated,
+            Self::StallI2tOverload,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u32) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u32 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
 }
 
-/// DRV8353  FAULT_STATUS 2   (mirrored at RS03 index 0x3025)
-/// Source: TI SLVSDY6A (Aug‑18, rev. Jun‑19) §8.6.1.2
-pub mod drv_fault2 {
-    pub const SA_OC:   u16 = 1 << 10; // Phase‑A sense‑amp OC  (S‑variant only)
-    pub const SB_OC:   u16 = 1 <<  9; // Phase‑B sense‑amp OC  (S‑variant only)
-    pub const SC_OC:   u16 = 1 <<  8; // Phase‑C sense‑amp OC  (S‑variant only)
-    pub const OTW:     u16 = 1 <<  7; // Over‑temperature warning
-    pub const GDUV:    u16 = 1 <<  6; // Charge‑pump / gate‑drive UV
-    pub const VGS_HA:  u16 = 1 <<  5; // Gate fault: phase‑A high‑side
-    pub const VGS_LA:  u16 = 1 <<  4; // Gate fault: phase‑A low‑side
-    pub const VGS_HB:  u16 = 1 <<  3; // Gate fault: phase‑B high‑side
-    pub const VGS_LB:  u16 = 1 <<  2; // Gate fault: phase‑B low‑side
-    pub const VGS_HC:  u16 = 1 <<  1; // Gate fault: phase‑C high‑side
-    pub const VGS_LC:  u16 = 1 <<  0; // Pha‑C low‑side  VDS over‑current
+impl Display for MotorFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MotorOvertemp => write!(f, "Motor Over-temperature (>145°C)"),
+            Self::DriverFault => write!(f, "Driver Fault (see DRV status)"),
+            Self::Undervoltage => write!(f, "Undervoltage (VBUS < 12V)"),
+            Self::Overvoltage => write!(f, "Overvoltage (VBUS > 60V)"),
+            Self::EncoderUncalibrated => write!(f, "Encoder Uncalibrated"),
+            Self::StallI2tOverload => write!(f, "Stall/I²t Overload"),
+        }
+    }
 }
 
-/// CAN Response packet fault flags (bits 21-16 in CAN ID)
-/// According to Communication Type 2 motor feedback documentation
-pub mod can_response_faults {
-    pub const UNCALIBRATED:      u32 = 1 << 21; // bit21: uncalibrated
-    pub const GRIDLOCK_OVERLOAD: u32 = 1 << 20; // bit20: Gridlock overload fault  
-    pub const MAGNETIC_ENCODING: u32 = 1 << 19; // bit19: magnetic coding fault
-    pub const OVERTEMPERATURE:   u32 = 1 << 18; // bit18: overtemperature
-    pub const OVERCURRENT:       u32 = 1 << 17; // bit17: overcurrent
-    pub const UNDERVOLTAGE:      u32 = 1 << 16; // bit16: undervoltage fault
+impl TryFrom<u32> for MotorFault {
+    type Error = &'static str;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            v if v == Self::MotorOvertemp.bit_value() => Ok(Self::MotorOvertemp),
+            v if v == Self::DriverFault.bit_value() => Ok(Self::DriverFault),
+            v if v == Self::Undervoltage.bit_value() => Ok(Self::Undervoltage),
+            v if v == Self::Overvoltage.bit_value() => Ok(Self::Overvoltage),
+            v if v == Self::EncoderUncalibrated.bit_value() => Ok(Self::EncoderUncalibrated),
+            v if v == Self::StallI2tOverload.bit_value() => Ok(Self::StallI2tOverload),
+            _ => Err("Invalid motor fault bit value"),
+        }
+    }
 }
 
-/// Enhanced fault decoding and logging
+// DRV Fault1 enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DrvFault1 {
+    FaultOr,    // Logic‑OR of *all* faults (mirrors nFAULT pin)
+    VdsOcp,     // Global drain‑source over‑current monitor event
+    Gdf,        // Gate‑driver fault (charge‑pump or VDS monitor mismatch)
+    Uvlo,       // Device VCC undervoltage lock‑out
+    Otsd,       // Over‑temperature shutdown (≈ 150 °C, latched)
+    VdsHa,      // Phase‑A high‑side VDS over‑current
+    VdsLa,      // Phase‑A low‑side  VDS over‑current
+    VdsHb,      // Phase‑B high‑side VDS over‑current
+    VdsLb,      // Phase‑B low‑side  VDS over‑current
+    VdsHc,      // Phase‑C high‑side VDS over‑current
+    VdsLc,      // Phase‑C low‑side  VDS over‑current
+}
+
+impl DrvFault1 {
+    pub const fn bit_value(self) -> u16 {
+        match self {
+            Self::FaultOr => 1 << 10,
+            Self::VdsOcp => 1 << 9,
+            Self::Gdf => 1 << 8,
+            Self::Uvlo => 1 << 7,
+            Self::Otsd => 1 << 6,
+            Self::VdsHa => 1 << 5,
+            Self::VdsLa => 1 << 4,
+            Self::VdsHb => 1 << 3,
+            Self::VdsLb => 1 << 2,
+            Self::VdsHc => 1 << 1,
+            Self::VdsLc => 1 << 0,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::FaultOr, Self::VdsOcp, Self::Gdf, Self::Uvlo, Self::Otsd,
+            Self::VdsHa, Self::VdsLa, Self::VdsHb, Self::VdsLb, Self::VdsHc, Self::VdsLc,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u16) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u16 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+}
+
+impl Display for DrvFault1 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FaultOr => write!(f, "DRV: General Fault (nFAULT asserted)"),
+            Self::VdsOcp => write!(f, "DRV: Global VDS Over-current"),
+            Self::Gdf => write!(f, "DRV: Gate Driver Fault"),
+            Self::Uvlo => write!(f, "DRV: VCC Undervoltage Lock-out"),
+            Self::Otsd => write!(f, "DRV: Over-temperature Shutdown (~150°C)"),
+            Self::VdsHa => write!(f, "DRV: Phase-A High VDS Over-current"),
+            Self::VdsLa => write!(f, "DRV: Phase-A Low VDS Over-current"),
+            Self::VdsHb => write!(f, "DRV: Phase-B High VDS Over-current"),
+            Self::VdsLb => write!(f, "DRV: Phase-B Low VDS Over-current"),
+            Self::VdsHc => write!(f, "DRV: Phase-C High VDS Over-current"),
+            Self::VdsLc => write!(f, "DRV: Phase-C Low VDS Over-current"),
+        }
+    }
+}
+
+// DRV Fault2 enum  
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DrvFault2 {
+    SaOc,    // Phase‑A sense‑amp OC  (S‑variant only)
+    SbOc,    // Phase‑B sense‑amp OC  (S‑variant only)
+    ScOc,    // Phase‑C sense‑amp OC  (S‑variant only)
+    Otw,     // Over‑temperature warning
+    Gduv,    // Charge‑pump / gate‑drive UV
+    VgsHa,   // Gate fault: phase‑A high‑side
+    VgsLa,   // Gate fault: phase‑A low‑side
+    VgsHb,   // Gate fault: phase‑B high‑side
+    VgsLb,   // Gate fault: phase‑B low‑side
+    VgsHc,   // Gate fault: phase‑C high‑side
+    VgsLc,   // Gate fault: phase‑C low‑side
+}
+
+impl DrvFault2 {
+    pub const fn bit_value(self) -> u16 {
+        match self {
+            Self::SaOc => 1 << 10,
+            Self::SbOc => 1 << 9,
+            Self::ScOc => 1 << 8,
+            Self::Otw => 1 << 7,
+            Self::Gduv => 1 << 6,
+            Self::VgsHa => 1 << 5,
+            Self::VgsLa => 1 << 4,
+            Self::VgsHb => 1 << 3,
+            Self::VgsLb => 1 << 2,
+            Self::VgsHc => 1 << 1,
+            Self::VgsLc => 1 << 0,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::SaOc, Self::SbOc, Self::ScOc, Self::Otw, Self::Gduv,
+            Self::VgsHa, Self::VgsLa, Self::VgsHb, Self::VgsLb, Self::VgsHc, Self::VgsLc,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u16) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u16 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+}
+
+impl Display for DrvFault2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SaOc => write!(f, "DRV: Phase-A Sense-amp Over-current (S-variant)"),
+            Self::SbOc => write!(f, "DRV: Phase-B Sense-amp Over-current (S-variant)"),
+            Self::ScOc => write!(f, "DRV: Phase-C Sense-amp Over-current (S-variant)"),
+            Self::Otw => write!(f, "DRV: Over-temperature Warning (~125°C)"),
+            Self::Gduv => write!(f, "DRV: Charge-pump/Gate-drive Undervoltage"),
+            Self::VgsHa => write!(f, "DRV: Phase-A High Gate Fault"),
+            Self::VgsLa => write!(f, "DRV: Phase-A Low Gate Fault"),
+            Self::VgsHb => write!(f, "DRV: Phase-B High Gate Fault"),
+            Self::VgsLb => write!(f, "DRV: Phase-B Low Gate Fault"),
+            Self::VgsHc => write!(f, "DRV: Phase-C High Gate Fault"),
+            Self::VgsLc => write!(f, "DRV: Phase-C Low Gate Fault"),
+        }
+    }
+}
+
+// CAN Response faults enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CanResponseFault {
+    Uncalibrated,      // bit21: uncalibrated
+    GridlockOverload,  // bit20: Gridlock overload fault  
+    MagneticEncoding,  // bit19: magnetic coding fault
+    Overtemperature,   // bit18: overtemperature
+    Overcurrent,       // bit17: overcurrent
+    Undervoltage,      // bit16: undervoltage fault
+}
+
+impl CanResponseFault {
+    pub fn has_critical_faults_in_mask(mask: u32) -> bool {
+        Self::critical_faults()
+            .iter()
+            .any(|fault| mask & fault.bit_value() != 0)
+    }
+
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::Uncalibrated => 1 << 21,
+            Self::GridlockOverload => 1 << 20,
+            Self::MagneticEncoding => 1 << 19,
+            Self::Overtemperature => 1 << 18,
+            Self::Overcurrent => 1 << 17,
+            Self::Undervoltage => 1 << 16,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::Uncalibrated,
+            Self::GridlockOverload,
+            Self::MagneticEncoding,
+            Self::Overtemperature,
+            Self::Overcurrent,
+            Self::Undervoltage,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u32) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u32 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+
+    /// Get critical faults that make operation unsafe
+    pub fn critical_faults() -> &'static [Self] {
+        &[Self::Overtemperature, Self::Overcurrent]
+    }
+}
+
+impl Display for CanResponseFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Uncalibrated => write!(f, "CAN: Uncalibrated"),
+            Self::GridlockOverload => write!(f, "CAN: Gridlock Overload"),
+            Self::MagneticEncoding => write!(f, "CAN: Magnetic Encoding Fault"),
+            Self::Overtemperature => write!(f, "CAN: Over-temperature"),
+            Self::Overcurrent => write!(f, "CAN: Over-current"),
+            Self::Undervoltage => write!(f, "CAN: Undervoltage"),
+        }
+    }
+}
+
+// Additional fault for communication errors
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemFault {
+    CommunicationError, // Communication timeout/error
+}
+
+impl SystemFault {
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::CommunicationError => 0x20,
+        }
+    }
+}
+
+impl Display for SystemFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CommunicationError => write!(f, "Communication Error"),
+        }
+    }
+}
+
+// Unified fault collection for easier handling
+#[derive(Debug, Clone)]
+pub struct FaultCollection {
+    pub motor_faults: Vec<MotorFault>,
+    pub drv_fault1: Vec<DrvFault1>,
+    pub drv_fault2: Vec<DrvFault2>,
+    pub can_response_faults: Vec<CanResponseFault>,
+    pub system_faults: Vec<SystemFault>,
+}
+
+impl FaultCollection {
+    pub fn new() -> Self {
+        Self {
+            motor_faults: Vec::new(),
+            drv_fault1: Vec::new(),
+            drv_fault2: Vec::new(),
+            can_response_faults: Vec::new(),
+            system_faults: Vec::new(),
+        }
+    }
+
+    pub fn from_raw_values(
+        motor_fault: u32,
+        drv_fault1: u16,
+        drv_fault2: u16,
+        can_response_faults: u32,
+        system_faults: u32,
+    ) -> Self {
+        Self {
+            motor_faults: MotorFault::from_bitmask(motor_fault),
+            drv_fault1: DrvFault1::from_bitmask(drv_fault1),
+            drv_fault2: DrvFault2::from_bitmask(drv_fault2),
+            can_response_faults: CanResponseFault::from_bitmask(can_response_faults),
+            system_faults: if system_faults & SystemFault::CommunicationError.bit_value() != 0 {
+                vec![SystemFault::CommunicationError]
+            } else {
+                vec![]
+            },
+        }
+    }
+
+    pub fn has_faults(&self) -> bool {
+        !self.motor_faults.is_empty()
+            || !self.drv_fault1.is_empty()
+            || !self.drv_fault2.is_empty()
+            || !self.can_response_faults.is_empty()
+            || !self.system_faults.is_empty()
+    }
+
+    pub fn is_safe_to_operate(&self) -> bool {
+        let critical_motor_faults = [
+            MotorFault::MotorOvertemp,
+            MotorFault::DriverFault,
+            MotorFault::StallI2tOverload,
+        ];
+
+        let has_critical_motor = self.motor_faults.iter()
+            .any(|fault| critical_motor_faults.contains(fault));
+
+        let has_critical_can = self.can_response_faults.iter()
+            .any(|fault| CanResponseFault::critical_faults().contains(fault));
+
+        !(has_critical_motor || has_critical_can)
+    }
+
+    pub fn description(&self) -> String {
+        if !self.has_faults() {
+            return "No faults".to_string();
+        }
+
+        let mut descriptions = Vec::new();
+
+        descriptions.extend(self.can_response_faults.iter().map(|f| f.to_string()));
+        descriptions.extend(self.motor_faults.iter().map(|f| f.to_string()));
+        descriptions.extend(self.drv_fault1.iter().map(|f| f.to_string()));
+        descriptions.extend(self.drv_fault2.iter().map(|f| f.to_string()));
+        descriptions.extend(self.system_faults.iter().map(|f| f.to_string()));
+
+        descriptions.join(", ")
+    }
+
+    pub fn log_all_faults(&self, actuator_id: usize) {
+        if !self.can_response_faults.is_empty() {
+            let descriptions: Vec<String> = self.can_response_faults.iter().map(|f| f.to_string()).collect();
+            let bitmask = CanResponseFault::to_bitmask(&self.can_response_faults);
+            warn!("Actuator {} CAN Response Faults (bits 21-16=0x{:06X}): {}", 
+                  actuator_id, bitmask >> 16, descriptions.join(", "));
+        }
+
+        if !self.motor_faults.is_empty() {
+            let descriptions: Vec<String> = self.motor_faults.iter().map(|f| f.to_string()).collect();
+            let bitmask = MotorFault::to_bitmask(&self.motor_faults);
+            warn!("Actuator {} Motor Faults (0x3022=0x{:08X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+
+        if !self.drv_fault1.is_empty() {
+            let descriptions: Vec<String> = self.drv_fault1.iter().map(|f| f.to_string()).collect();
+            let bitmask = DrvFault1::to_bitmask(&self.drv_fault1);
+            warn!("Actuator {} DRV Fault1 (0x3024=0x{:04X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+
+        if !self.drv_fault2.is_empty() {
+            let descriptions: Vec<String> = self.drv_fault2.iter().map(|f| f.to_string()).collect();
+            let bitmask = DrvFault2::to_bitmask(&self.drv_fault2);
+            warn!("Actuator {} DRV Fault2 (0x3025=0x{:04X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct FaultDecoder {
     pub motor_fault: u32,
     pub drv_fault1: u16,
     pub drv_fault2: u16,
-    pub can_response_faults: u32, // Faults from CAN response packet
+    pub can_response_faults: u32,
 }
 
 impl FaultDecoder {
@@ -121,171 +501,48 @@ impl FaultDecoder {
     }
 
     pub fn decode_can_response_faults(&self, fault_value: u32) -> Vec<String> {
-        let mut faults = Vec::new();
-        
-        if fault_value & can_response_faults::UNCALIBRATED != 0 {
-            faults.push("CAN: Uncalibrated".to_string());
-        }
-        if fault_value & can_response_faults::GRIDLOCK_OVERLOAD != 0 {
-            faults.push("CAN: Gridlock Overload".to_string());
-        }
-        if fault_value & can_response_faults::MAGNETIC_ENCODING != 0 {
-            faults.push("CAN: Magnetic Encoding Fault".to_string());
-        }
-        if fault_value & can_response_faults::OVERTEMPERATURE != 0 {
-            faults.push("CAN: Over-temperature".to_string());
-        }
-        if fault_value & can_response_faults::OVERCURRENT != 0 {
-            faults.push("CAN: Over-current".to_string());
-        }
-        if fault_value & can_response_faults::UNDERVOLTAGE != 0 {
-            faults.push("CAN: Undervoltage".to_string());
-        }
-        
-        faults
+        CanResponseFault::from_bitmask(fault_value)
+            .iter()
+            .map(|fault| fault.to_string())
+            .collect()
     }
 
     pub fn decode_motor_fault(&self, fault_value: u32) -> Vec<String> {
-        let mut faults = Vec::new();
-        
-        if fault_value & motor_fault::MOTOR_OVERTEMP != 0 {
-            faults.push("Motor Over-temperature (>145°C)".to_string());
-        }
-        if fault_value & motor_fault::DRIVER_FAULT != 0 {
-            faults.push("Driver Fault (see DRV status)".to_string());
-        }
-        if fault_value & motor_fault::UNDERVOLTAGE != 0 {
-            faults.push("Undervoltage (VBUS < 12V)".to_string());
-        }  
-        if fault_value & motor_fault::OVERVOLTAGE != 0 {
-            faults.push("Overvoltage (VBUS > 60V)".to_string());
-        }
-        if fault_value & motor_fault::ENCODER_UNCALIBRATED != 0 {
-            faults.push("Encoder Uncalibrated".to_string());
-        }
-        if fault_value & motor_fault::STALL_I2T_OVERLOAD != 0 {
-            faults.push("Stall/I²t Overload".to_string());
-        }
-        
-        faults
+        MotorFault::from_bitmask(fault_value)
+            .iter()
+            .map(|fault| fault.to_string())
+            .collect()
     }
 
     pub fn decode_drv_fault1(&self, fault_value: u16) -> Vec<String> {
-        let mut faults = Vec::new();
-        
-        if fault_value & drv_fault1::FAULT_OR != 0 {
-            faults.push("DRV: General Fault (nFAULT asserted)".to_string());
-        }
-        if fault_value & drv_fault1::VDS_OCP != 0 {
-            faults.push("DRV: Global VDS Over-current".to_string());
-        }
-        if fault_value & drv_fault1::GDF != 0 {
-            faults.push("DRV: Gate Driver Fault".to_string());
-        }
-        if fault_value & drv_fault1::UVLO != 0 {
-            faults.push("DRV: VCC Undervoltage Lock-out".to_string());
-        }
-        if fault_value & drv_fault1::OTSD != 0 {
-            faults.push("DRV: Over-temperature Shutdown (~150°C)".to_string());
-        }
-        if fault_value & drv_fault1::VDS_HA != 0 {
-            faults.push("DRV: Phase-A High VDS Over-current".to_string());
-        }
-        if fault_value & drv_fault1::VDS_LA != 0 {
-            faults.push("DRV: Phase-A Low VDS Over-current".to_string());
-        }
-        if fault_value & drv_fault1::VDS_HB != 0 {
-            faults.push("DRV: Phase-B High VDS Over-current".to_string());
-        }
-        if fault_value & drv_fault1::VDS_LB != 0 {
-            faults.push("DRV: Phase-B Low VDS Over-current".to_string());  
-        }
-        if fault_value & drv_fault1::VDS_HC != 0 {
-            faults.push("DRV: Phase-C High VDS Over-current".to_string());
-        }
-        if fault_value & drv_fault1::VDS_LC != 0 {
-            faults.push("DRV: Phase-C Low VDS Over-current".to_string());
-        }
-        
-        faults
+        DrvFault1::from_bitmask(fault_value)
+            .iter()
+            .map(|fault| fault.to_string())
+            .collect()
     }
 
     pub fn decode_drv_fault2(&self, fault_value: u16) -> Vec<String> {
-        let mut faults = Vec::new();
-        
-        if fault_value & drv_fault2::SA_OC != 0 {
-            faults.push("DRV: Phase-A Sense-amp Over-current (S-variant)".to_string());
-        }
-        if fault_value & drv_fault2::SB_OC != 0 {
-            faults.push("DRV: Phase-B Sense-amp Over-current (S-variant)".to_string());
-        }
-        if fault_value & drv_fault2::SC_OC != 0 {
-            faults.push("DRV: Phase-C Sense-amp Over-current (S-variant)".to_string());
-        }
-        if fault_value & drv_fault2::OTW != 0 {
-            faults.push("DRV: Over-temperature Warning (~125°C)".to_string());
-        }
-        if fault_value & drv_fault2::GDUV != 0 {
-            faults.push("DRV: Charge-pump/Gate-drive Undervoltage".to_string());
-        }
-        if fault_value & drv_fault2::VGS_HA != 0 {
-            faults.push("DRV: Phase-A High Gate Fault".to_string());
-        }
-        if fault_value & drv_fault2::VGS_LA != 0 {
-            faults.push("DRV: Phase-A Low Gate Fault".to_string());
-        }
-        if fault_value & drv_fault2::VGS_HB != 0 {
-            faults.push("DRV: Phase-B High Gate Fault".to_string());
-        }
-        if fault_value & drv_fault2::VGS_LB != 0 {
-            faults.push("DRV: Phase-B Low Gate Fault".to_string());
-        }
-        if fault_value & drv_fault2::VGS_HC != 0 {
-            faults.push("DRV: Phase-C High Gate Fault".to_string());
-        }
-        if fault_value & drv_fault2::VGS_LC != 0 {
-            faults.push("DRV: Phase-C Low Gate Fault".to_string());
-        }
-        
-        faults
+        DrvFault2::from_bitmask(fault_value)
+            .iter()
+            .map(|fault| fault.to_string())
+            .collect()
+    }
+
+    pub fn get_fault_collection(&self) -> FaultCollection {
+        FaultCollection::from_raw_values(
+            self.motor_fault,
+            self.drv_fault1,
+            self.drv_fault2,
+            self.can_response_faults,
+            0,
+        )
     }
 
     pub fn log_all_faults(&self, actuator_id: usize) {
-        // Log CAN response packet faults
-        if self.can_response_faults != 0 {
-            let can_faults = self.decode_can_response_faults(self.can_response_faults);
-            if !can_faults.is_empty() {
-                warn!("Actuator {} CAN Response Faults (bits 21-16): {}", 
-                      actuator_id, can_faults.join(", "));
-            }
-        }
-        
-        // Log detailed register faults
-        if self.motor_fault != 0 {
-            let motor_faults = self.decode_motor_fault(self.motor_fault);
-            if !motor_faults.is_empty() {
-                warn!("Actuator {} Motor Faults (0x3022=0x{:08X}): {}", 
-                      actuator_id, self.motor_fault, motor_faults.join(", "));
-            }
-        }
-        
-        if self.drv_fault1 != 0 {
-            let drv1_faults = self.decode_drv_fault1(self.drv_fault1);
-            if !drv1_faults.is_empty() {
-                warn!("Actuator {} DRV Fault1 (0x3024=0x{:04X}): {}", 
-                      actuator_id, self.drv_fault1, drv1_faults.join(", "));
-            }
-        }
-        
-        if self.drv_fault2 != 0 {
-            let drv2_faults = self.decode_drv_fault2(self.drv_fault2);
-            if !drv2_faults.is_empty() {
-                warn!("Actuator {} DRV Fault2 (0x3025=0x{:04X}): {}", 
-                      actuator_id, self.drv_fault2, drv2_faults.join(", "));
-            }
-        }
+        self.get_fault_collection().log_all_faults(actuator_id);
     }
 }
+
 
 impl Ready {
     pub async fn enable(&mut self) -> std::io::Result<()> {
@@ -300,8 +557,6 @@ impl Ready {
 
 impl Operate {
     pub async fn request_feedback(&mut self) -> std::io::Result<()> {
-        // send_request(self.shared_state.as_mut(), ActuatorRequestParams::Feedback).await?;
-        // read_responses(self.shared_state.as_mut()).await
         send_request(self.shared_state.as_mut(), &ActuatorRequestParams::Feedback).await
     }
 
@@ -315,14 +570,12 @@ impl Operate {
 
     pub async fn command(&mut self, act_states: &[ActuatorState]) -> std::io::Result<()> {
         send_commands(self.shared_state.as_mut(), act_states).await
-        // read_responses(self.shared_state.as_mut()).await
     }
 
     pub async fn process_feedback(
         &mut self,
         act_states: &mut [ActuatorState],
     ) -> std::io::Result<()> {
-        // read_responses(self.shared_state.as_mut()).await
         read_responses_update(self.shared_state.as_mut(), Some(act_states)).await
     }
 }
