@@ -721,7 +721,7 @@ async fn read_responses_update(
     let n = ss.actuator_clients.len();
     
     // Pre-compute servo ID mapping to avoid borrow conflicts
-    let servo_ids: Vec<u8> = ss.actuator_clients.iter()
+    let actuator_ids: Vec<u8> = ss.actuator_clients.iter()
         .map(|client| client.actuator_can_id)
         .collect();
 
@@ -775,29 +775,29 @@ async fn read_responses_update(
                             if !seen[client_idx] {
                                 rem -= 1;
                                 seen[client_idx] = true;
-                                // Extract servo_id directly from the CAN frame - no borrow conflicts
-                                let servo_id = actuator_can_id_from_response(&can_frame);
-                                debug!("First response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
+                                // Extract actuator_id directly from the CAN frame - no borrow conflicts
+                                let actuator_id = actuator_can_id_from_response(&can_frame);
+                                debug!("First response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
                             } else {
-                                let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
-                                debug!("Duplicate response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
+                                let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                debug!("Duplicate response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
                             }
                             
                             let can_id = can_frame.can_id; // Copy to local variable first
-                            let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
-                            debug!("Received CAN frame from actuator {} (servo_id: {}) on {}: ID=0x{:x}", client_idx, servo_id, ss.ifname, can_id);
+                            let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                            debug!("Received CAN frame from actuator {} (actuator_id: {}) on {}: ID=0x{:x}", client_idx, actuator_id, ss.ifname, can_id);
 
                             if let Err(e) = handler(&can_frame) {
-                                let servo_id = servo_ids.get(client_idx).copied().unwrap_or(0xFF);
-                                warn!("Handler error for actuator {} (servo_id: {}) on {}: {:?}", client_idx, servo_id, ss.ifname, e);
+                                let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                warn!("Handler error for actuator {} (actuator_id: {}) on {}: {:?}", client_idx, actuator_id, ss.ifname, e);
                                 // Continue processing other responses
                             }
                         } else {
                             let can_id = can_frame.can_id;
-                            let actual_servo_id = actuator_can_id_from_response(&can_frame);
+                            let actual_actuator_id = actuator_can_id_from_response(&can_frame);
                             warn!(
-                                "Invalid client_idx {} from CAN frame on {} (servo_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
-                                client_idx, ss.ifname, actual_servo_id, can_id, n - 1
+                                "Invalid client_idx {} from CAN frame on {} (actuator_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
+                                client_idx, ss.ifname, actual_actuator_id, can_id, n - 1
                             );
                         }
                     }
@@ -842,20 +842,20 @@ async fn read_responses_update(
                 let client_idx = (ss.response_to_client_idx)(&can_frame);
 
                 let can_id = can_frame.can_id; // Copy to local variable first
-                let servo_id = if client_idx < n {
-                    servo_ids.get(client_idx).copied().unwrap_or(0xFF)
+                let actuator_id = if client_idx < n {
+                    actuator_ids.get(client_idx).copied().unwrap_or(0xFF)
                 } else {
                     actuator_can_id_from_response(&can_frame)
                 };
-                debug!("Draining CAN frame from actuator {} (servo_id: {}) on {}: ID=0x{:x}", client_idx, servo_id, ss.ifname, can_id);
+                debug!("Draining CAN frame from actuator {} (actuator_id: {}) on {}: ID=0x{:x}", client_idx, actuator_id, ss.ifname, can_id);
 
                 if client_idx < n {
                     if !seen[client_idx] {
                         seen[client_idx] = true;
-                        debug!("Late response from actuator {} (servo_id: {}) on {}", client_idx, servo_id, ss.ifname);
+                        debug!("Late response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
                     }
                     if let Err(e) = handler(&can_frame) {
-                        warn!("Handler error during drain for actuator {} (servo_id: {}) on {}: {:?}", client_idx, servo_id, ss.ifname, e);
+                        warn!("Handler error during drain for actuator {} (actuator_id: {}) on {}: {:?}", client_idx, actuator_id, ss.ifname, e);
                     }
                 }
                 drain_count += 1;
