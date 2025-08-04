@@ -163,7 +163,7 @@ impl MultiFdWriter {
                     .page
                     .fill_from(&mut std::io::Cursor::new(vec![0; entry.page.remaining()]))
                     .map_err(std::io::Error::other)?;
-                trace!(
+                println!(
                     "Flushing entry: idx={}, remaining: {}",
                     entry.idx(),
                     entry.page.remaining()
@@ -177,7 +177,7 @@ impl MultiFdWriter {
         self.drain_ready_list()?;
 
         while self.io_stats.user_owned < self.ring.num_pages {
-            trace!(
+            println!(
                 "Flushing MultiFdWriter, user_owned: {}, num_pages: {}",
                 self.io_stats.user_owned, self.ring.num_pages
             );
