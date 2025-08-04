@@ -392,22 +392,18 @@ impl FaultCollection {
     }
 
     pub fn from_raw_values(
-        motor_fault: u32,
-        drv_fault1: u16,
-        drv_fault2: u16,
-        can_response_faults: u32,
-        system_faults: u32,
+        motor_faults: Vec<MotorFault>,
+        drv_fault1: Vec<DrvFault1>,
+        drv_fault2: Vec<DrvFault2>,
+        can_response_faults: Vec<CanResponseFault>,
+        system_faults: Vec<SystemFault>,
     ) -> Self {
         Self {
-            motor_faults: MotorFault::from_bitmask(motor_fault),
-            drv_fault1: DrvFault1::from_bitmask(drv_fault1),
-            drv_fault2: DrvFault2::from_bitmask(drv_fault2),
-            can_response_faults: CanResponseFault::from_bitmask(can_response_faults),
-            system_faults: if system_faults & SystemFault::CommunicationError.bit_value() != 0 {
-                vec![SystemFault::CommunicationError]
-            } else {
-                vec![]
-            },
+            motor_faults,
+            drv_fault1,
+            drv_fault2,
+            can_response_faults,
+            system_faults,
         }
     }
 
@@ -484,57 +480,43 @@ impl FaultCollection {
 
 #[derive(Debug)]
 pub struct FaultDecoder {
-    pub motor_fault: u32,
-    pub drv_fault1: u16,
-    pub drv_fault2: u16,
-    pub can_response_faults: u32,
+    pub motor_fault: Vec<MotorFault>,
+    pub drv_fault1: Vec<DrvFault1>,
+    pub drv_fault2: Vec<DrvFault2>,
+    pub can_response_faults: Vec<CanResponseFault>,
 }
 
 impl FaultDecoder {
     pub fn new() -> Self {
         Self {
-            motor_fault: 0,
-            drv_fault1: 0,
-            drv_fault2: 0,
-            can_response_faults: 0,
+            motor_fault: Vec::new(),
+            drv_fault1: Vec::new(),
+            drv_fault2: Vec::new(),
+            can_response_faults: Vec::new(),
         }
     }
 
-    pub fn decode_can_response_faults(&self, fault_value: u32) -> Vec<String> {
-        CanResponseFault::from_bitmask(fault_value)
-            .iter()
-            .map(|fault| fault.to_string())
-            .collect()
-    }
-
-    pub fn decode_motor_fault(&self, fault_value: u32) -> Vec<String> {
-        MotorFault::from_bitmask(fault_value)
-            .iter()
-            .map(|fault| fault.to_string())
-            .collect()
-    }
-
-    pub fn decode_drv_fault1(&self, fault_value: u16) -> Vec<String> {
-        DrvFault1::from_bitmask(fault_value)
-            .iter()
-            .map(|fault| fault.to_string())
-            .collect()
-    }
-
-    pub fn decode_drv_fault2(&self, fault_value: u16) -> Vec<String> {
-        DrvFault2::from_bitmask(fault_value)
-            .iter()
-            .map(|fault| fault.to_string())
-            .collect()
+    pub fn from_raw_values(
+        motor_fault: u32,
+        drv_fault1: u16,
+        drv_fault2: u16,
+        can_response_faults: u32,
+    ) -> Self {
+        Self {
+            motor_fault: MotorFault::from_bitmask(motor_fault),
+            drv_fault1: DrvFault1::from_bitmask(drv_fault1),
+            drv_fault2: DrvFault2::from_bitmask(drv_fault2),
+            can_response_faults: CanResponseFault::from_bitmask(can_response_faults),
+        }
     }
 
     pub fn get_fault_collection(&self) -> FaultCollection {
         FaultCollection::from_raw_values(
-            self.motor_fault,
-            self.drv_fault1,
-            self.drv_fault2,
-            self.can_response_faults,
-            0,
+            self.motor_fault.clone(),
+            self.drv_fault1.clone(),
+            self.drv_fault2.clone(),
+            self.can_response_faults.clone(),
+            Vec::new(), // system faults...
         )
     }
 

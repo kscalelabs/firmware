@@ -6,7 +6,7 @@ use tracing::info;
 use crate::socketcan::CanFrame;
 
 use crate::robot_description::{ActuatorCommand, ActuatorFeedbackUpdate, ActuatorId};
-use crate::actuator::{CanResponseFault, MotorFault, SystemFault, FaultDecoder};
+use crate::actuator::{CanResponseFault, MotorFault, SystemFault, FaultDecoder, DrvFault1, DrvFault2};
 
 use crate::robstride_utils::*;
 
@@ -741,7 +741,7 @@ impl ActuatorCanClient {
         // Log faults if any detected
         if can_faults != 0 {
             let mut decoder = FaultDecoder::new();
-            decoder.can_response_faults = can_faults;
+            decoder.can_response_faults = CanResponseFault::from_bitmask(can_faults);
             decoder.log_all_faults(self.actuator_can_id as usize);
         }
         
@@ -834,21 +834,21 @@ impl ActuatorCanClient {
         if let Some(param) = param {
             match param {
                 RobstrideActuatorParam::MotorFault => {
-                    let motor_fault = resp.value;
+                    let motor_fault = MotorFault::from_bitmask(resp.value);
                     let mut decoder = FaultDecoder::new();
                     decoder.motor_fault = motor_fault;
                     decoder.log_all_faults(self.actuator_can_id as usize);
                     Ok(Some(decoder))
                 }
                 RobstrideActuatorParam::DrvFault1 => {
-                    let drv_fault1 = resp.value as u16;
+                    let drv_fault1 = DrvFault1::from_bitmask(resp.value as u16);
                     let mut decoder = FaultDecoder::new();
                     decoder.drv_fault1 = drv_fault1;
                     decoder.log_all_faults(self.actuator_can_id as usize);
                     Ok(Some(decoder))
                 }
                 RobstrideActuatorParam::DrvFault2 => {
-                    let drv_fault2 = resp.value as u16;
+                    let drv_fault2 = DrvFault2::from_bitmask(resp.value as u16);
                     let mut decoder = FaultDecoder::new();
                     decoder.drv_fault2 = drv_fault2;
                     decoder.log_all_faults(self.actuator_can_id as usize);
