@@ -613,6 +613,8 @@ impl State for Reset {
                     shared_state,
                     creation_time: std::time::Instant::now(),
                     session_input_vec: self.session_input_vec,
+                    lpf_prev_qpos: enum_map::EnumMap::default(),
+                    lpf_last_update: std::time::Instant::now(),
                 }),
                 result: Ok(()),
             }
@@ -624,6 +626,9 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
     creation_time: std::time::Instant,
     session_input_vec: Vec<ort::session::SessionInputValue<'static>>,
+    // Per-actuator low-pass filter state for commanded qpos
+    lpf_prev_qpos: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    lpf_last_update: std::time::Instant,
 }
 
 impl std::fmt::Debug for Operate {
@@ -744,19 +749,36 @@ impl Operate {
             .map_err(std::io::Error::other)?;
 
         let actuator_states = &mut robot_description.actuators.actuator_states;
+
+        let cutoff_hz = robot_description.lpf_cutoff_hz;
+        let prev_map = &mut self.lpf_prev_qpos;
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.lpf_last_update).as_secs_f64();
+        self.lpf_last_update = now;
+
         for (i, command) in commands.iter().enumerate() {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
-            // get the normalized qpso
+            // get the normalized qpos
             let normalized_qpos =
                 robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
             let err = *command as f64 - normalized_qpos;
-            let final_command = act_state.feedback.qpos + err * robot_description.policy_scale;
-            // TODO: action scale
-            // act_state.command.qpos = *command as f64 * robot_description.policy_scale;
+            let unfiltered = act_state.feedback.qpos + err * robot_description.policy_scale;
+
+            // One-pole LPF: y = y_prev + alpha * (x - y_prev); alpha = 1 - exp(-2*pi*fc*dt)
+            let filtered = if cutoff_hz <= 0.0 || dt <= 0.0 {
+                unfiltered
+            } else {
+                let alpha = 1.0 - (-2.0 * std::f64::consts::PI * cutoff_hz * dt).exp();
+                let y_prev = prev_map[actuator_id];
+                let y = y_prev + alpha * (unfiltered - y_prev);
+                prev_map[actuator_id] = y;
+                y
+            };
+            let final_command = filtered;
             act_state.command.qpos = final_command;
-            act_state.command.qvel = 0.0; // no velocity
-            act_state.command.qfrc = 0.0; // no force
+            act_state.command.qvel = 0.0; // no velocity command
+            act_state.command.qfrc = 0.0; // no torque command
             act_state.command.kp =
                 robot_description.policy_position[actuator_id].kp * robot_description.kp_scale;
             act_state.command.kd =
@@ -876,6 +898,8 @@ impl State for Operate {
                     shared_state,
                     creation_time: self.creation_time,
                     session_input_vec: self.session_input_vec,
+                    lpf_prev_qpos: self.lpf_prev_qpos,
+                    lpf_last_update: self.lpf_last_update,
                 }),
                 result: Ok(()),
             }
