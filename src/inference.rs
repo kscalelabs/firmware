@@ -613,8 +613,8 @@ impl State for Reset {
                     shared_state,
                     creation_time: std::time::Instant::now(),
                     session_input_vec: self.session_input_vec,
-                    lpf_prev_qpos: None,
-                    lpf_last_update: None,
+                    lpf_prev_qpos: enum_map::EnumMap::default(),
+                    lpf_last_update: std::time::Instant::now(),
                 }),
                 result: Ok(()),
             }
@@ -627,8 +627,8 @@ pub struct Operate {
     creation_time: std::time::Instant,
     session_input_vec: Vec<ort::session::SessionInputValue<'static>>,
     // Per-actuator low-pass filter state for commanded qpos
-    lpf_prev_qpos: Option<enum_map::EnumMap<crate::robot_description::ActuatorId, f64>>, 
-    lpf_last_update: Option<std::time::Instant>,
+    lpf_prev_qpos: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    lpf_last_update: std::time::Instant,
 }
 
 impl std::fmt::Debug for Operate {
@@ -750,29 +750,16 @@ impl Operate {
 
         let actuator_states = &mut robot_description.actuators.actuator_states;
 
-        // Initialize LPF state lazily on first use
-        if self.lpf_prev_qpos.is_none() {
-            let cutoff_hz_dbg = robot_description.lpf_cutoff_hz;
-            info!("Initializing Lowpass Filter; cutoff_hz={:.3}", cutoff_hz_dbg);
-            let mut init = enum_map::EnumMap::<crate::robot_description::ActuatorId, f64>::default();
-            for (act_id, state) in actuator_states.iter() {
-                init[act_id] = state.feedback.qpos;
-            }
-            self.lpf_prev_qpos = Some(init);
-            self.lpf_last_update = Some(std::time::Instant::now());
-        }
-
         let cutoff_hz = robot_description.lpf_cutoff_hz;
-        let prev_map_opt = &mut self.lpf_prev_qpos;
-        let last_update_opt = &mut self.lpf_last_update;
+        let prev_map = &mut self.lpf_prev_qpos;
         let now = std::time::Instant::now();
-        let dt = if let Some(last) = *last_update_opt { now.duration_since(last).as_secs_f64() } else { 0.0 };
-        *last_update_opt = Some(now);
+        let dt = now.duration_since(self.lpf_last_update).as_secs_f64();
+        self.lpf_last_update = now;
 
         for (i, command) in commands.iter().enumerate() {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
-            // get the normalized qpso
+            // get the normalized qpos
             let normalized_qpos =
                 robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
             let err = *command as f64 - normalized_qpos;
@@ -783,21 +770,15 @@ impl Operate {
                 unfiltered
             } else {
                 let alpha = 1.0 - (-2.0 * std::f64::consts::PI * cutoff_hz * dt).exp();
-                if let Some(prev_map) = prev_map_opt.as_mut() {
-                    let y_prev = prev_map[actuator_id];
-                    let y = y_prev + alpha * (unfiltered - y_prev);
-                    prev_map[actuator_id] = y;
-                    y
-                } else {
-                    unfiltered
-                }
+                let y_prev = prev_map[actuator_id];
+                let y = y_prev + alpha * (unfiltered - y_prev);
+                prev_map[actuator_id] = y;
+                y
             };
             let final_command = filtered;
-            // TODO: action scale
-            // act_state.command.qpos = *command as f64 * robot_description.policy_scale;
             act_state.command.qpos = final_command;
-            act_state.command.qvel = 0.0; // no velocity
-            act_state.command.qfrc = 0.0; // no force
+            act_state.command.qvel = 0.0; // no velocity command
+            act_state.command.qfrc = 0.0; // no torque command
             act_state.command.kp =
                 robot_description.policy_position[actuator_id].kp * robot_description.kp_scale;
             act_state.command.kd =
