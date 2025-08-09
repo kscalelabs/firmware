@@ -732,6 +732,25 @@ async fn read_responses_update(
                 Ok(Some(fdbk)) => {
                     if let Some(ref mut act_states) = act_states {
                         if let Some(state) = act_states.get_mut(client_idx) {
+                            // Rising-edge CAN fault logging
+                            if let Some(new_faults) = fdbk.faults {
+                                let prev_faults = state.feedback.faults;
+                                let rising = new_faults & !prev_faults;
+                                if rising != 0 {
+                                    let descriptions: Vec<String> = CanResponseFault::from_bitmask(rising)
+                                        .iter()
+                                        .map(|f| f.to_string())
+                                        .collect();
+                                    let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                    warn!(
+                                        "Actuator {} CAN Response Faults (0x{:06X}): {}",
+                                        actuator_id,
+                                        rising >> 16,
+                                        descriptions.join(", ")
+                                    );
+                                }
+                            }
+            
                             state.merge_feedback(fdbk);
                         } else {
                             return Err(std::io::Error::new(
