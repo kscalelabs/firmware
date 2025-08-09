@@ -385,6 +385,10 @@ pub struct Args {
     /// derivative gain scale
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
     kd_scale: f64,
+
+    /// low-pass filter cutoff in Hz for policy outputs (0 disables filtering)
+    #[arg(long, value_name = "FLOAT", default_value_t = 6.0)]
+    lpf_cutoff_hz: f64,
 }
 
 pub struct RobotDescription {
@@ -398,6 +402,7 @@ pub struct RobotDescription {
     pub policy_scale: f64,
     pub kp_scale: f64,
     pub kd_scale: f64,
+    pub lpf_cutoff_hz: f64,
 }
 
 impl Default for RobotDescription {
@@ -419,6 +424,7 @@ impl RobotDescription {
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
+            lpf_cutoff_hz: args.lpf_cutoff_hz,
             home_position: enum_map! {
                 ActuatorId::Lsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Lsr => ActuatorCommand { qpos: (10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },
