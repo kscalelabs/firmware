@@ -921,6 +921,7 @@ impl ModelManager {
         model_path: P,
         robot_description: &RobotDescription,
     ) -> std::io::Result<Self> {
+        info!("LPF Cutoff freq: {} hz", robot_description.lpf_cutoff_hz);
         Ok(Self {
             state: Some(StateStore::Reset(Reset {
                 shared_state: Box::pin(Store::new(model_path, robot_description)?),
