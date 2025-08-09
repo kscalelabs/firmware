@@ -622,20 +622,6 @@ impl ActuatorCanClient {
                     let fault_value = resp.fault_value;
                     let warning_value = resp.warning_value;
                     
-                    // Fault frames are unsolicited, so we don't check transaction state
-                    /*warn!("Received fault frame from servo {}: fault_value=0x{:08X}, warning_value=0x{:08X}", 
-                          actuator_id, fault_value, warning_value);
-                          
-                    if resp.has_faults() {
-                        let faults = resp.get_fault_descriptions();
-                        warn!("Servo {} FAULTS: {:?}", actuator_id, faults);
-                    }
-                    
-                    if resp.has_warnings() {
-                        let warnings = resp.get_warning_descriptions();
-                        warn!("Servo {} WARNINGS: {:?}", actuator_id, warnings);
-                    }*/
-                    
                     // Fault frames don't affect the client state - they're just informational
                     return Ok(None);
                 }
@@ -644,6 +630,31 @@ impl ActuatorCanClient {
                         std::io::ErrorKind::InvalidData,
                         "Expected fault response for mux 0x15",
                     ));
+                }
+            }
+        }
+
+        // Treat feedback (0x02) as unsolicited unless we’re currently expecting it.
+        if response_mux == 0x02 {
+            let expecting_feedback = self
+                .last_request
+                .as_ref()
+                .map(|r| r.response_mux())
+                == Some(0x02);
+
+            if !expecting_feedback {
+                match (*response).into() {
+                    ActuatorResponse::Feedback(resp) => {
+                        // Ignore frames for other actuators
+                        if resp.actuator_can_id != self.actuator_can_id {
+                            return Ok(None);
+                        }
+                        // Do NOT change state/last_request; just surface the update
+                        return Ok(Some(self.update_from_feedback(&resp, response)));
+                    }
+                    _ => {
+                        return Ok(None);
+                    }
                 }
             }
         }
@@ -737,13 +748,6 @@ impl ActuatorCanClient {
         
         // Convert protocol fault flags (from CAN packet) to standardized fault format
         let can_faults = self.convert_protocol_faults_to_standard(fault_flags);
-        
-        // Log faults if any detected
-        if can_faults != 0 {
-            let mut decoder = FaultDecoder::new();
-            decoder.can_response_faults = CanResponseFault::from_bitmask(can_faults);
-            decoder.log_all_faults(self.actuator_can_id as usize);
-        }
         
         ActuatorFeedbackUpdate {
             qpos: Some(self.can_range.angle.scale_value(
