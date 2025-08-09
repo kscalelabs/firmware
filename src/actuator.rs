@@ -2,7 +2,7 @@ use crate::socketcan2::{SocketCanConfigurator, SocketCanOperator};
 use crate::typestate_socket2::{Socket, SocketGraph, SocketState, SocketStorage};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tracing::{debug, error};
+use tracing::{debug, error, warn};
 
 use crate::socketcan::CanFrame;
 use std::fmt::Debug;
@@ -48,6 +48,484 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
 }
 
+use std::fmt::{self, Display};
+
+// Motor faults enum with bit values and descriptions
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum MotorFault {
+    MotorOvertemp,      // >145 °C
+    DriverFault,        // See drv_fault::* below
+    Undervoltage,       // VBUS < 12 V
+    Overvoltage,        // VBUS > 60 V
+    EncoderUncalibrated, // Encoder not zeroed
+    StallI2tOverload,   // Stall / I²t limit
+}
+
+impl MotorFault {
+     pub fn critical_faults() -> &'static [Self] {
+        &[Self::MotorOvertemp, Self::DriverFault, Self::StallI2tOverload]
+    }
+
+    pub fn has_critical_faults_in_mask(mask: u32) -> bool {
+        Self::critical_faults()
+            .iter()
+            .any(|fault| mask & fault.bit_value() != 0)
+    }
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::MotorOvertemp => 1 << 0,
+            Self::DriverFault => 1 << 1,
+            Self::Undervoltage => 1 << 2,
+            Self::Overvoltage => 1 << 3,
+            Self::EncoderUncalibrated => 1 << 7,
+            Self::StallI2tOverload => 1 << 14,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::MotorOvertemp,
+            Self::DriverFault,
+            Self::Undervoltage,
+            Self::Overvoltage,
+            Self::EncoderUncalibrated,
+            Self::StallI2tOverload,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u32) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u32 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+}
+
+impl Display for MotorFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::MotorOvertemp => write!(f, "Motor Over-temperature (>145°C)"),
+            Self::DriverFault => write!(f, "Driver Fault (see DRV status)"),
+            Self::Undervoltage => write!(f, "Undervoltage (VBUS < 12V)"),
+            Self::Overvoltage => write!(f, "Overvoltage (VBUS > 60V)"),
+            Self::EncoderUncalibrated => write!(f, "Encoder Uncalibrated"),
+            Self::StallI2tOverload => write!(f, "Stall/I²t Overload"),
+        }
+    }
+}
+
+impl TryFrom<u32> for MotorFault {
+    type Error = &'static str;
+
+    fn try_from(value: u32) -> Result<Self, Self::Error> {
+        match value {
+            v if v == Self::MotorOvertemp.bit_value() => Ok(Self::MotorOvertemp),
+            v if v == Self::DriverFault.bit_value() => Ok(Self::DriverFault),
+            v if v == Self::Undervoltage.bit_value() => Ok(Self::Undervoltage),
+            v if v == Self::Overvoltage.bit_value() => Ok(Self::Overvoltage),
+            v if v == Self::EncoderUncalibrated.bit_value() => Ok(Self::EncoderUncalibrated),
+            v if v == Self::StallI2tOverload.bit_value() => Ok(Self::StallI2tOverload),
+            _ => Err("Invalid motor fault bit value"),
+        }
+    }
+}
+
+// DRV Fault1 enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DrvFault1 {
+    FaultOr,    // Logic‑OR of *all* faults (mirrors nFAULT pin)
+    VdsOcp,     // Global drain‑source over‑current monitor event
+    Gdf,        // Gate‑driver fault (charge‑pump or VDS monitor mismatch)
+    Uvlo,       // Device VCC undervoltage lock‑out
+    Otsd,       // Over‑temperature shutdown (≈ 150 °C, latched)
+    VdsHa,      // Phase‑A high‑side VDS over‑current
+    VdsLa,      // Phase‑A low‑side  VDS over‑current
+    VdsHb,      // Phase‑B high‑side VDS over‑current
+    VdsLb,      // Phase‑B low‑side  VDS over‑current
+    VdsHc,      // Phase‑C high‑side VDS over‑current
+    VdsLc,      // Phase‑C low‑side  VDS over‑current
+}
+
+impl DrvFault1 {
+    pub const fn bit_value(self) -> u16 {
+        match self {
+            Self::FaultOr => 1 << 10,
+            Self::VdsOcp => 1 << 9,
+            Self::Gdf => 1 << 8,
+            Self::Uvlo => 1 << 7,
+            Self::Otsd => 1 << 6,
+            Self::VdsHa => 1 << 5,
+            Self::VdsLa => 1 << 4,
+            Self::VdsHb => 1 << 3,
+            Self::VdsLb => 1 << 2,
+            Self::VdsHc => 1 << 1,
+            Self::VdsLc => 1 << 0,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::FaultOr, Self::VdsOcp, Self::Gdf, Self::Uvlo, Self::Otsd,
+            Self::VdsHa, Self::VdsLa, Self::VdsHb, Self::VdsLb, Self::VdsHc, Self::VdsLc,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u16) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u16 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+}
+
+impl Display for DrvFault1 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::FaultOr => write!(f, "DRV: General Fault (nFAULT asserted)"),
+            Self::VdsOcp => write!(f, "DRV: Global VDS Over-current"),
+            Self::Gdf => write!(f, "DRV: Gate Driver Fault"),
+            Self::Uvlo => write!(f, "DRV: VCC Undervoltage Lock-out"),
+            Self::Otsd => write!(f, "DRV: Over-temperature Shutdown (~150°C)"),
+            Self::VdsHa => write!(f, "DRV: Phase-A High VDS Over-current"),
+            Self::VdsLa => write!(f, "DRV: Phase-A Low VDS Over-current"),
+            Self::VdsHb => write!(f, "DRV: Phase-B High VDS Over-current"),
+            Self::VdsLb => write!(f, "DRV: Phase-B Low VDS Over-current"),
+            Self::VdsHc => write!(f, "DRV: Phase-C High VDS Over-current"),
+            Self::VdsLc => write!(f, "DRV: Phase-C Low VDS Over-current"),
+        }
+    }
+}
+
+// DRV Fault2 enum  
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum DrvFault2 {
+    SaOc,    // Phase‑A sense‑amp OC  (S‑variant only)
+    SbOc,    // Phase‑B sense‑amp OC  (S‑variant only)
+    ScOc,    // Phase‑C sense‑amp OC  (S‑variant only)
+    Otw,     // Over‑temperature warning
+    Gduv,    // Charge‑pump / gate‑drive UV
+    VgsHa,   // Gate fault: phase‑A high‑side
+    VgsLa,   // Gate fault: phase‑A low‑side
+    VgsHb,   // Gate fault: phase‑B high‑side
+    VgsLb,   // Gate fault: phase‑B low‑side
+    VgsHc,   // Gate fault: phase‑C high‑side
+    VgsLc,   // Gate fault: phase‑C low‑side
+}
+
+impl DrvFault2 {
+    pub const fn bit_value(self) -> u16 {
+        match self {
+            Self::SaOc => 1 << 10,
+            Self::SbOc => 1 << 9,
+            Self::ScOc => 1 << 8,
+            Self::Otw => 1 << 7,
+            Self::Gduv => 1 << 6,
+            Self::VgsHa => 1 << 5,
+            Self::VgsLa => 1 << 4,
+            Self::VgsHb => 1 << 3,
+            Self::VgsLb => 1 << 2,
+            Self::VgsHc => 1 << 1,
+            Self::VgsLc => 1 << 0,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::SaOc, Self::SbOc, Self::ScOc, Self::Otw, Self::Gduv,
+            Self::VgsHa, Self::VgsLa, Self::VgsHb, Self::VgsLb, Self::VgsHc, Self::VgsLc,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u16) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u16 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+}
+
+impl Display for DrvFault2 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::SaOc => write!(f, "DRV: Phase-A Sense-amp Over-current (S-variant)"),
+            Self::SbOc => write!(f, "DRV: Phase-B Sense-amp Over-current (S-variant)"),
+            Self::ScOc => write!(f, "DRV: Phase-C Sense-amp Over-current (S-variant)"),
+            Self::Otw => write!(f, "DRV: Over-temperature Warning (~125°C)"),
+            Self::Gduv => write!(f, "DRV: Charge-pump/Gate-drive Undervoltage"),
+            Self::VgsHa => write!(f, "DRV: Phase-A High Gate Fault"),
+            Self::VgsLa => write!(f, "DRV: Phase-A Low Gate Fault"),
+            Self::VgsHb => write!(f, "DRV: Phase-B High Gate Fault"),
+            Self::VgsLb => write!(f, "DRV: Phase-B Low Gate Fault"),
+            Self::VgsHc => write!(f, "DRV: Phase-C High Gate Fault"),
+            Self::VgsLc => write!(f, "DRV: Phase-C Low Gate Fault"),
+        }
+    }
+}
+
+// CAN Response faults enum
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum CanResponseFault {
+    Uncalibrated,      // bit21: uncalibrated
+    GridlockOverload,  // bit20: Gridlock overload fault  
+    MagneticEncoding,  // bit19: magnetic coding fault
+    Overtemperature,   // bit18: overtemperature
+    Overcurrent,       // bit17: overcurrent
+    Undervoltage,      // bit16: undervoltage fault
+}
+
+impl CanResponseFault {
+    pub fn has_critical_faults_in_mask(mask: u32) -> bool {
+        Self::critical_faults()
+            .iter()
+            .any(|fault| mask & fault.bit_value() != 0)
+    }
+
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::Uncalibrated => 1 << 21,
+            Self::GridlockOverload => 1 << 20,
+            Self::MagneticEncoding => 1 << 19,
+            Self::Overtemperature => 1 << 18,
+            Self::Overcurrent => 1 << 17,
+            Self::Undervoltage => 1 << 16,
+        }
+    }
+
+    pub fn all_variants() -> &'static [Self] {
+        &[
+            Self::Uncalibrated,
+            Self::GridlockOverload,
+            Self::MagneticEncoding,
+            Self::Overtemperature,
+            Self::Overcurrent,
+            Self::Undervoltage,
+        ]
+    }
+
+    pub fn from_bitmask(mask: u32) -> Vec<Self> {
+        Self::all_variants()
+            .iter()
+            .filter(|fault| mask & fault.bit_value() != 0)
+            .copied()
+            .collect()
+    }
+
+    pub fn to_bitmask(faults: &[Self]) -> u32 {
+        faults.iter().fold(0, |acc, fault| acc | fault.bit_value())
+    }
+
+    /// Get critical faults that make operation unsafe
+    pub fn critical_faults() -> &'static [Self] {
+        &[Self::Overtemperature, Self::Overcurrent]
+    }
+}
+
+impl Display for CanResponseFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Uncalibrated => write!(f, "CAN: Uncalibrated"),
+            Self::GridlockOverload => write!(f, "CAN: Gridlock Overload"),
+            Self::MagneticEncoding => write!(f, "CAN: Magnetic Encoding Fault"),
+            Self::Overtemperature => write!(f, "CAN: Over-temperature"),
+            Self::Overcurrent => write!(f, "CAN: Over-current"),
+            Self::Undervoltage => write!(f, "CAN: Undervoltage"),
+        }
+    }
+}
+
+// Additional fault for communication errors
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum SystemFault {
+    CommunicationError, // Communication timeout/error
+}
+
+impl SystemFault {
+    pub const fn bit_value(self) -> u32 {
+        match self {
+            Self::CommunicationError => 0x20,
+        }
+    }
+}
+
+impl Display for SystemFault {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CommunicationError => write!(f, "Communication Error"),
+        }
+    }
+}
+
+// Unified fault collection for easier handling
+#[derive(Debug, Clone)]
+pub struct FaultCollection {
+    pub motor_faults: Vec<MotorFault>,
+    pub drv_fault1: Vec<DrvFault1>,
+    pub drv_fault2: Vec<DrvFault2>,
+    pub can_response_faults: Vec<CanResponseFault>,
+    pub system_faults: Vec<SystemFault>,
+}
+
+impl FaultCollection {
+    pub fn new() -> Self {
+        Self {
+            motor_faults: Vec::new(),
+            drv_fault1: Vec::new(),
+            drv_fault2: Vec::new(),
+            can_response_faults: Vec::new(),
+            system_faults: Vec::new(),
+        }
+    }
+
+    pub fn from_raw_values(
+        motor_faults: Vec<MotorFault>,
+        drv_fault1: Vec<DrvFault1>,
+        drv_fault2: Vec<DrvFault2>,
+        can_response_faults: Vec<CanResponseFault>,
+        system_faults: Vec<SystemFault>,
+    ) -> Self {
+        Self {
+            motor_faults,
+            drv_fault1,
+            drv_fault2,
+            can_response_faults,
+            system_faults,
+        }
+    }
+
+    pub fn has_faults(&self) -> bool {
+        !self.motor_faults.is_empty()
+            || !self.drv_fault1.is_empty()
+            || !self.drv_fault2.is_empty()
+            || !self.can_response_faults.is_empty()
+            || !self.system_faults.is_empty()
+    }
+
+    pub fn is_safe_to_operate(&self) -> bool {
+        let critical_motor_faults = [
+            MotorFault::MotorOvertemp,
+            MotorFault::DriverFault,
+            MotorFault::StallI2tOverload,
+        ];
+
+        let has_critical_motor = self.motor_faults.iter()
+            .any(|fault| critical_motor_faults.contains(fault));
+
+        let has_critical_can = self.can_response_faults.iter()
+            .any(|fault| CanResponseFault::critical_faults().contains(fault));
+
+        !(has_critical_motor || has_critical_can)
+    }
+
+    pub fn description(&self) -> String {
+        if !self.has_faults() {
+            return "No faults".to_string();
+        }
+
+        let mut descriptions = Vec::new();
+
+        descriptions.extend(self.can_response_faults.iter().map(|f| f.to_string()));
+        descriptions.extend(self.motor_faults.iter().map(|f| f.to_string()));
+        descriptions.extend(self.drv_fault1.iter().map(|f| f.to_string()));
+        descriptions.extend(self.drv_fault2.iter().map(|f| f.to_string()));
+        descriptions.extend(self.system_faults.iter().map(|f| f.to_string()));
+
+        descriptions.join(", ")
+    }
+
+    pub fn log_all_faults(&self, actuator_id: usize) {
+        if !self.can_response_faults.is_empty() {
+            let descriptions: Vec<String> = self.can_response_faults.iter().map(|f| f.to_string()).collect();
+            let bitmask = CanResponseFault::to_bitmask(&self.can_response_faults);
+            warn!("Actuator {} CAN Response Faults (bits 21-16=0x{:06X}): {}", 
+                  actuator_id, bitmask >> 16, descriptions.join(", "));
+        }
+
+        if !self.motor_faults.is_empty() {
+            let descriptions: Vec<String> = self.motor_faults.iter().map(|f| f.to_string()).collect();
+            let bitmask = MotorFault::to_bitmask(&self.motor_faults);
+            warn!("Actuator {} Motor Faults (0x3022=0x{:08X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+
+        if !self.drv_fault1.is_empty() {
+            let descriptions: Vec<String> = self.drv_fault1.iter().map(|f| f.to_string()).collect();
+            let bitmask = DrvFault1::to_bitmask(&self.drv_fault1);
+            warn!("Actuator {} DRV Fault1 (0x3024=0x{:04X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+
+        if !self.drv_fault2.is_empty() {
+            let descriptions: Vec<String> = self.drv_fault2.iter().map(|f| f.to_string()).collect();
+            let bitmask = DrvFault2::to_bitmask(&self.drv_fault2);
+            warn!("Actuator {} DRV Fault2 (0x3025=0x{:04X}): {}", 
+                  actuator_id, bitmask, descriptions.join(", "));
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct FaultDecoder {
+    pub motor_fault: Vec<MotorFault>,
+    pub drv_fault1: Vec<DrvFault1>,
+    pub drv_fault2: Vec<DrvFault2>,
+    pub can_response_faults: Vec<CanResponseFault>,
+}
+
+impl FaultDecoder {
+    pub fn new() -> Self {
+        Self {
+            motor_fault: Vec::new(),
+            drv_fault1: Vec::new(),
+            drv_fault2: Vec::new(),
+            can_response_faults: Vec::new(),
+        }
+    }
+
+    pub fn from_raw_values(
+        motor_fault: u32,
+        drv_fault1: u16,
+        drv_fault2: u16,
+        can_response_faults: u32,
+    ) -> Self {
+        Self {
+            motor_fault: MotorFault::from_bitmask(motor_fault),
+            drv_fault1: DrvFault1::from_bitmask(drv_fault1),
+            drv_fault2: DrvFault2::from_bitmask(drv_fault2),
+            can_response_faults: CanResponseFault::from_bitmask(can_response_faults),
+        }
+    }
+
+    pub fn get_fault_collection(&self) -> FaultCollection {
+        FaultCollection::from_raw_values(
+            self.motor_fault.clone(),
+            self.drv_fault1.clone(),
+            self.drv_fault2.clone(),
+            self.can_response_faults.clone(),
+            Vec::new(), // system faults...
+        )
+    }
+
+    pub fn log_all_faults(&self, actuator_id: usize) {
+        self.get_fault_collection().log_all_faults(actuator_id);
+    }
+}
+
+
 impl Ready {
     pub async fn enable(&mut self) -> std::io::Result<()> {
         send_request(
@@ -61,8 +539,6 @@ impl Ready {
 
 impl Operate {
     pub async fn request_feedback(&mut self) -> std::io::Result<()> {
-        // send_request(self.shared_state.as_mut(), ActuatorRequestParams::Feedback).await?;
-        // read_responses(self.shared_state.as_mut()).await
         send_request(self.shared_state.as_mut(), &ActuatorRequestParams::Feedback).await
     }
 
@@ -76,14 +552,12 @@ impl Operate {
 
     pub async fn command(&mut self, act_states: &[ActuatorState]) -> std::io::Result<()> {
         send_commands(self.shared_state.as_mut(), act_states).await
-        // read_responses(self.shared_state.as_mut()).await
     }
 
     pub async fn process_feedback(
         &mut self,
         act_states: &mut [ActuatorState],
     ) -> std::io::Result<()> {
-        // read_responses(self.shared_state.as_mut()).await
         read_responses_update(self.shared_state.as_mut(), Some(act_states)).await
     }
 }
@@ -241,11 +715,15 @@ async fn read_responses_update(
     let mut ss = ss.project();
 
     let Some(SocketState::Operate(op_socket)) = ss.socket_graph.project().state else {
-        // no operational socket, go back to configure state
         return Err(std::io::Error::other("Socket is not in Operate state"));
     };
 
-    let mut n = ss.actuator_clients.len();
+    let n = ss.actuator_clients.len();
+    
+    // Pre-compute servo ID mapping to avoid borrow conflicts
+    let actuator_ids: Vec<u8> = ss.actuator_clients.iter()
+        .map(|client| client.actuator_can_id)
+        .collect();
 
     let mut handler = |can_frame: &CanFrame| {
         let client_idx = (ss.response_to_client_idx)(can_frame);
@@ -265,56 +743,152 @@ async fn read_responses_update(
                 }
                 Ok(None) => {}
                 Err(e) => {
-                    return Err(e);
+                    //warn!("Error handling response from actuator {}: {:?}", client_idx, e);
+                    // Don't propagate individual response errors - be more tolerant
                 }
             }
         } else {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::NotFound,
-                format!("No client found for response with index {client_idx}"),
-            ));
+            warn!("No client found for response with index {client_idx}");
         }
         Ok(())
     };
 
-    let mut read_data = [0u8; 16]; // read buffer
+    let mut read_data = [0u8; 16];
     let mut seen = vec![false; n];
-    let mut rem = 5;
+    let mut rem = n; // Wait for responses from all actuators
+    
+    // Use overall timeout to prevent infinite hanging, but much longer than before
+    const OVERALL_TIMEOUT_MS: u64 = 100; // This is not good, please do better
+    let overall_timeout = tokio::time::timeout(
+        std::time::Duration::from_millis(OVERALL_TIMEOUT_MS),
+        async {
+            // Restore original blocking logic but with proper error handling
+            while rem > 0 {
+                let res = op_socket.read(&mut read_data).await;
+                match res {
+                    Ok(_) => {
+                        let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
+                        let client_idx = (ss.response_to_client_idx)(&can_frame);
+                        
+                        if client_idx < n {
+                            // Only decrement rem if this is a NEW response
+                            if !seen[client_idx] {
+                                rem -= 1;
+                                seen[client_idx] = true;
+                                // Extract actuator_id directly from the CAN frame - no borrow conflicts
+                                let actuator_id = actuator_can_id_from_response(&can_frame);
+                                debug!("First response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
+                            } else {
+                                let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                debug!("Duplicate response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
+                            }
+                            
+                            let can_id = can_frame.can_id; // Copy to local variable first
+                            let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                            debug!("Received CAN frame from actuator {} (actuator_id: {}) on {}: ID=0x{:x}", client_idx, actuator_id, ss.ifname, can_id);
 
-    // read responses until we have seen all clients
-    while (rem > 0) {
-        let res = op_socket.read(&mut read_data).await;
-        match res {
-            Ok(_) => {
-                // Process the read data here
-                let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
-                let client_idx = (ss.response_to_client_idx)(&can_frame);
-
-                // decrement rem if not seen
-                rem -= !seen[client_idx] as usize;
-                seen[client_idx] = true;
-
-                debug!("Received CanFrame: {:?}", can_frame);
-                handler(&can_frame)?;
+                            if let Err(e) = handler(&can_frame) {
+                                let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                warn!("Handler error for actuator {} (actuator_id: {}) on {}: {:?}", client_idx, actuator_id, ss.ifname, e);
+                                // Continue processing other responses
+                            }
+                        } else {
+                            let can_id = can_frame.can_id;
+                            let actual_actuator_id = actuator_can_id_from_response(&can_frame);
+                            warn!(
+                                "Invalid client_idx {} from CAN frame on {} (actuator_id: {}, CAN ID: 0x{:08X}, expected range: 0-{})", 
+                                client_idx, ss.ifname, actual_actuator_id, can_id, n - 1
+                            );
+                        }
+                    }
+                    Err(e) => {
+                        warn!("Socket read error on {}: {:?}", ss.ifname, e);
+                        break; // Exit on socket errors, but don't fail the whole operation
+                    }
+                }
             }
-            Err(e) => {
-                return Err(e);
+            Ok::<(), std::io::Error>(())
+        }
+    );
+    
+    match overall_timeout.await {
+        Ok(Ok(_)) => {
+            debug!("All {} actuators responded within timeout on {}", n, ss.ifname);
+        }
+        Ok(Err(e)) => {
+            warn!("Socket error during response reading on {}: {:?}", ss.ifname, e);
+        }
+        Err(_) => {
+            // Count without collecting
+            let missing_count = seen.iter()
+                .enumerate()
+                .filter(|&(_, responded)| !responded)
+                .count();
+
+            if missing_count > 0 {
+                warn!("Overall timeout waiting for responses on {}: Missing responses from {} actuators", 
+                      ss.ifname, missing_count);
             }
         }
     }
 
-    // drain the buffer
-    while op_socket.try_read(&mut read_data).is_ok() {
-        // Process the read data here
-        let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
-        let client_idx = (ss.response_to_client_idx)(&can_frame);
-        debug!("Draining CanFrame: {:?}", can_frame);
-        handler(&can_frame)?;
+    // Drain any remaining responses without blocking
+    let mut drain_count = 0;
+    const MAX_DRAIN: usize = 10;
+    while drain_count < MAX_DRAIN {
+        match op_socket.try_read(&mut read_data) {
+            Ok(_) => {
+                let can_frame: CanFrame = unsafe { std::mem::transmute(read_data) };
+                let client_idx = (ss.response_to_client_idx)(&can_frame);
+
+                let can_id = can_frame.can_id; // Copy to local variable first
+                let actuator_id = if client_idx < n {
+                    actuator_ids.get(client_idx).copied().unwrap_or(0xFF)
+                } else {
+                    actuator_can_id_from_response(&can_frame)
+                };
+                debug!("Draining CAN frame from actuator {} (actuator_id: {}) on {}: ID=0x{:x}", client_idx, actuator_id, ss.ifname, can_id);
+
+                if client_idx < n {
+                    if !seen[client_idx] {
+                        seen[client_idx] = true;
+                        debug!("Late response from actuator {} (actuator_id: {}) on {}", client_idx, actuator_id, ss.ifname);
+                    }
+                    if let Err(e) = handler(&can_frame) {
+                        warn!("Handler error during drain for actuator {} (actuator_id: {}) on {}: {:?}", client_idx, actuator_id, ss.ifname, e);
+                    }
+                }
+                drain_count += 1;
+            }
+            Err(_) => break,
+        }
     }
 
-    // }
+    // Log communication health but don't fail
+    // Instead of collecting every cycle, iterate directly
+    let mut missing_count = 0;
+    let mut any_missing = false;
 
-    Ok(())
+    // Set fault flags and count in one pass - no allocation
+    if let Some(ref mut act_states) = act_states {
+        for (idx, &responded) in seen.iter().enumerate() {
+            if !responded {
+                any_missing = true;
+                missing_count += 1;
+                if let Some(state) = act_states.get_mut(idx) {
+                    state.feedback.faults |= 0x20; // Communication error flag
+                }
+            }
+        }
+    }
+
+    if any_missing {
+        warn!("Missing responses from {} actuators", missing_count);
+    } else {
+        debug!("All {} actuators responded", n);
+    }
+
+    Ok(()) // Always succeed - be fault tolerant
 }
 
 #[derive(Debug)]

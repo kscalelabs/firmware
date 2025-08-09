@@ -6,8 +6,9 @@ use std::{
     io,
     pin::Pin,
     task::{Context, Poll, ready},
+    time::Duration,
 };
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info, trace, warn};
 
 use crate::imu::{self, ImuManager};
 
@@ -16,6 +17,8 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 use crate::inference::{self, ModelManager};
 
 use crate::robstride_utils::RobstrideActuatorParam;
+use crate::udp_command::UdpCommandManager;
+
 crate::state_machine!(Reset, Ready, Home, Policy);
 
 impl std::fmt::Debug for Store {
@@ -36,6 +39,7 @@ pub struct Store {
     #[pin]
     model_manager: ModelManager,
     kb_manager: crate::keyboard::KeyboardManager,
+    udp_manager: UdpCommandManager,
 }
 
 impl Default for Store {
@@ -51,12 +55,17 @@ impl Store {
         let model_manager = ModelManager::new("model.kinfer", &robot_description)
             .expect("Failed to create model manager");
 
+        let udp_manager = futures::executor::block_on(async {
+            UdpCommandManager::new(10000).await.expect("Failed to create UDP manager")
+        });
+
         Self {
             robot_description,
             actuator_manager: ActuatorManager::new(),
             imu_manager: ImuManager::new(),
             model_manager,
             kb_manager: crate::keyboard::KeyboardManager::new(),
+            udp_manager,
         }
     }
 }
@@ -427,7 +436,7 @@ impl State for Home {
                     result: Err(e),
                 };
             }
-            warn!("error: {}", err);
+            error!("error: {}", err);
             if err < 0.1 {
                 // can go to next state
                 info!("error to home: {}", err);
@@ -475,136 +484,164 @@ impl State for Policy {
             // ss.kb_manager.process_feedback(&mut ss.robot_description.kb_pending_events);
 
             let start_time = std::time::Instant::now();
-            let actuator_manager::StateStore::Operate(op_act_manager) = ss
-                .actuator_manager
-                .as_mut()
-                .get_state_pinned()
-                .expect("Actuator manager should be in Operate state")
-            else {
-                return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state: self.shared_state,
-                    }),
-                    result: Err(io::Error::other("Actuator manager is not in Operate state")),
-                };
-            };
 
-            let imu::StateStore::Operate(op_imu_manager) = ss
-                .imu_manager
-                .as_mut()
-                .get_state_pinned()
-                .expect("IMU manager should be in Operate state")
-            else {
-                return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state: self.shared_state,
-                    }),
-                    result: Err(io::Error::other("IMU manager is not in Operate state")),
-                };
-            };
+            let mut interval = tokio::time::interval(Duration::from_millis(20));
+            interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+            let mut iteration_start = std::time::Instant::now();
 
-            // request motor current feedback
-            if let Err(e) = op_act_manager
-                .request_param(RobstrideActuatorParam::Iqf)
-                .await
-            {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
-                };
-            }
+            loop {
+                interval.tick().await; // Wait for next 20ms deadline
 
-            // and wait for responses
-            let act_states = ss.robot_description.actuator_states_mut();
-            if let Err(e) = op_act_manager.process_feedback(act_states).await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
-                };
-            }
-            // request initial feedback to seed the state
-            if let Err(e) = op_act_manager.request_feedback().await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
-                };
-            }
-            // and wait for responses
-            let act_states = ss.robot_description.actuator_states_mut();
-            if let Err(e) = op_act_manager.process_feedback(act_states).await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
-                };
-            }
+                let total_iteration_time = iteration_start.elapsed();
+                iteration_start = std::time::Instant::now();
 
-            op_imu_manager
-                .process_feedback(&mut ss.robot_description.imu)
-                .await;
-            // log::info!("IMU state: {:#?}", ss.robot_description.imu);
-            // let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
-            //     ss.robot_description.imu.quaternion
-            // );
-            // let projected = unit_quat.conjugate() * nalgebra::Vector3::new(0.0, 0.0, -9.81);
-            // log::info!("Project gravity: {}", projected.transpose());
+                // Drain UDP buffer
+                let udp_update_start = std::time::Instant::now();
+                if let Err(e) = ss.udp_manager.try_update_command().await {
+                    warn!("UDP command update failed: {:?}", e);
+                }
+                let udp_update_time = udp_update_start.elapsed();
 
-            let inference::StateStore::Operate(op_model) = ss
-                .model_manager
-                .as_mut()
-                .get_state_pinned()
-                .expect("Model Manager should be in operate state")
-            else {
-                return StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state: self.shared_state,
-                    }),
-                    result: Err(io::Error::other("Model manager is not in Operate state")),
+                // Get Current Command
+                let udp_cmd = ss.udp_manager.get_current_command();
+                if ss.udp_manager.has_recent_command() {
+                    // 🔄 Bridge UDP commands to policy system
+                    ss.robot_description.udp_command_state.x = udp_cmd.x;
+                    ss.robot_description.udp_command_state.y = udp_cmd.y;
+                    ss.robot_description.udp_command_state.yaw = udp_cmd.yaw;
+                    ss.robot_description.udp_command_state.timestamp = Some(std::time::Instant::now());
+                } else {
+                    // Clear UDP command state when no recent command (timeout)
+                    ss.robot_description.udp_command_state = Default::default();
+                }
+
+
+                let actuator_manager::StateStore::Operate(op_act_manager) = ss
+                    .actuator_manager
+                    .as_mut()
+                    .get_state_pinned()
+                    .expect("Actuator manager should be in Operate state")
+                else {
+                    return StateTransitionResult {
+                        state: StateStore::Reset(Reset {
+                            shared_state: self.shared_state,
+                        }),
+                        result: Err(io::Error::other("Actuator manager is not in Operate state")),
+                    };
                 };
-            };
 
-            warn!("Reading took {:?}", start_time.elapsed());
-            let policy_stamp = std::time::Instant::now();
-            op_model.step_controller(ss.robot_description);
-            warn!("Policy step took {:?}", policy_stamp.elapsed());
-
-            // print out the commands
-            // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
-            //     if (id == ActuatorId::Rkp) {
-            //         log::info!("Actuator {:?} command: {:?}", id, act_state.command);
-            //
-            //         log::info!("Actuator {:?} feedback: {:?}", id, act_state.feedback);
-            //         // calculate next torque
-            //         let ep = act_state.command.qpos - act_state.feedback.qpos;
-            //         let ev = act_state.command.qvel - act_state.feedback.qvel;
-            //         let kd = act_state.command.kd;
-            //         let kp = act_state.command.kp;
-
-            //         log::info!("Actuator {:?} ep: {:?} ev: {:?} expected qfrc {:?}", id, ep, ev, ep * kp + ev * kd);
-            //     }
-            // }
-
-            // send command to buses and wait for responses
-            let send_stamp = std::time::Instant::now();
-            let act_states = &mut ss.robot_description.actuators;
-            if let Err(e) = op_act_manager.send_command(act_states).await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
+                let imu::StateStore::Operate(op_imu_manager) = ss
+                    .imu_manager
+                    .as_mut()
+                    .get_state_pinned()
+                    .expect("IMU manager should be in Operate state")
+                else {
+                    return StateTransitionResult {
+                        state: StateStore::Reset(Reset {
+                            shared_state: self.shared_state,
+                        }),
+                        result: Err(io::Error::other("IMU manager is not in Operate state")),
+                    };
                 };
-            }
-            if let Err(e) = op_act_manager.process_feedback(act_states).await {
-                return StateTransitionResult {
-                    state: StateStore::Home(Home::new(self.shared_state)),
-                    result: Err(e),
+
+                // request motor current feedback
+                if let Err(e) = op_act_manager
+                    .request_param(RobstrideActuatorParam::Iqf)
+                    .await
+                {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+
+                // and wait for responses
+                let act_states = ss.robot_description.actuator_states_mut();
+                if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+                // request initial feedback to seed the state
+                if let Err(e) = op_act_manager.request_feedback().await {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+                // and wait for responses
+                let act_states = ss.robot_description.actuator_states_mut();
+                if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+
+                op_imu_manager
+                    .process_feedback(&mut ss.robot_description.imu)
+                    .await;
+                // log::info!("IMU state: {:#?}", ss.robot_description.imu);
+                // let unit_quat = nalgebra::UnitQuaternion::from_quaternion(
+                //     ss.robot_description.imu.quaternion
+                // );
+                // let projected = unit_quat.conjugate() * nalgebra::Vector3::new(0.0, 0.0, -9.81);
+                // log::info!("Project gravity: {}", projected.transpose());
+
+                let inference::StateStore::Operate(op_model) = ss
+                    .model_manager
+                    .as_mut()
+                    .get_state_pinned()
+                    .expect("Model Manager should be in operate state")
+                else {
+                    return StateTransitionResult {
+                        state: StateStore::Reset(Reset {
+                            shared_state: self.shared_state,
+                        }),
+                        result: Err(io::Error::other("Model manager is not in Operate state")),
+                    };
                 };
-            }
-            warn!("Send command took {:?}", send_stamp.elapsed());
-            tokio::time::sleep(std::time::Duration::from_millis(14)).await;
-            warn!("iteration took {:?}", start_time.elapsed());
-            let mut shared_state = self.shared_state;
-            StateTransitionResult {
-                state: StateStore::Policy(Policy { shared_state }),
-                result: Ok(()),
+
+                trace!("Reading took {:?}", start_time.elapsed());
+                let policy_stamp = std::time::Instant::now();
+                op_model.step_controller(ss.robot_description);
+                trace!("Policy step took {:?}", policy_stamp.elapsed());
+
+                // print out the commands
+                // for (id, act_state) in ss.robot_description.actuators.actuator_states.iter() {
+                //     if (id == ActuatorId::Rkp) {
+                //         log::info!("Actuator {:?} command: {:?}", id, act_state.command);
+                //
+                //         log::info!("Actuator {:?} feedback: {:?}", id, act_state.feedback);
+                //         // calculate next torque
+                //         let ep = act_state.command.qpos - act_state.feedback.qpos;
+                //         let ev = act_state.command.qvel - act_state.feedback.qvel;
+                //         let kd = act_state.command.kd;
+                //         let kp = act_state.command.kp;
+
+                //         log::info!("Actuator {:?} ep: {:?} ev: {:?} expected qfrc {:?}", id, ep, ev, ep * kp + ev * kd);
+                //     }
+                // }
+
+                // send command to buses and wait for responses
+                let send_stamp = std::time::Instant::now();
+                let act_states = &mut ss.robot_description.actuators;
+                if let Err(e) = op_act_manager.send_command(act_states).await {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+                if let Err(e) = op_act_manager.process_feedback(act_states).await {
+                    return StateTransitionResult {
+                        state: StateStore::Home(Home::new(self.shared_state)),
+                        result: Err(e),
+                    };
+                }
+                trace!("Send command took {:?}", send_stamp.elapsed());
+                trace!("UDP update took {:?}", udp_update_time);
+                trace!("iteration took {:?}", total_iteration_time);
             }
         }
     }

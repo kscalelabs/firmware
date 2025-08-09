@@ -10,6 +10,8 @@ pub struct PolicyStepDescriptor {
     pub joint_vels: Option<Vec<f32>>,
     pub initial_heading: Option<f32>,
     pub joint_amps: Option<Vec<f32>>,
+    pub joint_torques: Option<Vec<f32>>,
+    pub joint_temps: Option<Vec<f32>>,
     pub quaternion: Option<Vec<f32>>,
     pub projected_g: Option<Vec<f32>>,
     pub accel: Option<Vec<f32>>,
@@ -34,6 +36,8 @@ impl PolicyStepDescriptor {
                         ret.output = Some(vec![0.0; length]);
                         // always add joint_amps
                         ret.joint_amps = Some(vec![0.0; length]);
+                        ret.joint_torques = Some(vec![0.0; length]);
+                        ret.joint_temps = Some(vec![0.0; length]);
                     }
                     DataType::JointAngularVelocities => {
                         ret.joint_vels = Some(vec![0.0; length]);
@@ -192,6 +196,22 @@ impl PolicyStepDescriptor {
             dst[i] = robot_description.actuators.actuator_states[*act_id]
                 .feedback
                 .amps as f32;
+        }
+
+        if let Some(ref mut torque_dst) = self.joint_torques {
+            for (i, act_id) in cmd_idx_to_actuator_id.iter().enumerate() {
+                torque_dst[i] = robot_description.actuators.actuator_states[*act_id]
+                    .feedback
+                    .qfrc as f32;
+            }
+        }
+
+        if let Some(ref mut temp_dst) = self.joint_temps {
+            for (i, act_id) in cmd_idx_to_actuator_id.iter().enumerate() {
+                temp_dst[i] = robot_description.actuators.actuator_states[*act_id]
+                    .feedback
+                    .temp as f32;
+            }
         }
     }
 }
@@ -656,7 +676,7 @@ impl Operate {
                         .into_dimensionality::<ndarray::Dim<[usize; 1]>>()
                         .expect("Failed to convert to 1D array");
                     use crate::policy_control::InputState;
-                    cmd.extract(arr);
+                    cmd.extract_with_robot(arr, robot_description);
                 }
                 ModelInputType::DataType(data_type) => {
                     // extract data from robot description

@@ -129,7 +129,7 @@ impl HiwonderImu {
         buf.chunks_exact(PACKET_SIZE).for_each(|chunk| {
             let frame: &HiwonderRawFrame = bytemuck::from_bytes(chunk);
             if frame.checksum() != frame.checksum {
-                warn!(
+                debug!(
                     "Checksum mismatch for frame: expected {}, got {}",
                     frame.checksum(),
                     frame.checksum,

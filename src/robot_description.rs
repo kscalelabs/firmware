@@ -3,6 +3,15 @@ use enum_map::{Enum, EnumMap, enum_map};
 use heapless::Deque;
 use nalgebra as na;
 use tracing::info;
+use crate::actuator::{CanResponseFault, MotorFault, SystemFault};
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct UdpCommandState {
+    pub x: f32,
+    pub y: f32,
+    pub yaw: f32,
+    pub timestamp: Option<std::time::Instant>,
+}
 
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
@@ -54,7 +63,58 @@ impl ActuatorFeedback {
             self.amps = amps;
         }
     }
+
+    pub fn has_faults(&self) -> bool {
+        self.faults != 0
+    }
+
+    pub fn has_fault(&self, fault_flag: u32) -> bool {
+        (self.faults & fault_flag) != 0
+    }
+
+
+    pub fn fault_description(&self) -> String {
+        if !self.has_faults() {
+            return "No faults".to_string();
+        }
+        
+        let mut descriptions = Vec::new();
+        
+        descriptions.extend(
+            CanResponseFault::from_bitmask(self.faults)
+                .iter()
+                .map(|f| f.to_string())
+        );
+        
+        descriptions.extend(
+            MotorFault::from_bitmask(self.faults)
+                .iter()
+                .map(|f| f.to_string())
+        );
+        
+        // Check system fault
+        if self.faults & SystemFault::CommunicationError.bit_value() != 0 {
+            descriptions.push(SystemFault::CommunicationError.to_string());
+        }
+        
+        descriptions.join(", ")
+    }
+    
+    /// Check if the actuator is safe to operate (no critical faults)
+    pub fn is_safe_to_operate(&self) -> bool {
+        !MotorFault::has_critical_faults_in_mask(self.faults) 
+            && !CanResponseFault::has_critical_faults_in_mask(self.faults)
+    }
+    
+    /// Check if temperature is within safe operating range
+    pub fn is_temperature_safe(&self) -> bool {
+        const MAX_SAFE_TEMP: f64 = 80.0; // Celsius
+        const MIN_SAFE_TEMP: f64 = -20.0; // Celsius
+        
+        self.temp >= MIN_SAFE_TEMP && self.temp <= MAX_SAFE_TEMP
+    }
 }
+
 
 pub struct ActuatorFeedbackUpdate {
     pub qpos: Option<f64>,
@@ -332,6 +392,7 @@ pub struct RobotDescription {
     pub imu: ImuData,
     pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
+    pub udp_command_state: UdpCommandState,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
@@ -354,6 +415,7 @@ impl RobotDescription {
             imu: ImuData::default(),
             initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
+            udp_command_state: UdpCommandState::default(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,

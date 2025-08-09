@@ -4,7 +4,7 @@ use nix::libc;
 use std::collections::VecDeque;
 use std::io;
 use std::os::unix::io::{AsRawFd, BorrowedFd, OwnedFd, RawFd};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, trace};
 
 const PAGE_SIZE: usize = 4096;
 
@@ -241,7 +241,7 @@ impl MultiFdWriter {
 
     fn submit_buffer(&mut self, data: Vec<u8>) -> io::Result<()> {
         // copy vector into buffered io uring
-        println!("Submitting buffer of size: {}", data.len());
+        trace!("Submitting buffer of size: {}", data.len());
         if data.len() > PAGE_SIZE {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidInput,
@@ -300,7 +300,7 @@ impl MultiFdWriter {
                     )),
                 );
                 self.ring.pending_ops[entry.idx()] += 1;
-                println!(
+                trace!(
                     "Pushing write operation for entry idx={} with ptr={:p} and len={}",
                     entry.idx(),
                     entry.as_ptr(),

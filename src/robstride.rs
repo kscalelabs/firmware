@@ -6,6 +6,7 @@ use tracing::info;
 use crate::socketcan::CanFrame;
 
 use crate::robot_description::{ActuatorCommand, ActuatorFeedbackUpdate, ActuatorId};
+use crate::actuator::{CanResponseFault, MotorFault, SystemFault, FaultDecoder, DrvFault1, DrvFault2};
 
 use crate::robstride_utils::*;
 
@@ -49,6 +50,10 @@ impl From<crate::socketcan::CanFrame> for ActuatorResponse {
                 crate::socketcan::CanFrame,
                 ReadParamResponse,
             >(val)),
+            0x15 => ActuatorResponse::Fault(bytemuck::must_cast::<
+                crate::socketcan::CanFrame,
+                FaultResponse,
+            >(val)),
             _ => panic!("Unknown mux value: {mux}"),
         }
     }
@@ -68,18 +73,20 @@ impl From<crate::socketcan::CanFrame> for ActuatorRequest {
                 crate::socketcan::CanFrame,
                 ControlCommandRequest,
             >(val)),
-            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<
+            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
-                ReadParamRequest,
+                FeedbackRequest,
             >(val)),
             0x03 => ActuatorRequest::MotorEnable(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
                 MotorEnableRequest,
             >(val)),
-            0x02 => ActuatorRequest::Feedback(bytemuck::must_cast::<
+            0x11 => ActuatorRequest::ReadParam(bytemuck::must_cast::<
                 crate::socketcan::CanFrame,
-                FeedbackRequest,
+                ReadParamRequest,
             >(val)),
+           
+        
             _ => panic!("Unknown mux value: {mux}"),
         }
     }
@@ -220,6 +227,23 @@ pub struct FeedbackResponse {
     pub temp_be: u16,
 }
 
+impl FeedbackResponse {
+    /// Get the fault flags as a u32
+    pub fn get_fault_flags(&self) -> u32 {
+        self.fault_flags as u32
+    }
+    
+    /// Check if a specific fault flag is set
+    pub fn has_fault(&self, fault_flag: u8) -> bool {
+        (self.fault_flags & fault_flag) != 0
+    }
+    
+    /// Get temperature in Celsius
+    pub fn get_temperature(&self) -> f64 {
+        self.temp_be.swap_bytes() as f64 / 10.0 // Protocol says Temp(Celsius) * 10
+    }
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C, packed)]
 pub struct FeedbackRequest {
@@ -246,6 +270,57 @@ impl FeedbackRequest {
             len: 8,
             ..Default::default()
         }
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C, packed)]
+pub struct FaultResponse {
+    host_id: u8,
+    pub actuator_can_id: u8,
+    reserved1: u8,  // Split the u16 into two u8 fields to match the pattern
+    mux: u8, /* 0x15 */
+    
+    len: u8,
+    pad: u8,
+    res0: u8,
+    len8_dlc: u8,
+    
+    // Data field (8 bytes total) - matches CAN_MAX_DLEN
+    // Based on the fault table: Byte0~3 fault value, Byte4~7 warning value
+    pub fault_value: u32,    // 4 bytes
+    pub warning_value: u32,  // 4 bytes
+}
+
+impl FaultResponse {
+    /// Check if any faults are present
+    pub fn has_faults(&self) -> bool {
+        self.fault_value != 0
+    }
+    
+    /// Check if any warnings are present
+    pub fn has_warnings(&self) -> bool {
+        self.warning_value != 0
+    }
+    
+    // Get fault descriptions
+    pub fn get_fault_descriptions(&self) -> Vec<String> {
+        use crate::actuator::MotorFault;
+        MotorFault::from_bitmask(self.fault_value)
+        .iter()
+        .map(|fault| fault.to_string())
+        .collect()
+    }
+    
+    pub fn get_warning_descriptions(&self) -> Vec<String> {
+        let mut warnings = Vec::new();
+        let warning = self.warning_value;
+
+        if warning & (1 << 0) != 0 {
+            warnings.push("Motor overtemperature warning (default 135°C)".to_string());
+        }
+
+        warnings
     }
 }
 
@@ -330,6 +405,7 @@ pub enum ActuatorResponse {
     ObtainId(ObtainIdResponse),
     Feedback(FeedbackResponse),
     ReadParam(ReadParamResponse),
+    Fault(FaultResponse),
 }
 
 #[allow(dead_code)]
@@ -339,6 +415,7 @@ impl ActuatorResponse {
             ActuatorResponse::ObtainId(req) => req.mux,
             ActuatorResponse::Feedback(req) => req.mux,
             ActuatorResponse::ReadParam(req) => req.mux,
+            ActuatorResponse::Fault(req) => req.mux,
         }
     }
 }
@@ -364,14 +441,52 @@ pub fn actuator_can_id_from_response(frame: &crate::socketcan::CanFrame) -> u8 {
             bytemuck::must_cast::<crate::socketcan::CanFrame, ReadParamResponse>(*frame)
                 .actuator_can_id as u8
         }
+        0x15 => {
+            // For fault frames, extract servo ID directly from CAN ID 
+            // since the fault table shows servo ID is in bits 23-8 of CAN ID
+            actuator_id_from_can_id(frame.can_id)
+        }
         _ => {
+            let can_id = frame.can_id;
             warn!(
-                "Unknown mux value: {} in actuator_can_id_from_response, returning  0x7F",
-                mux
+                "Unknown mux value: 0x{:02X} in actuator_can_id_from_response, CAN ID: 0x{:08X}, returning 0x7F",
+                mux, can_id
             );
             0x7F // Return a default value if the mux is unknown
         }
     }
+}
+
+/// Extract fault flags from CAN ID (bits 21-16) according to protocol documentation
+pub fn fault_flags_from_can_id(can_id: u32) -> u8 {
+    ((can_id >> 16) & 0x3F) as u8  // Extract bits 21-16 (6 bits)
+}
+
+/// Extract mode status from CAN ID (bits 23-22) according to protocol documentation  
+pub fn mode_status_from_can_id(can_id: u32) -> u8 {
+    ((can_id >> 22) & 0x03) as u8  // Extract bits 23-22 (2 bits)
+}
+
+/// Extract actuator CAN ID from CAN ID field (bits 15-8) according to protocol documentation
+pub fn actuator_id_from_can_id(can_id: u32) -> u8 {
+    ((can_id >> 8) & 0xFF) as u8  // Extract bits 15-8 (8 bits)
+}
+
+/// Mode status constants according to protocol documentation
+pub mod mode_status {
+    pub const RESET: u8 = 0;
+    pub const CALIBRATION: u8 = 1; 
+    pub const RUN: u8 = 2;
+}
+
+/// Fault flag constants according to protocol documentation (bits 21-16)
+pub mod protocol_fault_flags {
+    pub const UNCALIBRATED: u8 = 0x20;      // bit21
+    pub const GRIDLOCK_OVERLOAD: u8 = 0x10; // bit20  
+    pub const MAGNETIC_ENCODING: u8 = 0x08;  // bit19
+    pub const OVERTEMPERATURE: u8 = 0x04;    // bit18
+    pub const OVERCURRENT: u8 = 0x02;        // bit17
+    pub const UNDERVOLTAGE: u8 = 0x01;       // bit16
 }
 
 // should basically be part of robsstride crate, but for now we keep it here
@@ -470,7 +585,11 @@ impl ActuatorCanClient {
             ActuatorRequestParams::Control(_) => ActuatorClientState::AwaitingDataRequest,
             ActuatorRequestParams::Feedback => ActuatorClientState::AwaitingFeedbackRequest,
         };
-        self.build_request(params).into()
+        let request = self.build_request(params);
+        let expected_response_mux = request.response_mux();
+        debug!("Staging request for actuator {}: {:?}, expecting response mux 0x{:02X}", 
+               self.actuator_can_id, params, expected_response_mux);
+        request.into()
     }
 
     pub fn set_last_request(&mut self, transaction: CanFrame) {
@@ -492,20 +611,60 @@ impl ActuatorCanClient {
         &mut self,
         response: &CanFrame,
     ) -> std::io::Result<Option<ActuatorFeedbackUpdate>> {
+        let response_mux = mux_from_can_frame(response);
+        
+        // Handle unsolicited responses first (no transaction validation needed)
+        if response_mux == 0x15 { // Fault response - unsolicited
+            match (*response).into() {
+                ActuatorResponse::Fault(resp) => {
+                    // Copy packed struct fields to local variables to avoid alignment issues
+                    let actuator_id = resp.actuator_can_id;
+                    let fault_value = resp.fault_value;
+                    let warning_value = resp.warning_value;
+                    
+                    // Fault frames are unsolicited, so we don't check transaction state
+                    /*warn!("Received fault frame from servo {}: fault_value=0x{:08X}, warning_value=0x{:08X}", 
+                          actuator_id, fault_value, warning_value);
+                          
+                    if resp.has_faults() {
+                        let faults = resp.get_fault_descriptions();
+                        warn!("Servo {} FAULTS: {:?}", actuator_id, faults);
+                    }
+                    
+                    if resp.has_warnings() {
+                        let warnings = resp.get_warning_descriptions();
+                        warn!("Servo {} WARNINGS: {:?}", actuator_id, warnings);
+                    }*/
+                    
+                    // Fault frames don't affect the client state - they're just informational
+                    return Ok(None);
+                }
+                _ => {
+                    return Err(std::io::Error::new(
+                        std::io::ErrorKind::InvalidData,
+                        "Expected fault response for mux 0x15",
+                    ));
+                }
+            }
+        }
+        
+        // For solicited responses, validate transaction state
         if self.last_request.is_none() {
             return Err(std::io::Error::other(
                 "No current transaction to handle response for",
             ));
         }
-
+    
         // Check if the response matches the current transaction
         if let Some(ref cur_req) = self.last_request {
-            if mux_from_can_frame(response) != cur_req.response_mux() {
+            if response_mux != cur_req.response_mux() {
+                warn!("Transaction mismatch: received response mux 0x{:02X} but expected 0x{:02X} for actuator {}", 
+                      response_mux, cur_req.response_mux(), self.actuator_can_id);
                 return Err(std::io::Error::new(
                     std::io::ErrorKind::InvalidData,
                     format!(
                         "Response ID {} does not match current transaction {}",
-                        mux_from_can_frame(response),
+                        response_mux,
                         cur_req.response_mux()
                     ),
                 ));
@@ -515,8 +674,8 @@ impl ActuatorCanClient {
                 "No current transaction to handle response for",
             ));
         }
-
-        // convert can frame into ActuatorResponse
+    
+        // convert can frame into ActuatorResponse for solicited responses
         match (*response).into() {
             ActuatorResponse::ObtainId(resp) => {
                 debug!("Received ObtainId response: {:?}", resp);
@@ -538,7 +697,8 @@ impl ActuatorCanClient {
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
-                Ok(Some(self.update_from_feedback(&resp)))
+                self.last_request = None; // Clear the last request to avoid re-using it
+                Ok(Some(self.update_from_feedback(&resp, response)))
             }
             ActuatorResponse::ReadParam(resp) => {
                 debug!("Received Feedback response: {:?}", resp);
@@ -549,6 +709,7 @@ impl ActuatorCanClient {
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
+                self.last_request = None; // Clear the last request to avoid re-using it
                 let param = RobstrideActuatorParam::from_address(resp.index).unwrap();
                 let value = f32::from_bits(resp.value);
                 match param {
@@ -556,10 +717,34 @@ impl ActuatorCanClient {
                     _ => Ok(None),
                 }
             }
+            ActuatorResponse::Fault(_) => {
+                // This should not happen since fault responses are handled above
+                Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Fault response should have been handled as unsolicited",
+                ))
+            }
         }
     }
 
-    pub fn update_from_feedback(&self, resp: &FeedbackResponse) -> ActuatorFeedbackUpdate {
+    pub fn update_from_feedback(&self, resp: &FeedbackResponse, can_frame: &CanFrame) -> ActuatorFeedbackUpdate {
+        // Extract fault flags from CAN ID according to protocol documentation (bits 21-16)
+        let fault_flags = fault_flags_from_can_id(can_frame.can_id);
+        let mode_status = mode_status_from_can_id(can_frame.can_id);
+        
+        // Log mode status for debugging
+        debug!("Actuator {} mode status: {}", self.actuator_can_id, mode_status);
+        
+        // Convert protocol fault flags (from CAN packet) to standardized fault format
+        let can_faults = self.convert_protocol_faults_to_standard(fault_flags);
+        
+        // Log faults if any detected
+        if can_faults != 0 {
+            let mut decoder = FaultDecoder::new();
+            decoder.can_response_faults = CanResponseFault::from_bitmask(can_faults);
+            decoder.log_all_faults(self.actuator_can_id as usize);
+        }
+        
         ActuatorFeedbackUpdate {
             qpos: Some(self.can_range.angle.scale_value(
                 resp.angle_scale_be.swap_bytes() as f64,
@@ -575,10 +760,35 @@ impl ActuatorCanClient {
             )),
             kp: None,
             kd: None,
-            temp: None,
-            faults: None,
+            temp: Some(resp.get_temperature()),
+            faults: Some(can_faults),
             amps: None,
         }
+    }
+
+    fn convert_protocol_faults_to_standard(&self, protocol_faults: u8) -> u32 {
+        let mut standard_faults = 0u32;
+        
+        if protocol_faults & protocol_fault_flags::UNCALIBRATED != 0 {
+            standard_faults |= CanResponseFault::Uncalibrated.bit_value();
+        }
+        if protocol_faults & protocol_fault_flags::GRIDLOCK_OVERLOAD != 0 {
+            standard_faults |= CanResponseFault::GridlockOverload.bit_value();
+        }
+        if protocol_faults & protocol_fault_flags::MAGNETIC_ENCODING != 0 {
+            standard_faults |= CanResponseFault::MagneticEncoding.bit_value();
+        }
+        if protocol_faults & protocol_fault_flags::OVERTEMPERATURE != 0 {
+            standard_faults |= CanResponseFault::Overtemperature.bit_value();
+        }
+        if protocol_faults & protocol_fault_flags::OVERCURRENT != 0 {
+            standard_faults |= CanResponseFault::Overcurrent.bit_value();
+        }
+        if protocol_faults & protocol_fault_flags::UNDERVOLTAGE != 0 {
+            standard_faults |= CanResponseFault::Undervoltage.bit_value();
+        }
+        
+        standard_faults
     }
 
     pub fn update_from_current(&self, amps: &f32) -> ActuatorFeedbackUpdate {
@@ -616,6 +826,38 @@ impl ActuatorCanClient {
             ActuatorId::Rhy => 43,
             ActuatorId::Rkp => 44,
             ActuatorId::Rap => 45,
+        }
+    }
+
+    pub fn handle_fault_param_response(&mut self, resp: &ReadParamResponse) -> std::io::Result<Option<FaultDecoder>> {
+        let param = RobstrideActuatorParam::from_address(resp.index);
+        if let Some(param) = param {
+            match param {
+                RobstrideActuatorParam::MotorFault => {
+                    let motor_fault = MotorFault::from_bitmask(resp.value);
+                    let mut decoder = FaultDecoder::new();
+                    decoder.motor_fault = motor_fault;
+                    decoder.log_all_faults(self.actuator_can_id as usize);
+                    Ok(Some(decoder))
+                }
+                RobstrideActuatorParam::DrvFault1 => {
+                    let drv_fault1 = DrvFault1::from_bitmask(resp.value as u16);
+                    let mut decoder = FaultDecoder::new();
+                    decoder.drv_fault1 = drv_fault1;
+                    decoder.log_all_faults(self.actuator_can_id as usize);
+                    Ok(Some(decoder))
+                }
+                RobstrideActuatorParam::DrvFault2 => {
+                    let drv_fault2 = DrvFault2::from_bitmask(resp.value as u16);
+                    let mut decoder = FaultDecoder::new();
+                    decoder.drv_fault2 = drv_fault2;
+                    decoder.log_all_faults(self.actuator_can_id as usize);
+                    Ok(Some(decoder))
+                }
+                _ => Ok(None),
+            }
+        } else {
+            Ok(None)
         }
     }
 }
