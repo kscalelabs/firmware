@@ -113,7 +113,7 @@ impl Home {
 
             let err = home_position[act_id].qpos - normalized_feedback;
 
-            warn!(
+            debug!(
                 "Actuator {:?} feedback: {}, home position: {}, error: {}",
                 act_id, normalized_feedback, home_position[act_id].qpos, err
             );
@@ -436,7 +436,7 @@ impl State for Home {
                     result: Err(e),
                 };
             }
-            error!("error: {}", err);
+
             if err < 0.1 {
                 // can go to next state
                 info!("error to home: {}", err);

@@ -91,7 +91,7 @@ impl UdpCommandManager {
                         Ok(command) => {
                             // This is a valid command - keep it as the latest
                             latest_command = Some(command);
-                            info!("Parsed UDP command #{}: x={}, y={}, yaw={}", 
+                            debug!("Parsed UDP command #{}: x={}, y={}, yaw={}", 
                                    packets_read, command.x, command.y, command.yaw);
                         }
                         Err(e) => {
@@ -231,7 +231,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = self.last_command.y;
             arr[2] = self.last_command.yaw;
         }
-        info!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
+        debug!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
         Ok(())
     }
 
@@ -243,7 +243,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = udp_state.y;
             arr[2] = udp_state.yaw;
         }
-        info!("UDP command from robot_description: x={}, y={}, yaw={}", udp_state.x, udp_state.y, udp_state.yaw);
+        debug!("UDP command from robot_description: x={}, y={}, yaw={}", udp_state.x, udp_state.y, udp_state.yaw);
         Ok(())
     }
 }
