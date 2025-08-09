@@ -63,7 +63,7 @@ pub struct Args {
     kd_scale: f64,
 
     /// low-pass filter cutoff in Hz for policy outputs (0 disables filtering)
-    #[arg(long, value_name = "FLOAT", default_value_t = 6.0)]
+    #[arg(long, value_name = "FLOAT", default_value_t = 6.0, visible_alias = "lpf-cutoff-freq")]
     lpf_cutoff_hz: f64,
 }
 
