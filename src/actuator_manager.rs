@@ -50,7 +50,7 @@ pub struct Store {
     // bus_wrappers: [ActuatorBusWrapper; 4], // left arm, right arm, left leg, right leg
     // leftarm: Option<ActuatorBus>,
     // rightarm: Option<ActuatorBus>,
-    iface_names: [String; 5], // vcan0, vcan1, vcan2, vcan3, vcan4
+    iface_names: Vec<String>,
     av_iface_idxs: std::collections::VecDeque<usize>,
 }
 
@@ -62,7 +62,61 @@ impl Default for Store {
 
 impl Store {
     pub fn new() -> Self {
-        let iface_names = ["can0", "can1", "can2", "can3", "can4"].map(String::from);
+        // Build CAN interface list from environment or system; fallback to a sensible default
+        fn discover_can_interfaces() -> Vec<String> {
+            // environment variable override
+            let from_env = std::env::var("KSCALE_CAN_INTERFACES")
+                .or_else(|_| std::env::var("CAN_INTERFACES"))
+                .ok()
+                .map(|val| {
+                    val.split(',')
+                        .filter_map(|s| {
+                            let name = s.trim();
+                            if name.is_empty() { None } else { Some(name.to_string()) }
+                        })
+                        .collect::<Vec<_>>()
+                });
+
+            if let Some(list) = from_env {
+                if !list.is_empty() {
+                    return list;
+                }
+            }
+
+            // discover from /sys/class/net for can/vcan interfaces
+            let mut discovered: Vec<String> = std::fs::read_dir("/sys/class/net")
+                .ok()
+                .into_iter()
+                .flatten()
+                .filter_map(|res| res.ok())
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .filter(|name: &String| name.starts_with("can") || name.starts_with("vcan"))
+                .collect();
+
+            // sort by prefix and numeric suffix if present (can0 < can1 < can10)
+            discovered.sort_by(|a, b| {
+                fn split_name(s: &str) -> (&str, Option<u32>) {
+                    let (prefix, digits) = s.split_at(s.find(|c: char| c.is_ascii_digit()).unwrap_or(s.len()));
+                    let num = digits.parse::<u32>().ok();
+                    (prefix, num)
+                }
+                let (pa, na) = split_name(a);
+                let (pb, nb) = split_name(b);
+                match pa.cmp(pb) {
+                    std::cmp::Ordering::Equal => na.cmp(&nb),
+                    other => other,
+                }
+            });
+
+            if !discovered.is_empty() {
+                return discovered;
+            }
+
+            // default to can0..can6 to support both 5 and 7 bus hardware
+            (0..=6).map(|i| format!("can{}", i)).collect::<Vec<_>>()
+        }
+
+        let iface_names = discover_can_interfaces();
 
         let actuator_ids = [
             BusTag::LeftArm.id_vec(),
@@ -91,11 +145,15 @@ impl Store {
         //     }
         // });
 
-        Self {
-            bus_wrappers,
-            iface_names,
-            av_iface_idxs: std::collections::VecDeque::from(vec![4]),
+        // Any interfaces beyond the first 4 are considered spares that can be rotated in on fault
+        let mut av_iface_idxs = std::collections::VecDeque::new();
+        if iface_names.len() > 4 {
+            for idx in 4..iface_names.len() {
+                av_iface_idxs.push_back(idx);
+            }
         }
+
+        Self { bus_wrappers, iface_names, av_iface_idxs }
     }
 }
 
@@ -263,17 +321,21 @@ impl State for Scanning {
                     Err(e) => {
                         error!("Error polling bus {:?}: {:?}", i, e);
                         // handle error, e.g. reset the bus
-                        let av_idx = ss
-                            .av_iface_idxs
-                            .pop_front()
-                            .expect("Expected at least 4 actuator buses");
-                        ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
-                        error!(
-                            "Resetting bus {:?} from {} to {}",
-                            i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]
-                        );
-                        wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
-                        proceed = false;
+                        if let Some(av_idx) = ss.av_iface_idxs.pop_front() {
+                            ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
+                            error!(
+                                "Resetting bus {:?} from {} to {}",
+                                i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]
+                            );
+                            wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
+                            proceed = false;
+                        } else {
+                            error!(
+                                "No spare CAN interfaces available to reset bus {:?} (staying on {})",
+                                i, ss.iface_names[wrappers[i].iface_idx]
+                            );
+                            proceed = false;
+                        }
                     }
                 }
             }
