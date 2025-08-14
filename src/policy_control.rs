@@ -3,7 +3,7 @@ use enum_dispatch::enum_dispatch;
 use enum_map::{Enum, EnumMap};
 use ndarray::ArrayViewMut1;
 
-// UdpControlVectorInputState is now defined in udp_command.rs
+use tracing::info;
 
 #[enum_dispatch(InputState)]
 #[derive(Debug)]
@@ -14,6 +14,7 @@ pub enum CommandType {
     ExpandedControlVectorInputState,
     BartControlVectorInputState,
     UdpControlVectorInputState(crate::udp_command::UdpControlVectorInputState),
+    Udp16ControlVectorInputState(crate::udp_command::Udp16ControlVectorInputState),
 }
 
 #[enum_dispatch]
@@ -32,9 +33,12 @@ impl CommandType {
             4 => Ok(CommandType::SimpleJoystickInputState(
                 SimpleJoystickInputState::new(),
             )),
-            3 => Ok(CommandType::UdpControlVectorInputState(
-                crate::udp_command::UdpControlVectorInputState::new(),
-            )),
+            3 => {
+                log::info!("Joystick: UdpBasic");
+                Ok(CommandType::UdpControlVectorInputState(
+                    crate::udp_command::UdpControlVectorInputState::new(),
+                ))
+            },
             /*3 => Ok(CommandType::ControlVectorInputState(
                 ControlVectorInputState::new(),
             )),*/
@@ -44,6 +48,12 @@ impl CommandType {
             7 => Ok(CommandType::BartControlVectorInputState(
                 BartControlVectorInputState::new(),
             )),
+            16 => {
+                log::info!("Joystick: UdpExtended (Bart!)");
+                Ok(CommandType::Udp16ControlVectorInputState(
+                    crate::udp_command::Udp16ControlVectorInputState::new(),
+                ))
+            },
             _ => Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidInput,
                 format!("Unsupported input state dimensions: {dims}"),

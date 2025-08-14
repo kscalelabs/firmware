@@ -7,6 +7,8 @@ use tokio::net::UdpSocket;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, warn, info};
 
+
+
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
 pub struct UdpCommand {
     #[serde(rename = "XVel")]
@@ -76,7 +78,7 @@ impl UdpCommandManager {
     /// Non-blocking method to drain UDP buffer and get the LATEST command
     /// Returns true if a new command was received
     pub async fn try_update_command(&mut self) -> io::Result<bool> {
-        let mut buf = [0u8; 256];
+        let mut buf = [0u8; 1024];
         let mut latest_command: Option<UdpCommand> = None;
         let mut packets_read = 0;
         
@@ -161,7 +163,7 @@ impl UdpCommandManager {
             }
             
             // If no packets were available, wait for the next one
-            let mut buf = [0u8; 256];
+            let mut buf = [0u8; 1024];
             let len = self.socket.recv(&mut buf).await?;
             
             match serde_json::from_slice::<UdpCommand>(&buf[..len]) {
@@ -187,6 +189,8 @@ impl UdpCommandManager {
         self.last_command_time.map(|t| t.elapsed())
     }
 }
+
+
 
 /// UDP Command State for policy control integration
 #[derive(Debug)]
@@ -252,5 +256,195 @@ impl UdpControlVectorInputState {
     /// Update the command directly (called from behavior loop)
     pub fn set_command(&mut self, command: UdpCommand) {
         self.last_command = command;
+    }
+}
+
+
+#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+pub struct UdpExtendedCommand {
+    // 0..2
+    #[serde(rename = "XVel")]
+    pub x: f32,
+    #[serde(rename = "YVel")]
+    pub y: f32,
+    #[serde(rename = "YawRate")]
+    pub yaw_rate: f32,
+
+    // 3..5
+    #[serde(rename = "BaseHeight")]
+    pub base_height: f32,
+    #[serde(rename = "BaseRoll")]
+    pub base_roll: f32,
+    #[serde(rename = "BasePitch")]
+    pub base_pitch: f32,
+
+    // 6..10 right arm
+    #[serde(rename = "RShoulderPitch")]
+    pub r_shoulder_pitch: f32,
+    #[serde(rename = "RShoulderRoll")]
+    pub r_shoulder_roll: f32,
+    #[serde(rename = "RElbowPitch")]
+    pub r_elbow_pitch: f32,
+    #[serde(rename = "RElbowRoll")]
+    pub r_elbow_roll: f32,
+    #[serde(rename = "RWristPitch")]
+    pub r_wrist_pitch: f32,
+
+    // 11..15 left arm
+    #[serde(rename = "LShoulderPitch")]
+    pub l_shoulder_pitch: f32,
+    #[serde(rename = "LShoulderRoll")]
+    pub l_shoulder_roll: f32,
+    #[serde(rename = "LElbowPitch")]
+    pub l_elbow_pitch: f32,
+    #[serde(rename = "LElbowRoll")]
+    pub l_elbow_roll: f32,
+    #[serde(rename = "LWristPitch")]
+    pub l_wrist_pitch: f32,
+}
+
+impl Default for UdpExtendedCommand {
+    fn default() -> Self {
+        Self {
+            x: 0.0, y: 0.0, yaw_rate: 0.0,
+            base_height: 0.0, base_roll: 0.0, base_pitch: 0.0,
+            r_shoulder_pitch: 0.0, r_shoulder_roll: 0.0, r_elbow_pitch: 0.0, r_elbow_roll: 0.0, r_wrist_pitch: 0.0,
+            l_shoulder_pitch: 0.0, l_shoulder_roll: 0.0, l_elbow_pitch: 0.0, l_elbow_roll: 0.0, l_wrist_pitch: 0.0,
+        }
+    }
+}
+
+
+pub struct UdpExtendedCommandManager {
+    socket: UdpSocket,
+    current_command: UdpExtendedCommand,
+    last_command_time: Option<std::time::Instant>,
+    command_timeout: Duration,
+}
+
+
+impl std::fmt::Debug for UdpExtendedCommandManager {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("UdpExtendedCommandManager")
+            .field("current_command", &self.current_command)
+            .field("last_command_time", &self.last_command_time)
+            .finish()
+    }
+}
+
+
+impl UdpExtendedCommandManager {
+    pub async fn new(port: u16) -> io::Result<Self> {
+        let addr = SocketAddr::from(([0, 0, 0, 0], port));
+        let std_socket = socket2::Socket::new(
+            socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)
+        )?;
+        std_socket.set_recv_buffer_size(1024)?;
+        std_socket.set_nonblocking(true)?;
+        std_socket.bind(&addr.into())?;
+        let std_socket: std::net::UdpSocket = std_socket.into();
+        let socket = UdpSocket::from_std(std_socket)?;
+        debug!("UDP extended command manager listening on port {}", port);
+        Ok(Self {
+            socket,
+            current_command: UdpExtendedCommand::default(),
+            last_command_time: None,
+            command_timeout: Duration::from_millis(500),
+        })
+    }
+
+    pub async fn try_update_command(&mut self) -> io::Result<bool> {
+        let mut buf = [0u8; 1024];
+        let mut latest: Option<UdpExtendedCommand> = None;
+        let mut packets_read = 0;
+        loop {
+            match self.socket.try_recv(&mut buf) {
+                Ok(len) => {
+                    packets_read += 1;
+                    match serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
+                        Ok(cmd) => {
+                            latest = Some(cmd);
+                            debug!("Parsed extended UDP command #{} (x={}, y={}, yaw={})",
+                                   packets_read, cmd.x, cmd.y, cmd.yaw_rate);
+                        }
+                        Err(e) => warn!("Failed to parse extended UDP command JSON (#{}) {}", packets_read, e),
+                    }
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(e) => { error!("UDP socket error: {}", e); return Err(e); }
+            }
+        }
+        if let Some(cmd) = latest {
+            if packets_read > 1 { debug!("Drained {} UDP packets (extended)", packets_read); }
+            self.current_command = cmd;
+            self.last_command_time = Some(std::time::Instant::now());
+            Ok(true)
+        } else { Ok(false) }
+    }
+
+    pub fn get_current_command(&self) -> UdpExtendedCommand {
+        if let Some(t) = self.last_command_time {
+            if t.elapsed() > self.command_timeout { UdpExtendedCommand::default() } else { self.current_command }
+        } else { UdpExtendedCommand::default() }
+    }
+
+    pub fn has_recent_command(&self) -> bool {
+        self.last_command_time.map(|t| t.elapsed() <= self.command_timeout).unwrap_or(false)
+    }
+}
+
+#[derive(Debug)]
+pub struct Udp16ControlVectorInputState {
+    udp_manager: Option<UdpExtendedCommandManager>,
+    last_command: UdpExtendedCommand,
+}
+
+impl Udp16ControlVectorInputState {
+    pub fn new() -> Self {
+        Self { udp_manager: None, last_command: UdpExtendedCommand::default() }
+    }
+    pub async fn initialize(&mut self, port: u16) -> io::Result<()> {
+        self.udp_manager = Some(UdpExtendedCommandManager::new(port).await?);
+        Ok(())
+    }
+    pub async fn update_from_udp(&mut self) -> io::Result<()> {
+        if let Some(ref mut m) = self.udp_manager {
+            m.try_update_command().await?;
+            self.last_command = m.get_current_command();
+        }
+        Ok(())
+    }
+}
+
+impl crate::policy_control::InputState for Udp16ControlVectorInputState {
+    fn update(&mut self, _key: crossterm::event::KeyEvent) -> std::io::Result<()> {
+        // No keyboard; UDP-only.
+        Ok(())
+    }
+    fn extract(&mut self, mut arr: ndarray::ArrayViewMut1<f32>) -> std::io::Result<()> {
+        if arr.len() < 16 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "expected arr.len() >= 16"));
+        }
+        let c = self.last_command;
+        arr[0] = c.x;               // x linear velocity [m/s]
+        arr[1] = c.y;               // y linear velocity [m/s]
+        arr[2] = c.yaw_rate;        // z angular velocity [rad/s]
+        arr[3] = c.base_height;     // base height offset [m]
+        arr[4] = c.base_roll;       // base roll [rad]
+        arr[5] = c.base_pitch;      // base pitch [rad]
+        arr[6] = c.r_shoulder_pitch;
+        arr[7] = c.r_shoulder_roll;
+        arr[8] = c.r_elbow_pitch;
+        arr[9] = c.r_elbow_roll;
+        arr[10] = c.r_wrist_pitch;
+        arr[11] = c.l_shoulder_pitch;
+        arr[12] = c.l_shoulder_roll;
+        arr[13] = c.l_elbow_pitch;
+        arr[14] = c.l_elbow_roll;
+        arr[15] = c.l_wrist_pitch;
+        Ok(())
+    }
+    fn extract_with_robot(&mut self, arr: ndarray::ArrayViewMut1<f32>, _robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
+        self.extract(arr)
     }
 }
