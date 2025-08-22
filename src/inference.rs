@@ -615,6 +615,9 @@ impl State for Reset {
                     session_input_vec: self.session_input_vec,
                     lpf_prev_qpos: enum_map::EnumMap::default(),
                     lpf_last_update: std::time::Instant::now(),
+                    mj_prev_out: enum_map::EnumMap::default(),
+                    mj_blend_t_elapsed: enum_map::EnumMap::default(),
+                    mj_blend_t_total: enum_map::EnumMap::default(),
                 }),
                 result: Ok(()),
             }
@@ -629,6 +632,10 @@ pub struct Operate {
     // Per-actuator low-pass filter state for commanded qpos
     lpf_prev_qpos: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
     lpf_last_update: std::time::Instant,
+    // Minimum-jerk blend state
+    mj_prev_out: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    mj_blend_t_elapsed: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    mj_blend_t_total: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
 }
 
 impl std::fmt::Debug for Operate {
@@ -775,7 +782,55 @@ impl Operate {
                 prev_map[actuator_id] = y;
                 y
             };
-            let final_command = filtered;
+
+            // Minimum-jerk retiming blend (optional)
+            let mut final_command = filtered;
+            let blend_ms = robot_description.min_jerk_blend_ms;
+            if blend_ms > 0.0 && dt > 0.0 {
+                let t_total = (blend_ms / 1000.0).max(1e-6);
+                // Initialize previous output from current command on first use
+                let mut prev_out = if self.mj_blend_t_total[actuator_id] == 0.0 {
+                    let start = act_state.command.qpos;
+                    self.mj_prev_out[actuator_id] = start;
+                    start
+                } else {
+                    self.mj_prev_out[actuator_id]
+                };
+                let target = filtered;
+
+                // If the target changed meaningfully, restart blend
+                if (target - prev_out).abs() > 1e-9 {
+                    self.mj_blend_t_elapsed[actuator_id] = 0.0;
+                    self.mj_blend_t_total[actuator_id] = t_total;
+                }
+
+                // Advance blending time
+                let t = (self.mj_blend_t_elapsed[actuator_id] + dt)
+                    .min(self.mj_blend_t_total[actuator_id]);
+                self.mj_blend_t_elapsed[actuator_id] = t;
+                let denom = self.mj_blend_t_total[actuator_id];
+                let s = if denom > 0.0 { (t / denom).clamp(0.0, 1.0) } else { 1.0 };
+                // Minimum-jerk polynomial: 10 s^3 - 15 s^4 + 6 s^5
+                let s2 = s * s;
+                let s3 = s2 * s;
+                let s4 = s3 * s;
+                let s5 = s4 * s;
+                let mj = 10.0 * s3 - 15.0 * s4 + 6.0 * s5;
+                final_command = prev_out + mj * (target - prev_out);
+
+                // Snap when done
+                if (self.mj_blend_t_elapsed[actuator_id]
+                    >= self.mj_blend_t_total[actuator_id] - 1e-12)
+                {
+                    final_command = target;
+                }
+
+                // Persist
+                self.mj_prev_out[actuator_id] = final_command;
+            } else {
+                // Persist last even without blending
+                self.mj_prev_out[actuator_id] = final_command;
+            }
             act_state.command.qpos = final_command;
             act_state.command.qvel = 0.0; // no velocity command
             act_state.command.qfrc = 0.0; // no torque command
@@ -900,6 +955,9 @@ impl State for Operate {
                     session_input_vec: self.session_input_vec,
                     lpf_prev_qpos: self.lpf_prev_qpos,
                     lpf_last_update: self.lpf_last_update,
+                    mj_prev_out: self.mj_prev_out,
+                    mj_blend_t_elapsed: self.mj_blend_t_elapsed,
+                    mj_blend_t_total: self.mj_blend_t_total,
                 }),
                 result: Ok(()),
             }

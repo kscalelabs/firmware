@@ -389,6 +389,10 @@ pub struct Args {
     /// low-pass filter cutoff in Hz for policy outputs (0 disables filtering)
     #[arg(long, value_name = "FLOAT", default_value_t = 6.0)]
     lpf_cutoff_hz: f64,
+
+    /// minimum-jerk blend duration in milliseconds (0 disables re-timing)
+    #[arg(long, value_name = "FLOAT", default_value_t = 0.0)]
+    min_jerk_blend_ms: f64,
 }
 
 pub struct RobotDescription {
@@ -403,6 +407,7 @@ pub struct RobotDescription {
     pub kp_scale: f64,
     pub kd_scale: f64,
     pub lpf_cutoff_hz: f64,
+    pub min_jerk_blend_ms: f64,
 }
 
 impl Default for RobotDescription {
@@ -425,6 +430,7 @@ impl RobotDescription {
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
             lpf_cutoff_hz: args.lpf_cutoff_hz,
+            min_jerk_blend_ms: args.min_jerk_blend_ms,
             home_position: enum_map! {
                 ActuatorId::Lsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Lsr => ActuatorCommand { qpos: (10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },
