@@ -116,7 +116,78 @@ impl Store {
             (0..=6).map(|i| format!("can{}", i)).collect::<Vec<_>>()
         }
 
-        let iface_names = discover_can_interfaces();
+        // 1) Gather candidates (env list or discovery)
+        let discovered = discover_can_interfaces();
+        let env_list = std::env::var("KSCALE_CAN_INTERFACES")
+            .or_else(|_| std::env::var("CAN_INTERFACES"))
+            .ok()
+            .map(|val| {
+                val.split(',')
+                    .filter_map(|s| {
+                        let name = s.trim();
+                        if name.is_empty() { None } else { Some(name.to_string()) }
+                    })
+                    .collect::<Vec<_>>()
+            });
+
+        // 2) Optional explicit limb->iface map via KSCALE_CAN_LIMB_MAP
+        //    Format: "LeftArm=can6,RightArm=can1,LeftLeg=can3,RightLeg=can2"
+        let limb_map_raw = std::env::var("KSCALE_CAN_LIMB_MAP").ok();
+        let mut mapped: [Option<String>; 4] = [None, None, None, None];
+        if let Some(cfg) = limb_map_raw.as_deref() {
+            for entry in cfg.split(',') {
+                let kv: Vec<&str> = entry.splitn(2, '=').collect();
+                if kv.len() != 2 { continue; }
+                let key = kv[0].trim();
+                let val = kv[1].trim();
+                if val.is_empty() { continue; }
+                let idx_opt = match key.to_ascii_lowercase().as_str() {
+                    "leftarm" => Some(crate::robot_description::BusTag::LeftArm as usize),
+                    "rightarm" => Some(crate::robot_description::BusTag::RightArm as usize),
+                    "leftleg" => Some(crate::robot_description::BusTag::LeftLeg as usize),
+                    "rightleg" => Some(crate::robot_description::BusTag::RightLeg as usize),
+                    _ => None,
+                };
+                if let Some(idx) = idx_opt { mapped[idx] = Some(val.to_string()); }
+            }
+        }
+
+        let have_full_limb_map = mapped.iter().all(|v| v.is_some());
+
+        // 3) Build final iface_names: first four entries are limbs in BusTag order.
+        let mut iface_names: Vec<String> = if have_full_limb_map {
+            info!("Using KSCALE_CAN_LIMB_MAP for limb assignment: {}", limb_map_raw.as_deref().unwrap_or(""));
+            mapped.into_iter().map(|o| o.unwrap()).collect()
+        } else {
+            // Fall back to env list order (first 4) or discovery
+            let base = env_list.clone().unwrap_or_else(|| discovered.clone());
+            if base.len() < 4 {
+                info!("Fewer than 4 interfaces provided; falling back to discovery order for missing entries");
+            }
+            base.into_iter().take(4).collect()
+        };
+
+        // 4) Append spares: prefer remaining from env list, else from discovery
+        let mut seen = std::collections::HashSet::new();
+        for n in &iface_names { seen.insert(n.clone()); }
+        if let Some(list) = env_list {
+            for n in list {
+                if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
+            }
+        }
+        for n in discovered {
+            if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
+        }
+
+        // 5) Log final order and per-limb mapping
+        info!("Final CAN interface order: {:?}", iface_names);
+        info!(
+            "Limb->iface: LeftArm={}, RightArm={}, LeftLeg={}, RightLeg={}",
+            iface_names.get(crate::robot_description::BusTag::LeftArm as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::RightArm as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::LeftLeg as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::RightLeg as usize).unwrap_or(&"<missing>".to_string()),
+        );
 
         let actuator_ids = [
             BusTag::LeftArm.id_vec(),

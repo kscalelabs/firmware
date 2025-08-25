@@ -620,9 +620,9 @@ impl State for Configure {
 
             tokio::task::yield_now().await;
 
-            // wait for responses for 10ms
+            // wait for responses
             let to = tokio::time::timeout(
-                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(150),
                 read_responses(self.shared_state.as_mut()),
             );
 
