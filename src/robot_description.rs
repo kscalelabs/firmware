@@ -5,14 +5,6 @@ use nalgebra as na;
 use tracing::info;
 use crate::actuator::{CanResponseFault, MotorFault, SystemFault};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UdpCommandState {
-    pub x: f32,
-    pub y: f32,
-    pub yaw: f32,
-    pub timestamp: Option<std::time::Instant>,
-}
-
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
     // rem_euclid gives a value in [0, 2π)
@@ -400,7 +392,7 @@ pub struct RobotDescription {
     pub imu: ImuData,
     pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
-    pub udp_command_state: UdpCommandState,
+    pub udp_command_state: crate::udp_command::UdpExtendedCommand,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
@@ -425,7 +417,7 @@ impl RobotDescription {
             imu: ImuData::default(),
             initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
-            udp_command_state: UdpCommandState::default(),
+            udp_command_state: crate::udp_command::UdpExtendedCommand::default(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,

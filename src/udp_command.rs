@@ -7,6 +7,66 @@ use tokio::net::UdpSocket;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, warn, info};
 
+/// Unified UDP manager that handles either 3D or 16D commands based on policy
+#[derive(Debug)]
+pub enum UnifiedUdpManager {
+    Basic(UdpCommandManager),
+    Extended(UdpExtendedCommandManager),
+}
+
+impl UnifiedUdpManager {
+    /// Create a UDP manager based on whether 16D commands are needed
+    pub async fn new(port: u16, use_extended: bool) -> io::Result<Self> {
+        if use_extended {
+            info!("Initializing extended UDP manager (16D) on port {}", port);
+            Ok(UnifiedUdpManager::Extended(UdpExtendedCommandManager::new(port).await?))
+        } else {
+            info!("Initializing basic UDP manager (3D) on port {}", port);
+            Ok(UnifiedUdpManager::Basic(UdpCommandManager::new(port).await?))
+        }
+    }
+
+    /// Update commands from UDP buffer
+    pub async fn try_update_command(&mut self) -> io::Result<bool> {
+        match self {
+            UnifiedUdpManager::Basic(manager) => manager.try_update_command().await,
+            UnifiedUdpManager::Extended(manager) => manager.try_update_command().await,
+        }
+    }
+
+    /// Check if we have recent commands
+    pub fn has_recent_command(&self) -> bool {
+        match self {
+            UnifiedUdpManager::Basic(manager) => manager.has_recent_command(),
+            UnifiedUdpManager::Extended(manager) => manager.has_recent_command(),
+        }
+    }
+
+    /// Update robot description with current command
+    pub fn update_robot_description(&self, robot_description: &mut crate::robot_description::RobotDescription) {
+        let cmd = match self {
+            UnifiedUdpManager::Basic(manager) => {
+                let basic_cmd = manager.get_current_command();
+                UdpExtendedCommand {
+                    x: basic_cmd.x,
+                    y: basic_cmd.y,
+                    yaw_rate: basic_cmd.yaw,  // Note: converting from yaw to yaw_rate
+                    ..Default::default()  // All extended fields remain zero
+                }
+            }
+            UnifiedUdpManager::Extended(manager) => {
+                manager.get_current_command()
+            }
+        };
+        robot_description.udp_command_state = cmd;
+    }
+
+    /// Clear robot description command state (on timeout)
+    pub fn clear_robot_description(&self, robot_description: &mut crate::robot_description::RobotDescription) {
+        robot_description.udp_command_state = Default::default();
+    }
+}
+
 
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize)]
@@ -245,9 +305,9 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
         if arr.len() >= 3 {
             arr[0] = udp_state.x;
             arr[1] = udp_state.y;
-            arr[2] = udp_state.yaw;
+            arr[2] = udp_state.yaw_rate;  // Now using yaw_rate from unified structure
         }
-        debug!("UDP command from robot_description: x={}, y={}, yaw={}", udp_state.x, udp_state.y, udp_state.yaw);
+        debug!("UDP command from robot_description: x={}, y={}, yaw_rate={}", udp_state.x, udp_state.y, udp_state.yaw_rate);
         Ok(())
     }
 }
@@ -442,9 +502,33 @@ impl crate::policy_control::InputState for Udp16ControlVectorInputState {
         arr[13] = c.l_elbow_pitch;
         arr[14] = c.l_elbow_roll;
         arr[15] = c.l_wrist_pitch;
+        info!("16D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
+              c.x, c.y, c.yaw_rate, c.base_height, c.r_shoulder_pitch);
         Ok(())
     }
-    fn extract_with_robot(&mut self, arr: ndarray::ArrayViewMut1<f32>, _robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
-        self.extract(arr)
+    fn extract_with_robot(&mut self, mut arr: ndarray::ArrayViewMut1<f32>, robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
+        // Extract UDP command from unified robot description state
+        let cmd_state = &robot_description.udp_command_state;
+        if arr.len() >= 16 {
+            arr[0] = cmd_state.x;
+            arr[1] = cmd_state.y;
+            arr[2] = cmd_state.yaw_rate;
+            arr[3] = cmd_state.base_height;
+            arr[4] = cmd_state.base_roll;
+            arr[5] = cmd_state.base_pitch;
+            arr[6] = cmd_state.r_shoulder_pitch;
+            arr[7] = cmd_state.r_shoulder_roll;
+            arr[8] = cmd_state.r_elbow_pitch;
+            arr[9] = cmd_state.r_elbow_roll;
+            arr[10] = cmd_state.r_wrist_pitch;
+            arr[11] = cmd_state.l_shoulder_pitch;
+            arr[12] = cmd_state.l_shoulder_roll;
+            arr[13] = cmd_state.l_elbow_pitch;
+            arr[14] = cmd_state.l_elbow_roll;
+            arr[15] = cmd_state.l_wrist_pitch;
+        }
+        info!("16D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
+              cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
+        Ok(())
     }
 }

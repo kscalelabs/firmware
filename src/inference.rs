@@ -588,6 +588,13 @@ impl Store {
             kb_manager: crate::keyboard::KeyboardManager::new(),
         })
     }
+
+    /// Check if this model has a 16D command input (for extended UDP)
+    pub fn has_16d_command(&self) -> bool {
+        self.step_input_types.iter().any(|input_type| {
+            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+        })
+    }
 }
 
 pub struct Reset {
@@ -647,6 +654,13 @@ impl std::fmt::Debug for Operate {
 }
 
 impl Operate {
+    /// Check if this model has a 16D command input (for extended UDP)
+    pub fn has_16d_command(&self) -> bool {
+        self.shared_state.step_input_types.iter().any(|input_type| {
+            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+        })
+    }
+
     pub fn step_controller(
         &mut self,
         robot_description: &mut RobotDescription,

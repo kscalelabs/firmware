@@ -17,7 +17,7 @@ use crate::robot_description::{self, ActuatorId, RobotDescription};
 use crate::inference::{self, ModelManager};
 
 use crate::robstride_utils::RobstrideActuatorParam;
-use crate::udp_command::UdpCommandManager;
+use crate::udp_command::UnifiedUdpManager;
 
 crate::state_machine!(Reset, Ready, Home, Policy);
 
@@ -39,7 +39,7 @@ pub struct Store {
     #[pin]
     model_manager: ModelManager,
     kb_manager: crate::keyboard::KeyboardManager,
-    udp_manager: UdpCommandManager,
+    udp_manager: Option<UnifiedUdpManager>,
 }
 
 impl Default for Store {
@@ -55,9 +55,8 @@ impl Store {
         let model_manager = ModelManager::new("model.kinfer", &robot_description)
             .expect("Failed to create model manager");
 
-        let udp_manager = futures::executor::block_on(async {
-            UdpCommandManager::new(10000).await.expect("Failed to create UDP manager")
-        });
+        // UDP manager will be initialized later based on policy requirements
+        let udp_manager = None;
 
         Self {
             robot_description,
@@ -67,6 +66,12 @@ impl Store {
             kb_manager: crate::keyboard::KeyboardManager::new(),
             udp_manager,
         }
+    }
+
+    /// Initialize the UDP manager based on policy requirements
+    pub async fn initialize_udp_manager(&mut self, use_extended: bool) -> std::io::Result<()> {
+        self.udp_manager = Some(UnifiedUdpManager::new(10000, use_extended).await?);
+        Ok(())
     }
 }
 
@@ -280,6 +285,20 @@ impl State for Ready {
                     result: Err(io::Error::other("Model manager is not in Operate state")),
                 };
             };
+
+            // Initialize UDP manager based on policy requirements
+            let use_extended = op_model.has_16d_command();
+            match UnifiedUdpManager::new(10000, use_extended).await {
+                Ok(udp_mgr) => {
+                    *ss.udp_manager = Some(udp_mgr);
+                }
+                Err(e) => {
+                    return StateTransitionResult {
+                        state: StateStore::Reset(Reset { shared_state }),
+                        result: Err(io::Error::new(io::ErrorKind::Other, format!("Failed to initialize UDP manager: {}", e))),
+                    };
+                }
+            }
 
             warn!("Press Enter to drive the buses...");
             ss.kb_manager.wait_for_enter().await;
@@ -497,23 +516,22 @@ impl State for Policy {
 
                 // Drain UDP buffer
                 let udp_update_start = std::time::Instant::now();
-                if let Err(e) = ss.udp_manager.try_update_command().await {
-                    warn!("UDP command update failed: {:?}", e);
+                if let Some(udp_manager) = ss.udp_manager {
+                    if let Err(e) = udp_manager.try_update_command().await {
+                        warn!("UDP command update failed: {:?}", e);
+                    }
+
+                    // Update robot description with current command
+                    if udp_manager.has_recent_command() {
+                        udp_manager.update_robot_description(ss.robot_description);
+                    } else {
+                        // Clear command state when no recent command (timeout)
+                        udp_manager.clear_robot_description(ss.robot_description);
+                    }
+                } else {
+                    warn!("UDP manager not initialized");
                 }
                 let udp_update_time = udp_update_start.elapsed();
-
-                // Get Current Command
-                let udp_cmd = ss.udp_manager.get_current_command();
-                if ss.udp_manager.has_recent_command() {
-                    // 🔄 Bridge UDP commands to policy system
-                    ss.robot_description.udp_command_state.x = udp_cmd.x;
-                    ss.robot_description.udp_command_state.y = udp_cmd.y;
-                    ss.robot_description.udp_command_state.yaw = udp_cmd.yaw;
-                    ss.robot_description.udp_command_state.timestamp = Some(std::time::Instant::now());
-                } else {
-                    // Clear UDP command state when no recent command (timeout)
-                    ss.robot_description.udp_command_state = Default::default();
-                }
 
 
                 let actuator_manager::StateStore::Operate(op_act_manager) = ss
