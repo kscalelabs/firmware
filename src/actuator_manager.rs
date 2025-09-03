@@ -248,7 +248,7 @@ impl Ready {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Ready(rdy_bus)) = wrapper.bus.get_state() {
                 // enable the bus
@@ -270,36 +270,32 @@ impl State for Ready {
             // SAFETY: we know `bus_wrappers` is #[pin], so its elements live
             // in place and can be reborrowed safely.
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-            for wrapper in wrappers.values_mut() {
+            for (_, wrapper) in wrappers.iter_mut() {
                 wrapper.bus.set_target(actuator::StateTag::Operate);
             }
 
-            let [w0, w1, w2, w3] = wrappers.as_mut_array();
-            let [mut s0, mut s1, mut s2, mut s3] = [
-                unsafe { Pin::new_unchecked(&mut w0.bus) },
-                unsafe { Pin::new_unchecked(&mut w1.bus) },
-                unsafe { Pin::new_unchecked(&mut w2.bus) },
-                unsafe { Pin::new_unchecked(&mut w3.bus) },
-            ];
+            // Create futures for all available buses
+            let mut futures = Vec::new();
+            for (_, wrapper) in wrappers.iter_mut() {
+                let bus_pin = unsafe { Pin::new_unchecked(&mut wrapper.bus) };
+                futures.push(bus_pin.try_next());
+            }
 
-            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
-
-            // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
-            let results = tokio::join!(f0, f1, f2, f3);
-            let results = [results.0, results.1, results.2, results.3];
+            // Wait for all futures to complete
+            let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
 
             let mut proceed = true;
-            for (i, results) in results.into_iter().enumerate() {
-                match results {
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Operate;
                         info!(
-                            "Bus {:?} reached {:?} on iface {}",
+                            "Bus {} reached {:?} on iface {}",
                             i,
                             tag,
-                            ss.iface_names[wrappers[i.into()].iface_idx]
+                            ss.iface_names[wrappers[i].1.iface_idx]
                         );
                     }
                     Ok(None) => {
@@ -343,35 +339,30 @@ impl State for Scanning {
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
             // unsafe { std::mem::transmute(&mut *ss.bus_wrappers) };
 
-            for wrapper in wrappers.values_mut() {
+            for (_, wrapper) in wrappers.iter_mut() {
                 wrapper.bus.set_target(actuator::StateTag::Ready);
             }
 
-            let [w0, w1, w2, w3] = wrappers.as_mut_array();
-            let [mut s0, mut s1, mut s2, mut s3] = [
-                unsafe { Pin::new_unchecked(&mut w0.bus) },
-                unsafe { Pin::new_unchecked(&mut w1.bus) },
-                unsafe { Pin::new_unchecked(&mut w2.bus) },
-                unsafe { Pin::new_unchecked(&mut w3.bus) },
-            ];
+            // Create futures for all available buses
+            let mut futures = Vec::new();
+            for (_, wrapper) in wrappers.iter_mut() {
+                let bus_pin = unsafe { Pin::new_unchecked(&mut wrapper.bus) };
+                futures.push(bus_pin.try_next());
+            }
 
-            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
-
-            // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
-            let results = tokio::join!(f0, f1, f2, f3);
-            let results = [results.0, results.1, results.2, results.3];
+            // Wait for all futures to complete
+            let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
 
             let mut proceed = true;
-            for (i, results) in results.into_iter().enumerate() {
-                let i = i.into();
-                match results {
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Ready;
                         info!(
-                            "Bus {:?} reached {:?} on iface {}",
-                            i, tag, ss.iface_names[wrappers[i].iface_idx]
+                            "Bus {} reached {:?} on iface {}",
+                            i, tag, ss.iface_names[wrappers[i].1.iface_idx]
                         );
                     }
                     Ok(None) => {
@@ -381,20 +372,20 @@ impl State for Scanning {
                         };
                     }
                     Err(e) => {
-                        error!("Error polling bus {:?}: {:?}", i, e);
+                        error!("Error polling bus {}: {:?}", i, e);
                         // handle error, e.g. reset the bus
                         if let Some(av_idx) = ss.av_iface_idxs.pop_front() {
-                            ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
+                            ss.av_iface_idxs.push_back(wrappers[i].1.iface_idx);
                             error!(
-                                "Resetting bus {:?} from {} to {}",
-                                i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]
+                                "Resetting bus {} from {} to {}",
+                                i, ss.iface_names[wrappers[i].1.iface_idx], ss.iface_names[av_idx]
                             );
-                            wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
+                            wrappers[i].1.reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
                             proceed = false;
                         } else {
                             error!(
-                                "No spare CAN interfaces available to reset bus {:?} (staying on {})",
-                                i, ss.iface_names[wrappers[i].iface_idx]
+                                "No spare CAN interfaces available to reset bus {} (staying on {})",
+                                i, ss.iface_names[wrappers[i].1.iface_idx]
                             );
                             proceed = false;
                         }
@@ -435,7 +426,7 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
@@ -454,12 +445,12 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for (i, wrapper) in wrappers.values_mut().enumerate() {
+        for (i, (tag, wrapper)) in wrappers.iter_mut().enumerate() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // process the feedback
                 op_bus
-                    .process_feedback(act_states.slice_mut(i.into()))
+                    .process_feedback(act_states.slice_mut(*tag))
                     .await?;
             } else {
                 return Err(io::Error::other("Bus is not in Operate state"));
@@ -472,11 +463,11 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for (i, wrapper) in wrappers.values_mut().enumerate() {
+        for (tag, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
-                op_bus.command(act_states.slice(BusTag::from(i))).await?;
+                op_bus.command(act_states.slice(*tag)).await?;
             } else {
                 return Err(io::Error::other("Bus is not in Operate state"));
             }
@@ -498,7 +489,7 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
