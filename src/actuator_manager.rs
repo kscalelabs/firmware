@@ -46,7 +46,7 @@ impl ActuatorBusWrapper {
 pub struct Store {
     // leftarm_store: actuator::Store,
     #[pin]
-    bus_wrappers: EnumMap<BusTag, ActuatorBusWrapper>,
+    bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)>,
     // bus_wrappers: [ActuatorBusWrapper; 4], // left arm, right arm, left leg, right leg
     // leftarm: Option<ActuatorBus>,
     // rightarm: Option<ActuatorBus>,
@@ -128,7 +128,9 @@ impl Store {
                         if name.is_empty() { None } else { Some(name.to_string()) }
                     })
                     .collect::<Vec<_>>()
-            });
+            }).expect("CAN_INTERFACES is not set correctly, and KSCALE_CAN_LIMB_MAP is not provided");
+
+        let is_upper_body_only = env_list.len() == 2;
 
         // 2) Optional explicit limb->iface map via KSCALE_CAN_LIMB_MAP
         //    Format: "LeftArm=can6,RightArm=can1,LeftLeg=can3,RightLeg=can2"
@@ -159,12 +161,7 @@ impl Store {
             info!("Using KSCALE_CAN_LIMB_MAP for limb assignment: {}", limb_map_raw.as_deref().unwrap_or(""));
             mapped.into_iter().map(|o| o.unwrap()).collect()
         } else {
-            // Fall back to env list order (first 4) or discovery
-            let base = env_list.clone().unwrap_or_else(|| discovered.clone());
-            if base.len() < 4 {
-                info!("Fewer than 4 interfaces provided; falling back to discovery order for missing entries");
-            }
-            base.into_iter().take(4).collect()
+            env_list
         };
 
         // 4) Append spares: prefer remaining from env list, else from discovery
@@ -196,25 +193,19 @@ impl Store {
             BusTag::RightLeg.id_vec(),
         ];
 
-        let bus_wrappers: EnumMap<BusTag, ActuatorBusWrapper> = EnumMap::from_fn(|tag: BusTag| {
-            let idx = tag as usize;
-            let iface_name = &iface_names[idx];
-            // Assume id_vec() is implemented on BusTag
-            let ids = tag.id_vec();
-            ActuatorBusWrapper {
-                bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
-                iface_idx: idx,
-            }
-        });
+        let bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)> = Vec::with_capacity(4);
 
-        // let bus_wrappers = std::array::from_fn(|i| {
-        //     let iface_name = &iface_names[i];
-        //     let ids = &actuator_ids[i];
-        //     ActuatorBusWrapper {
-        //         bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
-        //         iface_idx: i,
-        //     }
-        // });
+        // loop through iface names and create bus wrappers (could be 2 or 4 long)
+        for (idx, iface_name) in iface_names.iter().enumerate() {
+            let ids = &actuator_ids[idx];
+            bus_wrappers.push((
+                BusTag::from_usize(idx),
+                ActuatorBusWrapper {
+                    bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
+                    iface_idx: idx,
+                }
+            ));
+        }
 
         // Any interfaces beyond the first 4 are considered spares that can be rotated in on fault
         let mut av_iface_idxs = std::collections::VecDeque::new();
