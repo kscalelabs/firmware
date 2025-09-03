@@ -272,14 +272,15 @@ impl State for Ready {
                 wrapper.bus.set_target(actuator::StateTag::Operate);
             }
 
-            // Create futures for all available buses
-            let mut futures = Vec::new();
+            // First pass: collect all the pin projections
+            let mut bus_pins: Vec<Pin<&mut ActuatorBus>> = Vec::new();
             for (_, wrapper) in wrappers.iter_mut() {
-                let bus_pin = unsafe { Pin::new_unchecked(&mut wrapper.bus) };
-                futures.push(bus_pin.try_next());
+                let wrapper_pin = unsafe { Pin::new_unchecked(wrapper) };
+                bus_pins.push(wrapper_pin.project().bus);
             }
 
-            // Wait for all futures to complete
+            // Second pass: create futures from the long-lived pins
+            let futures: Vec<_> = bus_pins.iter_mut().map(|pin| pin.try_next()).collect();
             let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
@@ -335,20 +336,19 @@ impl State for Scanning {
             // SAFETY: we know `bus_wrappers` is #[pin], so its elements live
             // in place and can be reborrowed safely.
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-            // unsafe { std::mem::transmute(&mut *ss.bus_wrappers) };
-
             for (_, wrapper) in wrappers.iter_mut() {
-                wrapper.bus.set_target(actuator::StateTag::Ready);
+                wrapper.bus.set_target(actuator::StateTag::Operate);
             }
 
-            // Create futures for all available buses
-            let mut futures = Vec::new();
+            // First pass: collect all the pin projections
+            let mut bus_pins: Vec<Pin<&mut ActuatorBus>> = Vec::new();
             for (_, wrapper) in wrappers.iter_mut() {
-                let bus_pin = unsafe { Pin::new_unchecked(&mut wrapper.bus) };
-                futures.push(bus_pin.try_next());
+                let wrapper_pin = unsafe { Pin::new_unchecked(wrapper) };
+                bus_pins.push(wrapper_pin.project().bus);
             }
 
-            // Wait for all futures to complete
+            // Second pass: create futures from the long-lived pins
+            let futures: Vec<_> = bus_pins.iter_mut().map(|pin| pin.try_next()).collect();
             let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
