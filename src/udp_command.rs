@@ -9,55 +9,90 @@ use tracing::{debug, error, warn, info};
 
 /// Unified UDP manager that handles either 3D or 16D commands based on policy
 #[derive(Debug)]
-pub enum UnifiedUdpManager {
+pub struct UnifiedUdpManager {
     Basic(UdpCommandManager),
     Extended(UdpExtendedCommandManager),
 }
 
 impl UnifiedUdpManager {
     /// Create a UDP manager based on whether 16D commands are needed
-    pub async fn new(port: u16, use_extended: bool) -> io::Result<Self> {
-        if use_extended {
-            info!("Initializing extended UDP manager (16D) on port {}", port);
-            Ok(UnifiedUdpManager::Extended(UdpExtendedCommandManager::new(port).await?))
-        } else {
-            info!("Initializing basic UDP manager (3D) on port {}", port);
-            Ok(UnifiedUdpManager::Basic(UdpCommandManager::new(port).await?))
-        }
+    pub async fn new(port: u16) -> io::Result<Self> {
+        let addr = SocketAddr::from(([0, 0, 0, 0], port));
+        let std_socket = socket2::Socket::new(
+            socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)
+        )?;
+        std_socket.set_recv_buffer_size(1024)?;
+        std_socket.set_nonblocking(true)?;
+        std_socket.bind(&addr.into())?;
+        let std_socket: std::net::UdpSocket = std_socket.into();
+        let socket = UdpSocket::from_std(std_socket)?;
+        debug!("UDP extended command manager listening on port {}", port);
+        Ok(Self {
+            socket,
+            current_command: UdpExtendedCommand::default(),
+            last_command_time: None,
+            command_timeout: Duration::from_millis(500),
+        })
     }
 
     /// Update commands from UDP buffer
     pub async fn try_update_command(&mut self) -> io::Result<bool> {
-        match self {
-            UnifiedUdpManager::Basic(manager) => manager.try_update_command().await,
-            UnifiedUdpManager::Extended(manager) => manager.try_update_command().await,
+        let mut buf = [0u8; 1024];
+        let mut latest: Option<UdpExtendedCommand> = None;
+        let mut packets_read = 0;
+        loop {
+            match self.socket.try_recv(&mut buf) {
+                Ok(len) => {
+                    packets_read += 1;
+                    match serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
+                        Ok(cmd) => {
+                            latest = Some(cmd);
+                            debug!("Parsed extended UDP command #{} (x={}, y={}, yaw={})",
+                                   packets_read, cmd.x, cmd.y, cmd.yaw_rate);
+                        }
+                        Err(e) => warn!("Failed to parse extended UDP command JSON (#{}) {}", packets_read, e),
+                    }
+                }
+                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(e) => { error!("UDP socket error: {}", e); return Err(e); }
+            }
+        }
+        if let Some(cmd) = latest {
+            if packets_read > 1 { debug!("Drained {} UDP packets (extended)", packets_read); }
+            self.current_command = cmd;
+            self.last_command_time = Some(std::time::Instant::now());
+            Ok(true)
+        } else { Ok(false) }
+    }
+
+    /// Get the current command, applying timeout logic
+    pub fn get_current_command(&self) -> UdpExtendedCommand {
+        if let Some(last_time) = self.last_command_time {
+            if last_time.elapsed() > self.command_timeout {
+                // Command has timed out, return zero command
+                debug!("UDP command timed out, returning zero command");
+                UdpExtendedCommand::default()
+            } else {
+                self.current_command
+            }
+        } else {
+            // No command received yet
+            UdpExtendedCommand::default()
         }
     }
 
     /// Check if we have recent commands
     pub fn has_recent_command(&self) -> bool {
-        match self {
-            UnifiedUdpManager::Basic(manager) => manager.has_recent_command(),
-            UnifiedUdpManager::Extended(manager) => manager.has_recent_command(),
+        if let Some(last_time) = self.last_command_time {
+            last_time.elapsed() <= self.command_timeout
+        } else {
+            false
         }
     }
 
     /// Update robot description with current command
     pub fn update_robot_description(&self, robot_description: &mut crate::robot_description::RobotDescription) {
-        let cmd = match self {
-            UnifiedUdpManager::Basic(manager) => {
-                let basic_cmd = manager.get_current_command();
-                UdpExtendedCommand {
-                    x: basic_cmd.x,
-                    y: basic_cmd.y,
-                    yaw_rate: basic_cmd.yaw,  // Note: converting from yaw to yaw_rate
-                    ..Default::default()  // All extended fields remain zero
-                }
-            }
-            UnifiedUdpManager::Extended(manager) => {
-                manager.get_current_command()
-            }
-        };
+        let cmd = self.get_current_command();
         robot_description.udp_command_state = cmd;
     }
 
@@ -188,21 +223,6 @@ impl UdpCommandManager {
         }
     }
 
-    /// Get the current command, applying timeout logic
-    pub fn get_current_command(&self) -> UdpCommand {
-        if let Some(last_time) = self.last_command_time {
-            if last_time.elapsed() > self.command_timeout {
-                // Command has timed out, return zero command
-                debug!("UDP command timed out, returning zero command");
-                UdpCommand::default()
-            } else {
-                self.current_command
-            }
-        } else {
-            // No command received yet
-            UdpCommand::default()
-        }
-    }
 
     /// Check if we have received any commands recently
     pub fn has_recent_command(&self) -> bool {
@@ -395,51 +415,9 @@ impl std::fmt::Debug for UdpExtendedCommandManager {
 
 impl UdpExtendedCommandManager {
     pub async fn new(port: u16) -> io::Result<Self> {
-        let addr = SocketAddr::from(([0, 0, 0, 0], port));
-        let std_socket = socket2::Socket::new(
-            socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)
-        )?;
-        std_socket.set_recv_buffer_size(1024)?;
-        std_socket.set_nonblocking(true)?;
-        std_socket.bind(&addr.into())?;
-        let std_socket: std::net::UdpSocket = std_socket.into();
-        let socket = UdpSocket::from_std(std_socket)?;
-        debug!("UDP extended command manager listening on port {}", port);
-        Ok(Self {
-            socket,
-            current_command: UdpExtendedCommand::default(),
-            last_command_time: None,
-            command_timeout: Duration::from_millis(500),
-        })
     }
 
     pub async fn try_update_command(&mut self) -> io::Result<bool> {
-        let mut buf = [0u8; 1024];
-        let mut latest: Option<UdpExtendedCommand> = None;
-        let mut packets_read = 0;
-        loop {
-            match self.socket.try_recv(&mut buf) {
-                Ok(len) => {
-                    packets_read += 1;
-                    match serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
-                        Ok(cmd) => {
-                            latest = Some(cmd);
-                            debug!("Parsed extended UDP command #{} (x={}, y={}, yaw={})",
-                                   packets_read, cmd.x, cmd.y, cmd.yaw_rate);
-                        }
-                        Err(e) => warn!("Failed to parse extended UDP command JSON (#{}) {}", packets_read, e),
-                    }
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
-                Err(e) => { error!("UDP socket error: {}", e); return Err(e); }
-            }
-        }
-        if let Some(cmd) = latest {
-            if packets_read > 1 { debug!("Drained {} UDP packets (extended)", packets_read); }
-            self.current_command = cmd;
-            self.last_command_time = Some(std::time::Instant::now());
-            Ok(true)
-        } else { Ok(false) }
     }
 
     pub fn get_current_command(&self) -> UdpExtendedCommand {
