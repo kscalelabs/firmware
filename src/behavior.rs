@@ -105,11 +105,26 @@ impl Home {
     }
 
     // returns max error
-    pub fn step_controller(robot_desc: &mut RobotDescription) -> f64 {
+    pub fn step_controller(robot_desc: &mut RobotDescription, op_act_manager: &actuator_manager::Operate) -> f64 {
         let (actuators, home_position) = (&mut robot_desc.actuators, &mut robot_desc.home_position);
+
+        // Check if we have only 2 buses (upper body only)
+        let is_upper_body_only = op_act_manager.get_bus_count() == 2;
 
         let mut ret = 0.0f64;
         for (act_id, act_state) in actuators.actuator_states.iter_mut() {
+            // Skip leg actuators if we only have 2 buses (upper body only)
+            if is_upper_body_only {
+                match act_id {
+                    ActuatorId::Lhp | ActuatorId::Lhr | ActuatorId::Lhy | ActuatorId::Lkp | ActuatorId::Lap |
+                    ActuatorId::Rhp | ActuatorId::Rhr | ActuatorId::Rhy | ActuatorId::Rkp | ActuatorId::Rap => {
+                        debug!("Skipping leg actuator {:?} in upper body only mode", act_id);
+                        continue;
+                    }
+                    _ => {}
+                }
+            }
+
             // feedback could be anywhere between [-4PI, 4PI]
             // home position is in [-PI, PI]
             // first we must normalize the feedback into [-PI, PI]
@@ -419,7 +434,7 @@ impl State for Home {
                 .await;
             // run controller
 
-            let err = Self::step_controller(ss.robot_description);
+            let err = Self::step_controller(ss.robot_description, op_act_manager);
 
             let act_states = ss.robot_description.actuator_states_mut();
             // TODO

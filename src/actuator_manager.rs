@@ -420,6 +420,11 @@ impl State for Reset {
 }
 
 impl Operate {
+    pub fn get_bus_count(&self) -> usize {
+        let ss = self.shared_state.as_ref().project_ref();
+        ss.bus_wrappers.len()
+    }
+
     pub async fn request_feedback(&mut self) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();
 
