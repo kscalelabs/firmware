@@ -7,16 +7,18 @@ use tokio::net::UdpSocket;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, error, warn, info};
 
-/// Unified UDP manager that handles either 3D or 16D commands based on policy
+/// Unified UDP manager that handles both 3D and 16D command formats
 #[derive(Debug)]
 pub struct UnifiedUdpManager {
-    Basic(UdpCommandManager),
-    Extended(UdpExtendedCommandManager),
+    socket: UdpSocket,
+    current_command: UdpExtendedCommand,
+    last_command_time: Option<std::time::Instant>,
+    command_timeout: Duration,
 }
 
 impl UnifiedUdpManager {
-    /// Create a UDP manager based on whether 16D commands are needed
-    pub async fn new(port: u16) -> io::Result<Self> {
+    /// Create a UDP manager that can handle both 3D and 16D commands
+    pub async fn new(port: u16, _use_extended: bool) -> io::Result<Self> {
         let addr = SocketAddr::from(([0, 0, 0, 0], port));
         let std_socket = socket2::Socket::new(
             socket2::Domain::IPV4, socket2::Type::DGRAM, Some(socket2::Protocol::UDP)
@@ -44,21 +46,36 @@ impl UnifiedUdpManager {
             match self.socket.try_recv(&mut buf) {
                 Ok(len) => {
                     packets_read += 1;
-                    match serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
-                        Ok(cmd) => {
-                            latest = Some(cmd);
-                            debug!("Parsed extended UDP command #{} (x={}, y={}, yaw={})",
-                                   packets_read, cmd.x, cmd.y, cmd.yaw_rate);
-                        }
-                        Err(e) => warn!("Failed to parse extended UDP command JSON (#{}) {}", packets_read, e),
+                    
+                    // Try to parse as extended command first
+                    if let Ok(cmd) = serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
+                        latest = Some(cmd);
+                        debug!("Parsed extended UDP command #{} (x={}, y={}, yaw_rate={})",
+                               packets_read, cmd.x, cmd.y, cmd.yaw_rate);
+                    }
+                    // Fall back to basic command format
+                    else if let Ok(basic_cmd) = serde_json::from_slice::<UdpCommand>(&buf[..len]) {
+                        // Convert basic command to extended format
+                        let extended_cmd = UdpExtendedCommand {
+                            x: basic_cmd.x,
+                            y: basic_cmd.y,
+                            yaw_rate: basic_cmd.yaw,  // Convert yaw to yaw_rate
+                            ..Default::default()  // All other fields remain zero
+                        };
+                        latest = Some(extended_cmd);
+                        debug!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
+                               packets_read, basic_cmd.x, basic_cmd.y, basic_cmd.yaw);
+                    }
+                    else {
+                        warn!("Failed to parse UDP command JSON (packet #{}) - not valid UdpExtendedCommand or UdpCommand format", packets_read);
                     }
                 }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => break,
+                Err(ref e) if e.kind() == std::io::ErrorKind::WouldBlock => break,
                 Err(e) => { error!("UDP socket error: {}", e); return Err(e); }
             }
         }
         if let Some(cmd) = latest {
-            if packets_read > 1 { debug!("Drained {} UDP packets (extended)", packets_read); }
+            if packets_read > 1 { debug!("Drained {} UDP packets", packets_read); }
             self.current_command = cmd;
             self.last_command_time = Some(std::time::Instant::now());
             Ok(true)
@@ -124,70 +141,12 @@ impl Default for UdpCommand {
     }
 }
 
-impl UdpCommandManager {
-
-    /// Non-blocking method to drain UDP buffer and get the LATEST command
-    /// Returns true if a new command was received
-    pub async fn try_update_command(&mut self) -> io::Result<bool> {
-        let mut buf = [0u8; 1024];
-        let mut latest_command: Option<UdpCommand> = None;
-        let mut packets_read = 0;
-        
-        // Drain ALL packets from the UDP buffer, keeping only the latest valid one
-        loop {
-            match self.socket.try_recv(&mut buf) {
-                Ok(len) => {
-                    packets_read += 1;
-                    
-                    // Try to parse this packet
-                    match serde_json::from_slice::<UdpCommand>(&buf[..len]) {
-                        Ok(command) => {
-                            // This is a valid command - keep it as the latest
-                            latest_command = Some(command);
-                            debug!("Parsed UDP command #{}: x={}, y={}, yaw={}", 
-                                   packets_read, command.x, command.y, command.yaw);
-                        }
-                        Err(e) => {
-                            warn!("Failed to parse UDP command JSON (packet #{}): {}", packets_read, e);
-                            // Continue reading more packets
-                        }
-                    }
-                }
-                Err(ref e) if e.kind() == io::ErrorKind::WouldBlock => {
-                    // No more data available - this is expected for non-blocking
-                    break;
-                }
-                Err(e) => {
-                    error!("UDP socket error: {}", e);
-                    return Err(e);
-                }
-            }
-        }
-        
-        // If we got at least one valid command, use the latest one
-        if let Some(command) = latest_command {
-            if packets_read > 1 {
-                debug!("Drained {} UDP packets, using latest command", packets_read);
-            }
-            
-            self.current_command = command;
-            self.last_command_time = Some(std::time::Instant::now());
-            Ok(true)
-        } else {
-            // No new valid commands received
-            Ok(false)
-        }
-    }
-
-
-}
-
 
 
 /// UDP Command State for policy control integration
 #[derive(Debug)]
 pub struct UdpControlVectorInputState {
-    udp_manager: Option<UdpCommandManager>,
+    udp_manager: Option<UnifiedUdpManager>,
     last_command: UdpCommand,
 }
 
@@ -200,14 +159,20 @@ impl UdpControlVectorInputState {
     }
 
     pub async fn initialize(&mut self, port: u16) -> io::Result<()> {
-        self.udp_manager = Some(UdpCommandManager::new(port).await?);
+        self.udp_manager = Some(UnifiedUdpManager::new(port, false).await?);
         Ok(())
     }
 
     pub async fn update_from_udp(&mut self) -> io::Result<()> {
         if let Some(ref mut manager) = self.udp_manager {
             manager.try_update_command().await?;
-            self.last_command = manager.get_current_command();
+            // Convert extended command back to basic format for compatibility
+            let extended_cmd = manager.get_current_command();
+            self.last_command = UdpCommand {
+                x: extended_cmd.x,
+                y: extended_cmd.y,
+                yaw: extended_cmd.yaw_rate,
+            };
         }
         Ok(())
     }
@@ -308,7 +273,7 @@ impl Default for UdpExtendedCommand {
 
 #[derive(Debug)]
 pub struct Udp16ControlVectorInputState {
-    udp_manager: Option<UdpExtendedCommandManager>,
+    udp_manager: Option<UnifiedUdpManager>,
     last_command: UdpExtendedCommand,
 }
 
@@ -317,7 +282,7 @@ impl Udp16ControlVectorInputState {
         Self { udp_manager: None, last_command: UdpExtendedCommand::default() }
     }
     pub async fn initialize(&mut self, port: u16) -> io::Result<()> {
-        self.udp_manager = Some(UdpExtendedCommandManager::new(port).await?);
+        self.udp_manager = Some(UnifiedUdpManager::new(port, true).await?);
         Ok(())
     }
     pub async fn update_from_udp(&mut self) -> io::Result<()> {
