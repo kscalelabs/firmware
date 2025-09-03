@@ -118,7 +118,7 @@ impl Home {
                 match act_id {
                     ActuatorId::Lhp | ActuatorId::Lhr | ActuatorId::Lhy | ActuatorId::Lkp | ActuatorId::Lap |
                     ActuatorId::Rhp | ActuatorId::Rhr | ActuatorId::Rhy | ActuatorId::Rkp | ActuatorId::Rap => {
-                        debug!("Skipping leg actuator {:?} in upper body only mode", act_id);
+                        info!("Skipping leg actuator {:?} in upper body only mode", act_id);
                         continue;
                     }
                     _ => {}
