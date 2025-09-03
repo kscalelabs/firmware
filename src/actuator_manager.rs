@@ -161,16 +161,14 @@ impl Store {
             info!("Using KSCALE_CAN_LIMB_MAP for limb assignment: {}", limb_map_raw.as_deref().unwrap_or(""));
             mapped.into_iter().map(|o| o.unwrap()).collect()
         } else {
-            env_list
+            env_list.clone()
         };
 
         // 4) Append spares: prefer remaining from env list, else from discovery
         let mut seen = std::collections::HashSet::new();
         for n in &iface_names { seen.insert(n.clone()); }
-        if let Some(list) = env_list {
-            for n in list {
-                if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
-            }
+        for n in env_list {
+            if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
         }
         for n in discovered {
             if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
@@ -193,7 +191,7 @@ impl Store {
             BusTag::RightLeg.id_vec(),
         ];
 
-        let bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)> = Vec::with_capacity(4);
+        let mut bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)> = Vec::with_capacity(4);
 
         // loop through iface names and create bus wrappers (could be 2 or 4 long)
         for (idx, iface_name) in iface_names.iter().enumerate() {
