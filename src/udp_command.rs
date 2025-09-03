@@ -124,51 +124,7 @@ impl Default for UdpCommand {
     }
 }
 
-pub struct UdpCommandManager {
-    socket: UdpSocket,
-    current_command: UdpCommand,
-    last_command_time: Option<std::time::Instant>,
-    command_timeout: Duration,
-}
-
-impl std::fmt::Debug for UdpCommandManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("UdpCommandManager")
-            .field("current_command", &self.current_command)
-            .field("last_command_time", &self.last_command_time)
-            .finish()
-    }
-}
-
 impl UdpCommandManager {
-    pub async fn new(port: u16) -> io::Result<Self> {
-        let addr = SocketAddr::from(([0, 0, 0, 0], port));
-        
-        // Create socket with socket2 for better control, then convert to tokio
-        let std_socket = socket2::Socket::new(
-            socket2::Domain::IPV4, 
-            socket2::Type::DGRAM, 
-            Some(socket2::Protocol::UDP)
-        )?;
-        
-        // Set small receive buffer to minimize latency and avoid buffering old packets
-        std_socket.set_recv_buffer_size(1024)?;
-        std_socket.set_nonblocking(true)?;
-        std_socket.bind(&addr.into())?;
-        
-        // Convert to tokio UdpSocket
-        let std_socket: std::net::UdpSocket = std_socket.into();
-        let socket = UdpSocket::from_std(std_socket)?;
-        
-        debug!("UDP command manager listening on port {}", port);
-        
-        Ok(Self {
-            socket,
-            current_command: UdpCommand::default(),
-            last_command_time: None,
-            command_timeout: Duration::from_millis(500), // 500ms timeout
-        })
-    }
 
     /// Non-blocking method to drain UDP buffer and get the LATEST command
     /// Returns true if a new command was received
@@ -224,50 +180,6 @@ impl UdpCommandManager {
     }
 
 
-    /// Check if we have received any commands recently
-    pub fn has_recent_command(&self) -> bool {
-        if let Some(last_time) = self.last_command_time {
-            last_time.elapsed() <= self.command_timeout
-        } else {
-            false
-        }
-    }
-
-    /// For backwards compatibility - wait for any UDP packet (like wait_for_enter)
-    /// This also drains the buffer to get the latest packet
-    pub async fn wait_for_any_command(&mut self) -> io::Result<UdpCommand> {
-        loop {
-            // First, try to drain any existing packets
-            if self.try_update_command().await? {
-                return Ok(self.current_command);
-            }
-            
-            // If no packets were available, wait for the next one
-            let mut buf = [0u8; 1024];
-            let len = self.socket.recv(&mut buf).await?;
-            
-            match serde_json::from_slice::<UdpCommand>(&buf[..len]) {
-                Ok(command) => {
-                    self.current_command = command;
-                    self.last_command_time = Some(std::time::Instant::now());
-                    
-                    // After receiving one packet, drain any additional packets to get the latest
-                    self.try_update_command().await?;
-                    
-                    return Ok(self.current_command);
-                }
-                Err(e) => {
-                    warn!("Failed to parse UDP command JSON: {}", e);
-                    // Continue waiting for a valid command
-                }
-            }
-        }
-    }
-
-    /// Get timing information for debugging
-    pub fn get_command_age(&self) -> Option<Duration> {
-        self.last_command_time.map(|t| t.elapsed())
-    }
 }
 
 
@@ -391,43 +303,6 @@ impl Default for UdpExtendedCommand {
             r_shoulder_pitch: 0.0, r_shoulder_roll: 0.0, r_elbow_pitch: 0.0, r_elbow_roll: 0.0, r_wrist_pitch: 0.0,
             l_shoulder_pitch: 0.0, l_shoulder_roll: 0.0, l_elbow_pitch: 0.0, l_elbow_roll: 0.0, l_wrist_pitch: 0.0,
         }
-    }
-}
-
-
-pub struct UdpExtendedCommandManager {
-    socket: UdpSocket,
-    current_command: UdpExtendedCommand,
-    last_command_time: Option<std::time::Instant>,
-    command_timeout: Duration,
-}
-
-
-impl std::fmt::Debug for UdpExtendedCommandManager {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("UdpExtendedCommandManager")
-            .field("current_command", &self.current_command)
-            .field("last_command_time", &self.last_command_time)
-            .finish()
-    }
-}
-
-
-impl UdpExtendedCommandManager {
-    pub async fn new(port: u16) -> io::Result<Self> {
-    }
-
-    pub async fn try_update_command(&mut self) -> io::Result<bool> {
-    }
-
-    pub fn get_current_command(&self) -> UdpExtendedCommand {
-        if let Some(t) = self.last_command_time {
-            if t.elapsed() > self.command_timeout { UdpExtendedCommand::default() } else { self.current_command }
-        } else { UdpExtendedCommand::default() }
-    }
-
-    pub fn has_recent_command(&self) -> bool {
-        self.last_command_time.map(|t| t.elapsed() <= self.command_timeout).unwrap_or(false)
     }
 }
 
