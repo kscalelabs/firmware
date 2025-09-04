@@ -5,14 +5,6 @@ use nalgebra as na;
 use tracing::info;
 use crate::actuator::{CanResponseFault, MotorFault, SystemFault};
 
-#[derive(Debug, Clone, Copy, Default)]
-pub struct UdpCommandState {
-    pub x: f32,
-    pub y: f32,
-    pub yaw: f32,
-    pub timestamp: Option<std::time::Instant>,
-}
-
 pub fn normalize_actuator_qpos(mut qpos: f64) -> f64 {
     const TWO_PI: f64 = 2.0 * std::f64::consts::PI;
     // rem_euclid gives a value in [0, 2π)
@@ -385,6 +377,14 @@ pub struct Args {
     /// derivative gain scale
     #[arg(long, value_name = "FLOAT", default_value_t = 1.0)]
     kd_scale: f64,
+
+    /// low-pass filter cutoff in Hz for policy outputs (0 disables filtering)
+    #[arg(long, value_name = "FLOAT", default_value_t = 6.0)]
+    lpf_cutoff_hz: f64,
+
+    /// minimum-jerk blend duration in milliseconds (0 disables re-timing)
+    #[arg(long, value_name = "FLOAT", default_value_t = 0.0)]
+    min_jerk_blend_ms: f64,
 }
 
 pub struct RobotDescription {
@@ -392,12 +392,14 @@ pub struct RobotDescription {
     pub imu: ImuData,
     pub initial_imu: ImuData,
     pub kb_pending_events: Deque<KeyEvent, 16>,
-    pub udp_command_state: UdpCommandState,
+    pub udp_command_state: crate::udp_command::UdpExtendedCommand,
     pub home_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_position: EnumMap<ActuatorId, ActuatorCommand>,
     pub policy_scale: f64,
     pub kp_scale: f64,
     pub kd_scale: f64,
+    pub lpf_cutoff_hz: f64,
+    pub min_jerk_blend_ms: f64,
 }
 
 impl Default for RobotDescription {
@@ -415,10 +417,12 @@ impl RobotDescription {
             imu: ImuData::default(),
             initial_imu: ImuData::default(),
             kb_pending_events: Deque::new(),
-            udp_command_state: UdpCommandState::default(),
+            udp_command_state: crate::udp_command::UdpExtendedCommand::default(),
             kp_scale: args.kp_scale,
             kd_scale: args.kd_scale,
             policy_scale: args.policy_scale,
+            lpf_cutoff_hz: args.lpf_cutoff_hz,
+            min_jerk_blend_ms: args.min_jerk_blend_ms,
             home_position: enum_map! {
                 ActuatorId::Lsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Lsr => ActuatorCommand { qpos: (10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },

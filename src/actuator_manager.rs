@@ -46,11 +46,11 @@ impl ActuatorBusWrapper {
 pub struct Store {
     // leftarm_store: actuator::Store,
     #[pin]
-    bus_wrappers: EnumMap<BusTag, ActuatorBusWrapper>,
+    bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)>,
     // bus_wrappers: [ActuatorBusWrapper; 4], // left arm, right arm, left leg, right leg
     // leftarm: Option<ActuatorBus>,
     // rightarm: Option<ActuatorBus>,
-    iface_names: [String; 5], // vcan0, vcan1, vcan2, vcan3, vcan4
+    iface_names: Vec<String>,
     av_iface_idxs: std::collections::VecDeque<usize>,
 }
 
@@ -62,7 +62,127 @@ impl Default for Store {
 
 impl Store {
     pub fn new() -> Self {
-        let iface_names = ["can0", "can1", "can2", "can3", "can4"].map(String::from);
+        // Build CAN interface list from environment or system; fallback to a sensible default
+        fn discover_can_interfaces() -> Vec<String> {
+            // environment variable override
+            let from_env = std::env::var("KSCALE_CAN_INTERFACES")
+                .or_else(|_| std::env::var("CAN_INTERFACES"))
+                .ok()
+                .map(|val| {
+                    val.split(',')
+                        .filter_map(|s| {
+                            let name = s.trim();
+                            if name.is_empty() { None } else { Some(name.to_string()) }
+                        })
+                        .collect::<Vec<_>>()
+                });
+
+            if let Some(list) = from_env {
+                if !list.is_empty() {
+                    return list;
+                }
+            }
+
+            // discover from /sys/class/net for can/vcan interfaces
+            let mut discovered: Vec<String> = std::fs::read_dir("/sys/class/net")
+                .ok()
+                .into_iter()
+                .flatten()
+                .filter_map(|res| res.ok())
+                .filter_map(|entry| entry.file_name().into_string().ok())
+                .filter(|name: &String| name.starts_with("can") || name.starts_with("vcan"))
+                .collect();
+
+            // sort by prefix and numeric suffix if present (can0 < can1 < can10)
+            discovered.sort_by(|a, b| {
+                fn split_name(s: &str) -> (&str, Option<u32>) {
+                    let (prefix, digits) = s.split_at(s.find(|c: char| c.is_ascii_digit()).unwrap_or(s.len()));
+                    let num = digits.parse::<u32>().ok();
+                    (prefix, num)
+                }
+                let (pa, na) = split_name(a);
+                let (pb, nb) = split_name(b);
+                match pa.cmp(pb) {
+                    std::cmp::Ordering::Equal => na.cmp(&nb),
+                    other => other,
+                }
+            });
+
+            if !discovered.is_empty() {
+                return discovered;
+            }
+
+            // default to can0..can6 to support both 5 and 7 bus hardware
+            (0..=6).map(|i| format!("can{}", i)).collect::<Vec<_>>()
+        }
+
+        // 1) Gather candidates (env list or discovery)
+        let discovered = discover_can_interfaces();
+        let env_list = std::env::var("KSCALE_CAN_INTERFACES")
+            .or_else(|_| std::env::var("CAN_INTERFACES"))
+            .ok()
+            .map(|val| {
+                val.split(',')
+                    .filter_map(|s| {
+                        let name = s.trim();
+                        if name.is_empty() { None } else { Some(name.to_string()) }
+                    })
+                    .collect::<Vec<_>>()
+            }).expect("CAN_INTERFACES is not set correctly, and KSCALE_CAN_LIMB_MAP is not provided");
+
+        let is_upper_body_only = env_list.len() == 2;
+
+        // 2) Optional explicit limb->iface map via KSCALE_CAN_LIMB_MAP
+        //    Format: "LeftArm=can6,RightArm=can1,LeftLeg=can3,RightLeg=can2"
+        let limb_map_raw = std::env::var("KSCALE_CAN_LIMB_MAP").ok();
+        let mut mapped: [Option<String>; 4] = [None, None, None, None];
+        if let Some(cfg) = limb_map_raw.as_deref() {
+            for entry in cfg.split(',') {
+                let kv: Vec<&str> = entry.splitn(2, '=').collect();
+                if kv.len() != 2 { continue; }
+                let key = kv[0].trim();
+                let val = kv[1].trim();
+                if val.is_empty() { continue; }
+                let idx_opt = match key.to_ascii_lowercase().as_str() {
+                    "leftarm" => Some(crate::robot_description::BusTag::LeftArm as usize),
+                    "rightarm" => Some(crate::robot_description::BusTag::RightArm as usize),
+                    "leftleg" => Some(crate::robot_description::BusTag::LeftLeg as usize),
+                    "rightleg" => Some(crate::robot_description::BusTag::RightLeg as usize),
+                    _ => None,
+                };
+                if let Some(idx) = idx_opt { mapped[idx] = Some(val.to_string()); }
+            }
+        }
+
+        let have_full_limb_map = mapped.iter().all(|v| v.is_some());
+
+        // 3) Build final iface_names: first four entries are limbs in BusTag order.
+        let mut iface_names: Vec<String> = if have_full_limb_map {
+            info!("Using KSCALE_CAN_LIMB_MAP for limb assignment: {}", limb_map_raw.as_deref().unwrap_or(""));
+            mapped.into_iter().map(|o| o.unwrap()).collect()
+        } else {
+            env_list.clone()
+        };
+
+        // 4) Append spares: prefer remaining from env list, else from discovery
+        let mut seen = std::collections::HashSet::new();
+        for n in &iface_names { seen.insert(n.clone()); }
+        for n in env_list {
+            if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
+        }
+        for n in discovered {
+            if !seen.contains(&n) { iface_names.push(n.clone()); seen.insert(n); }
+        }
+
+        // 5) Log final order and per-limb mapping
+        info!("Final CAN interface order: {:?}", iface_names);
+        info!(
+            "Limb->iface: LeftArm={}, RightArm={}, LeftLeg={}, RightLeg={}",
+            iface_names.get(crate::robot_description::BusTag::LeftArm as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::RightArm as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::LeftLeg as usize).unwrap_or(&"<missing>".to_string()),
+            iface_names.get(crate::robot_description::BusTag::RightLeg as usize).unwrap_or(&"<missing>".to_string()),
+        );
 
         let actuator_ids = [
             BusTag::LeftArm.id_vec(),
@@ -71,31 +191,29 @@ impl Store {
             BusTag::RightLeg.id_vec(),
         ];
 
-        let bus_wrappers: EnumMap<BusTag, ActuatorBusWrapper> = EnumMap::from_fn(|tag: BusTag| {
-            let idx = tag as usize;
-            let iface_name = &iface_names[idx];
-            // Assume id_vec() is implemented on BusTag
-            let ids = tag.id_vec();
-            ActuatorBusWrapper {
-                bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
-                iface_idx: idx,
-            }
-        });
+        let mut bus_wrappers: Vec<(BusTag, ActuatorBusWrapper)> = Vec::with_capacity(4);
 
-        // let bus_wrappers = std::array::from_fn(|i| {
-        //     let iface_name = &iface_names[i];
-        //     let ids = &actuator_ids[i];
-        //     ActuatorBusWrapper {
-        //         bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
-        //         iface_idx: i,
-        //     }
-        // });
-
-        Self {
-            bus_wrappers,
-            iface_names,
-            av_iface_idxs: std::collections::VecDeque::from(vec![4]),
+        // loop through iface names and create bus wrappers (could be 2 or 4 long)
+        for (idx, iface_name) in iface_names.iter().enumerate() {
+            let ids = &actuator_ids[idx];
+            bus_wrappers.push((
+                BusTag::from_usize(idx),
+                ActuatorBusWrapper {
+                    bus: actuator::ActuatorBus::new(iface_name, ids.clone()),
+                    iface_idx: idx,
+                }
+            ));
         }
+
+        // Any interfaces beyond the first 4 are considered spares that can be rotated in on fault
+        let mut av_iface_idxs = std::collections::VecDeque::new();
+        if iface_names.len() > 4 {
+            for idx in 4..iface_names.len() {
+                av_iface_idxs.push_back(idx);
+            }
+        }
+
+        Self { bus_wrappers, iface_names, av_iface_idxs }
     }
 }
 
@@ -128,7 +246,7 @@ impl Ready {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Ready(rdy_bus)) = wrapper.bus.get_state() {
                 // enable the bus
@@ -150,36 +268,33 @@ impl State for Ready {
             // SAFETY: we know `bus_wrappers` is #[pin], so its elements live
             // in place and can be reborrowed safely.
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-            for wrapper in wrappers.values_mut() {
+            for (_, wrapper) in wrappers.iter_mut() {
                 wrapper.bus.set_target(actuator::StateTag::Operate);
             }
 
-            let [w0, w1, w2, w3] = wrappers.as_mut_array();
-            let [mut s0, mut s1, mut s2, mut s3] = [
-                unsafe { Pin::new_unchecked(&mut w0.bus) },
-                unsafe { Pin::new_unchecked(&mut w1.bus) },
-                unsafe { Pin::new_unchecked(&mut w2.bus) },
-                unsafe { Pin::new_unchecked(&mut w3.bus) },
-            ];
+            // First pass: collect all the pin projections
+            let mut bus_pins: Vec<Pin<&mut ActuatorBus>> = Vec::new();
+            for (_, wrapper) in wrappers.iter_mut() {
+                let wrapper_pin = unsafe { Pin::new_unchecked(wrapper) };
+                bus_pins.push(wrapper_pin.project().bus);
+            }
 
-            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
-
-            // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
-            let results = tokio::join!(f0, f1, f2, f3);
-            let results = [results.0, results.1, results.2, results.3];
+            // Second pass: create futures from the long-lived pins
+            let futures: Vec<_> = bus_pins.iter_mut().map(|pin| pin.try_next()).collect();
+            let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
 
             let mut proceed = true;
-            for (i, results) in results.into_iter().enumerate() {
-                match results {
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Operate;
                         info!(
-                            "Bus {:?} reached {:?} on iface {}",
+                            "Bus {} reached {:?} on iface {}",
                             i,
                             tag,
-                            ss.iface_names[wrappers[i.into()].iface_idx]
+                            ss.iface_names[wrappers[i].1.iface_idx]
                         );
                     }
                     Ok(None) => {
@@ -221,37 +336,31 @@ impl State for Scanning {
             // SAFETY: we know `bus_wrappers` is #[pin], so its elements live
             // in place and can be reborrowed safely.
             let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-            // unsafe { std::mem::transmute(&mut *ss.bus_wrappers) };
-
-            for wrapper in wrappers.values_mut() {
-                wrapper.bus.set_target(actuator::StateTag::Ready);
+            for (_, wrapper) in wrappers.iter_mut() {
+                wrapper.bus.set_target(actuator::StateTag::Operate);
             }
 
-            let [w0, w1, w2, w3] = wrappers.as_mut_array();
-            let [mut s0, mut s1, mut s2, mut s3] = [
-                unsafe { Pin::new_unchecked(&mut w0.bus) },
-                unsafe { Pin::new_unchecked(&mut w1.bus) },
-                unsafe { Pin::new_unchecked(&mut w2.bus) },
-                unsafe { Pin::new_unchecked(&mut w3.bus) },
-            ];
+            // First pass: collect all the pin projections
+            let mut bus_pins: Vec<Pin<&mut ActuatorBus>> = Vec::new();
+            for (_, wrapper) in wrappers.iter_mut() {
+                let wrapper_pin = unsafe { Pin::new_unchecked(wrapper) };
+                bus_pins.push(wrapper_pin.project().bus);
+            }
 
-            let [f0, f1, f2, f3] = [s0.try_next(), s1.try_next(), s2.try_next(), s3.try_next()];
-
-            // let (r0, r1, r2, r3) = tokio::join!(f0, f1, f2, f3);
-            let results = tokio::join!(f0, f1, f2, f3);
-            let results = [results.0, results.1, results.2, results.3];
+            // Second pass: create futures from the long-lived pins
+            let futures: Vec<_> = bus_pins.iter_mut().map(|pin| pin.try_next()).collect();
+            let results = futures::future::join_all(futures).await;
 
             info!("Results: {:?}", results);
 
             let mut proceed = true;
-            for (i, results) in results.into_iter().enumerate() {
-                let i = i.into();
-                match results {
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
                     Ok(Some(tag)) => {
                         proceed &= tag == actuator::StateTag::Ready;
                         info!(
-                            "Bus {:?} reached {:?} on iface {}",
-                            i, tag, ss.iface_names[wrappers[i].iface_idx]
+                            "Bus {} reached {:?} on iface {}",
+                            i, tag, ss.iface_names[wrappers[i].1.iface_idx]
                         );
                     }
                     Ok(None) => {
@@ -261,19 +370,23 @@ impl State for Scanning {
                         };
                     }
                     Err(e) => {
-                        error!("Error polling bus {:?}: {:?}", i, e);
+                        error!("Error polling bus {}: {:?}", i, e);
                         // handle error, e.g. reset the bus
-                        let av_idx = ss
-                            .av_iface_idxs
-                            .pop_front()
-                            .expect("Expected at least 4 actuator buses");
-                        ss.av_iface_idxs.push_back(wrappers[i].iface_idx);
-                        error!(
-                            "Resetting bus {:?} from {} to {}",
-                            i, ss.iface_names[wrappers[i].iface_idx], ss.iface_names[av_idx]
-                        );
-                        wrappers[i].reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
-                        proceed = false;
+                        if let Some(av_idx) = ss.av_iface_idxs.pop_front() {
+                            ss.av_iface_idxs.push_back(wrappers[i].1.iface_idx);
+                            error!(
+                                "Resetting bus {} from {} to {}",
+                                i, ss.iface_names[wrappers[i].1.iface_idx], ss.iface_names[av_idx]
+                            );
+                            wrappers[i].1.reset_iface(ss.iface_names[av_idx].as_str(), av_idx);
+                            proceed = false;
+                        } else {
+                            error!(
+                                "No spare CAN interfaces available to reset bus {} (staying on {})",
+                                i, ss.iface_names[wrappers[i].1.iface_idx]
+                            );
+                            proceed = false;
+                        }
                     }
                 }
             }
@@ -307,11 +420,16 @@ impl State for Reset {
 }
 
 impl Operate {
+    pub fn get_bus_count(&self) -> usize {
+        let ss = self.shared_state.as_ref().project_ref();
+        ss.bus_wrappers.len()
+    }
+
     pub async fn request_feedback(&mut self) -> std::io::Result<()> {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
@@ -330,12 +448,12 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for (i, wrapper) in wrappers.values_mut().enumerate() {
+        for (i, (tag, wrapper)) in wrappers.iter_mut().enumerate() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // process the feedback
                 op_bus
-                    .process_feedback(act_states.slice_mut(i.into()))
+                    .process_feedback(act_states.slice_mut(*tag))
                     .await?;
             } else {
                 return Err(io::Error::other("Bus is not in Operate state"));
@@ -348,11 +466,11 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for (i, wrapper) in wrappers.values_mut().enumerate() {
+        for (tag, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus
-                op_bus.command(act_states.slice(BusTag::from(i))).await?;
+                op_bus.command(act_states.slice(*tag)).await?;
             } else {
                 return Err(io::Error::other("Bus is not in Operate state"));
             }
@@ -374,7 +492,7 @@ impl Operate {
         let mut ss = self.shared_state.as_mut().project();
 
         let wrappers = unsafe { Pin::get_unchecked_mut(ss.bus_wrappers) };
-        for wrapper in wrappers.values_mut() {
+        for (_, wrapper) in wrappers.iter_mut() {
             // all buses should be operational
             if let Some(actuator::StateStore::Operate(op_bus)) = wrapper.bus.get_state() {
                 // enable the bus

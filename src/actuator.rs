@@ -2,7 +2,7 @@ use crate::socketcan2::{SocketCanConfigurator, SocketCanOperator};
 use crate::typestate_socket2::{Socket, SocketGraph, SocketState, SocketStorage};
 use std::pin::Pin;
 use std::task::{Context, Poll};
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use crate::socketcan::CanFrame;
 use std::fmt::Debug;
@@ -620,9 +620,9 @@ impl State for Configure {
 
             tokio::task::yield_now().await;
 
-            // wait for responses for 10ms
+            // wait for responses
             let to = tokio::time::timeout(
-                std::time::Duration::from_millis(10),
+                std::time::Duration::from_millis(150),
                 read_responses(self.shared_state.as_mut()),
             );
 
@@ -732,6 +732,25 @@ async fn read_responses_update(
                 Ok(Some(fdbk)) => {
                     if let Some(ref mut act_states) = act_states {
                         if let Some(state) = act_states.get_mut(client_idx) {
+                            // Rising-edge CAN fault logging
+                            if let Some(new_faults) = fdbk.faults {
+                                let prev_faults = state.feedback.faults;
+                                let rising = new_faults & !prev_faults;
+                                if rising != 0 {
+                                    let descriptions: Vec<String> = CanResponseFault::from_bitmask(rising)
+                                        .iter()
+                                        .map(|f| f.to_string())
+                                        .collect();
+                                    let actuator_id = actuator_ids.get(client_idx).copied().unwrap_or(0xFF);
+                                    warn!(
+                                        "Actuator {} CAN Response Faults (0x{:06X}): {}",
+                                        actuator_id,
+                                        rising >> 16,
+                                        descriptions.join(", ")
+                                    );
+                                }
+                            }
+            
                             state.merge_feedback(fdbk);
                         } else {
                             return Err(std::io::Error::new(
@@ -825,9 +844,25 @@ async fn read_responses_update(
                 .filter(|&(_, responded)| !responded)
                 .count();
 
-            if missing_count > 0 {
-                warn!("Overall timeout waiting for responses on {}: Missing responses from {} actuators", 
-                      ss.ifname, missing_count);
+            // Edge-Trigger / Rate-Limit the missing count
+            let now = std::time::Instant::now();
+            let prev_missing = *ss.last_missing_count;
+            let prev_time = *ss.last_missing_log_at;
+            let changed = prev_missing.map_or(true, |prev| prev != missing_count);
+            let due = prev_time
+                .map_or(true, |t| now.duration_since(t) >= std::time::Duration::from_millis(2000));
+
+            if missing_count > 0 && (changed || due) {
+                warn!(
+                    "Overall timeout waiting for responses on {}: Missing responses from {} actuators",
+                    ss.ifname, missing_count
+                );
+                *ss.last_missing_count = Some(missing_count);
+                *ss.last_missing_log_at = Some(now);
+            } else if missing_count == 0 && prev_missing.unwrap_or(0) != 0 {
+                info!("Recovered from missing responses on {}", ss.ifname);
+                *ss.last_missing_count = Some(0);
+                *ss.last_missing_log_at = Some(now);
             }
         }
     }
@@ -881,13 +916,6 @@ async fn read_responses_update(
             }
         }
     }
-
-    if any_missing {
-        warn!("Missing responses from {} actuators", missing_count);
-    } else {
-        debug!("All {} actuators responded", n);
-    }
-
     Ok(()) // Always succeed - be fault tolerant
 }
 
@@ -899,6 +927,9 @@ struct Store {
     response_to_client_idx: fn(&CanFrame) -> usize, // map canframe to client index
     #[pin]
     socket_graph: SocketGraph<SocketCanConfigurator, SocketCanOperator>,
+
+    last_missing_count: Option<usize>,
+    last_missing_log_at: Option<std::time::Instant>,
 }
 
 impl Store {
@@ -911,6 +942,8 @@ impl Store {
                 ((id % 10) - 1) as usize
             },
             socket_graph: SocketGraph::new(ifname),
+            last_missing_count: None,
+            last_missing_log_at: None,
         }
     }
 

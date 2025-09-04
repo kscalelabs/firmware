@@ -588,6 +588,13 @@ impl Store {
             kb_manager: crate::keyboard::KeyboardManager::new(),
         })
     }
+
+    /// Check if this model has a 16D command input (for extended UDP)
+    pub fn has_16d_command(&self) -> bool {
+        self.step_input_types.iter().any(|input_type| {
+            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+        })
+    }
 }
 
 pub struct Reset {
@@ -613,6 +620,11 @@ impl State for Reset {
                     shared_state,
                     creation_time: std::time::Instant::now(),
                     session_input_vec: self.session_input_vec,
+                    lpf_prev_qpos: enum_map::EnumMap::default(),
+                    lpf_last_update: std::time::Instant::now(),
+                    mj_prev_out: enum_map::EnumMap::default(),
+                    mj_blend_t_elapsed: enum_map::EnumMap::default(),
+                    mj_blend_t_total: enum_map::EnumMap::default(),
                 }),
                 result: Ok(()),
             }
@@ -624,6 +636,13 @@ pub struct Operate {
     shared_state: Pin<Box<Store>>,
     creation_time: std::time::Instant,
     session_input_vec: Vec<ort::session::SessionInputValue<'static>>,
+    // Per-actuator low-pass filter state for commanded qpos
+    lpf_prev_qpos: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    lpf_last_update: std::time::Instant,
+    // Minimum-jerk blend state
+    mj_prev_out: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    mj_blend_t_elapsed: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
+    mj_blend_t_total: enum_map::EnumMap<crate::robot_description::ActuatorId, f64>,
 }
 
 impl std::fmt::Debug for Operate {
@@ -635,6 +654,13 @@ impl std::fmt::Debug for Operate {
 }
 
 impl Operate {
+    /// Check if this model has a 16D command input (for extended UDP)
+    pub fn has_16d_command(&self) -> bool {
+        self.shared_state.step_input_types.iter().any(|input_type| {
+            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+        })
+    }
+
     pub fn step_controller(
         &mut self,
         robot_description: &mut RobotDescription,
@@ -744,19 +770,84 @@ impl Operate {
             .map_err(std::io::Error::other)?;
 
         let actuator_states = &mut robot_description.actuators.actuator_states;
+
+        let cutoff_hz = robot_description.lpf_cutoff_hz;
+        let prev_map = &mut self.lpf_prev_qpos;
+        let now = std::time::Instant::now();
+        let dt = now.duration_since(self.lpf_last_update).as_secs_f64();
+        self.lpf_last_update = now;
+
         for (i, command) in commands.iter().enumerate() {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
-            // get the normalized qpso
+            // get the normalized qpos
             let normalized_qpos =
                 robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
             let err = *command as f64 - normalized_qpos;
-            let final_command = act_state.feedback.qpos + err * robot_description.policy_scale;
-            // TODO: action scale
-            // act_state.command.qpos = *command as f64 * robot_description.policy_scale;
+            let unfiltered = act_state.feedback.qpos + err * robot_description.policy_scale;
+
+            // One-pole LPF: y = y_prev + alpha * (x - y_prev); alpha = 1 - exp(-2*pi*fc*dt)
+            let filtered = if cutoff_hz <= 0.0 || dt <= 0.0 {
+                unfiltered
+            } else {
+                let alpha = 1.0 - (-2.0 * std::f64::consts::PI * cutoff_hz * dt).exp();
+                let y_prev = prev_map[actuator_id];
+                let y = y_prev + alpha * (unfiltered - y_prev);
+                prev_map[actuator_id] = y;
+                y
+            };
+
+            // Minimum-jerk retiming blend (optional)
+            let mut final_command = filtered;
+            let blend_ms = robot_description.min_jerk_blend_ms;
+            if blend_ms > 0.0 && dt > 0.0 {
+                let t_total = (blend_ms / 1000.0).max(1e-6);
+                // Initialize previous output from current command on first use
+                let mut prev_out = if self.mj_blend_t_total[actuator_id] == 0.0 {
+                    let start = act_state.command.qpos;
+                    self.mj_prev_out[actuator_id] = start;
+                    start
+                } else {
+                    self.mj_prev_out[actuator_id]
+                };
+                let target = filtered;
+
+                // If the target changed meaningfully, restart blend
+                if (target - prev_out).abs() > 1e-9 {
+                    self.mj_blend_t_elapsed[actuator_id] = 0.0;
+                    self.mj_blend_t_total[actuator_id] = t_total;
+                }
+
+                // Advance blending time
+                let t = (self.mj_blend_t_elapsed[actuator_id] + dt)
+                    .min(self.mj_blend_t_total[actuator_id]);
+                self.mj_blend_t_elapsed[actuator_id] = t;
+                let denom = self.mj_blend_t_total[actuator_id];
+                let s = if denom > 0.0 { (t / denom).clamp(0.0, 1.0) } else { 1.0 };
+                // Minimum-jerk polynomial: 10 s^3 - 15 s^4 + 6 s^5
+                let s2 = s * s;
+                let s3 = s2 * s;
+                let s4 = s3 * s;
+                let s5 = s4 * s;
+                let mj = 10.0 * s3 - 15.0 * s4 + 6.0 * s5;
+                final_command = prev_out + mj * (target - prev_out);
+
+                // Snap when done
+                if (self.mj_blend_t_elapsed[actuator_id]
+                    >= self.mj_blend_t_total[actuator_id] - 1e-12)
+                {
+                    final_command = target;
+                }
+
+                // Persist
+                self.mj_prev_out[actuator_id] = final_command;
+            } else {
+                // Persist last even without blending
+                self.mj_prev_out[actuator_id] = final_command;
+            }
             act_state.command.qpos = final_command;
-            act_state.command.qvel = 0.0; // no velocity
-            act_state.command.qfrc = 0.0; // no force
+            act_state.command.qvel = 0.0; // no velocity command
+            act_state.command.qfrc = 0.0; // no torque command
             act_state.command.kp =
                 robot_description.policy_position[actuator_id].kp * robot_description.kp_scale;
             act_state.command.kd =
@@ -876,6 +967,11 @@ impl State for Operate {
                     shared_state,
                     creation_time: self.creation_time,
                     session_input_vec: self.session_input_vec,
+                    lpf_prev_qpos: self.lpf_prev_qpos,
+                    lpf_last_update: self.lpf_last_update,
+                    mj_prev_out: self.mj_prev_out,
+                    mj_blend_t_elapsed: self.mj_blend_t_elapsed,
+                    mj_blend_t_total: self.mj_blend_t_total,
                 }),
                 result: Ok(()),
             }
@@ -897,6 +993,7 @@ impl ModelManager {
         model_path: P,
         robot_description: &RobotDescription,
     ) -> std::io::Result<Self> {
+        info!("LPF Cutoff freq: {} hz", robot_description.lpf_cutoff_hz);
         Ok(Self {
             state: Some(StateStore::Reset(Reset {
                 shared_state: Box::pin(Store::new(model_path, robot_description)?),
