@@ -138,7 +138,7 @@ impl Home {
                 act_id, normalized_feedback, home_position[act_id].qpos, err
             );
             // NOTE: these are currently not homed
-            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
+            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr && act_id != ActuatorId::Rwp && act_id != ActuatorId::Rwy {
                 ret = ret.max(err.abs());
             }
             // proportional control with clamping
