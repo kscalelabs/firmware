@@ -305,8 +305,8 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
         Ok(())
     }
     fn extract(&mut self, mut arr: ndarray::ArrayViewMut1<f32>) -> std::io::Result<()> {
-        if arr.len() < 16 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "expected arr.len() >= 16"));
+        if arr.len() < 18 {
+            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "expected arr.len() >= 18"));
         }
         let c = self.last_command;
         arr[0] = c.x;               // x linear velocity [m/s]
@@ -334,7 +334,7 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
     fn extract_with_robot(&mut self, mut arr: ndarray::ArrayViewMut1<f32>, robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
         // Extract UDP command from unified robot description state
         let cmd_state = &robot_description.udp_command_state;
-        if arr.len() >= 16 {
+        if arr.len() >= 18 {
             arr[0] = cmd_state.x;
             arr[1] = cmd_state.y;
             arr[2] = cmd_state.yaw_rate;
@@ -354,7 +354,7 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[16] = cmd_state.l_elbow_roll;
             arr[17] = cmd_state.l_wrist_pitch;
         }
-        info!("16D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
+        info!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
               cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
         Ok(())
     }

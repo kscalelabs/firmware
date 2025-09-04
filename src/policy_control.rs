@@ -48,8 +48,8 @@ impl CommandType {
             7 => Ok(CommandType::BartControlVectorInputState(
                 BartControlVectorInputState::new(),
             )),
-            16 => {
-                log::info!("Joystick: UdpExtended (Bart!)");
+            18 => {
+                log::info!("Joystick: Udp18D Command");
                 Ok(CommandType::Udp18ControlVectorInputState(
                     crate::udp_command::Udp18ControlVectorInputState::new(),
                 ))

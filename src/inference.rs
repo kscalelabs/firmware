@@ -589,8 +589,8 @@ impl Store {
         })
     }
 
-    /// Check if this model has a 16D command input (for extended UDP)
-    pub fn has_16d_command(&self) -> bool {
+    /// Check if this model has an extended command input (16D or 18D, for extended UDP)
+    pub fn has_extended_command(&self) -> bool {
         self.step_input_types.iter().any(|input_type| {
             matches!(input_type, ModelInputType::Command(CommandType::Udp18ControlVectorInputState(_)))
         })
@@ -654,8 +654,8 @@ impl std::fmt::Debug for Operate {
 }
 
 impl Operate {
-    /// Check if this model has a 16D command input (for extended UDP)
-    pub fn has_16d_command(&self) -> bool {
+    /// Check if this model has an extended command input (16D or 18D, for extended UDP)
+    pub fn has_extended_command(&self) -> bool {
         self.shared_state.step_input_types.iter().any(|input_type| {
             matches!(input_type, ModelInputType::Command(CommandType::Udp18ControlVectorInputState(_)))
         })

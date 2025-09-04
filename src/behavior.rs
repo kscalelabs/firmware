@@ -302,7 +302,7 @@ impl State for Ready {
             };
 
             // Initialize UDP manager based on policy requirements
-            let use_extended = op_model.has_16d_command();
+            let use_extended = op_model.has_extended_command();
             match UnifiedUdpManager::new(10000, use_extended).await {
                 Ok(udp_mgr) => {
                     *ss.udp_manager = Some(udp_mgr);
