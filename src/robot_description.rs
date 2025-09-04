@@ -181,6 +181,8 @@ impl BusTag {
                 ActuatorId::Rsy,
                 ActuatorId::Rep,
                 ActuatorId::Rwr,
+                ActuatorId::Rwy,
+                ActuatorId::Rwp,
             ],
             BusTag::LeftLeg => vec![
                 ActuatorId::Lhp,
@@ -237,7 +239,7 @@ impl ActuatorId {
 }
 
 pub struct ActuatorStateStore {
-    pub actuator_states: EnumMap<ActuatorId, ActuatorState>, // 20 actuators
+    pub actuator_states: EnumMap<ActuatorId, ActuatorState>, // 22 actuators
 }
 
 impl Default for ActuatorStateStore {
