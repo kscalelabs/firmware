@@ -1086,7 +1086,7 @@ fn try_dof_to_actuator_id(dof: &str) -> std::io::Result<ActuatorId> {
         "dof_right_elbow_02" => ActuatorId::Rep,
         "dof_right_wrist_00" => ActuatorId::Rwr,
         "dof_right_wrist_yaw_00" => ActuatorId::Rwy,
-        "dof_right_wrist__pitch_00" => ActuatorId::Rwp,
+        "dof_right_wrist_pitch_00" => ActuatorId::Rwp,
         "dof_left_shoulder_pitch_03" => ActuatorId::Lsp,
         "dof_left_shoulder_roll_03" => ActuatorId::Lsr,
         "dof_left_shoulder_yaw_02" => ActuatorId::Lsy,
