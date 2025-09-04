@@ -592,7 +592,7 @@ impl Store {
     /// Check if this model has a 16D command input (for extended UDP)
     pub fn has_16d_command(&self) -> bool {
         self.step_input_types.iter().any(|input_type| {
-            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+            matches!(input_type, ModelInputType::Command(CommandType::Udp18ControlVectorInputState(_)))
         })
     }
 }
@@ -657,7 +657,7 @@ impl Operate {
     /// Check if this model has a 16D command input (for extended UDP)
     pub fn has_16d_command(&self) -> bool {
         self.shared_state.step_input_types.iter().any(|input_type| {
-            matches!(input_type, ModelInputType::Command(CommandType::Udp16ControlVectorInputState(_)))
+            matches!(input_type, ModelInputType::Command(CommandType::Udp18ControlVectorInputState(_)))
         })
     }
 

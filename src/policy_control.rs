@@ -14,7 +14,7 @@ pub enum CommandType {
     ExpandedControlVectorInputState,
     BartControlVectorInputState,
     UdpControlVectorInputState(crate::udp_command::UdpControlVectorInputState),
-    Udp16ControlVectorInputState(crate::udp_command::Udp16ControlVectorInputState),
+    Udp18ControlVectorInputState(crate::udp_command::Udp18ControlVectorInputState),
 }
 
 #[enum_dispatch]
@@ -50,8 +50,8 @@ impl CommandType {
             )),
             16 => {
                 log::info!("Joystick: UdpExtended (Bart!)");
-                Ok(CommandType::Udp16ControlVectorInputState(
-                    crate::udp_command::Udp16ControlVectorInputState::new(),
+                Ok(CommandType::Udp18ControlVectorInputState(
+                    crate::udp_command::Udp18ControlVectorInputState::new(),
                 ))
             },
             _ => Err(std::io::Error::new(

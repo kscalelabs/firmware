@@ -244,6 +244,10 @@ pub struct UdpExtendedCommand {
     pub r_elbow_pitch: f32,
     #[serde(rename = "RElbowRoll")]
     pub r_elbow_roll: f32,
+    #[serde(rename = "RWristRoll")]
+    pub r_wrist_roll: f32,
+    #[serde(rename = "RWristYaw")]
+    pub r_wrist_yaw: f32,
     #[serde(rename = "RWristPitch")]
     pub r_wrist_pitch: f32,
 
@@ -267,17 +271,18 @@ impl Default for UdpExtendedCommand {
             base_height: 0.0, base_roll: 0.0, base_pitch: 0.0,
             r_shoulder_pitch: 0.0, r_shoulder_roll: 0.0, r_elbow_pitch: 0.0, r_elbow_roll: 0.0, r_wrist_pitch: 0.0,
             l_shoulder_pitch: 0.0, l_shoulder_roll: 0.0, l_elbow_pitch: 0.0, l_elbow_roll: 0.0, l_wrist_pitch: 0.0,
+            r_wrist_yaw: 0.0, r_wrist_roll: 0.0,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct Udp16ControlVectorInputState {
+pub struct Udp18ControlVectorInputState {
     udp_manager: Option<UnifiedUdpManager>,
     last_command: UdpExtendedCommand,
 }
 
-impl Udp16ControlVectorInputState {
+impl Udp18ControlVectorInputState {
     pub fn new() -> Self {
         Self { udp_manager: None, last_command: UdpExtendedCommand::default() }
     }
@@ -294,7 +299,7 @@ impl Udp16ControlVectorInputState {
     }
 }
 
-impl crate::policy_control::InputState for Udp16ControlVectorInputState {
+impl crate::policy_control::InputState for Udp18ControlVectorInputState {
     fn update(&mut self, _key: crossterm::event::KeyEvent) -> std::io::Result<()> {
         // No keyboard; UDP-only.
         Ok(())
@@ -314,13 +319,15 @@ impl crate::policy_control::InputState for Udp16ControlVectorInputState {
         arr[7] = c.r_shoulder_roll;
         arr[8] = c.r_elbow_pitch;
         arr[9] = c.r_elbow_roll;
-        arr[10] = c.r_wrist_pitch;
-        arr[11] = c.l_shoulder_pitch;
-        arr[12] = c.l_shoulder_roll;
-        arr[13] = c.l_elbow_pitch;
-        arr[14] = c.l_elbow_roll;
-        arr[15] = c.l_wrist_pitch;
-        info!("16D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
+        arr[10] = c.r_wrist_roll;
+        arr[11] = c.r_wrist_yaw;
+        arr[12] = c.r_wrist_pitch;
+        arr[13] = c.l_shoulder_pitch;
+        arr[14] = c.l_shoulder_roll;
+        arr[15] = c.l_elbow_pitch;
+        arr[16] = c.l_elbow_roll;
+        arr[17] = c.l_wrist_pitch;
+        info!("18D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
               c.x, c.y, c.yaw_rate, c.base_height, c.r_shoulder_pitch);
         Ok(())
     }
@@ -338,12 +345,14 @@ impl crate::policy_control::InputState for Udp16ControlVectorInputState {
             arr[7] = cmd_state.r_shoulder_roll;
             arr[8] = cmd_state.r_elbow_pitch;
             arr[9] = cmd_state.r_elbow_roll;
-            arr[10] = cmd_state.r_wrist_pitch;
-            arr[11] = cmd_state.l_shoulder_pitch;
-            arr[12] = cmd_state.l_shoulder_roll;
-            arr[13] = cmd_state.l_elbow_pitch;
-            arr[14] = cmd_state.l_elbow_roll;
-            arr[15] = cmd_state.l_wrist_pitch;
+            arr[10] = cmd_state.r_wrist_roll;
+            arr[11] = cmd_state.r_wrist_yaw;
+            arr[12] = cmd_state.r_wrist_pitch;
+            arr[13] = cmd_state.l_shoulder_pitch;
+            arr[14] = cmd_state.l_shoulder_roll;
+            arr[15] = cmd_state.l_elbow_pitch;
+            arr[16] = cmd_state.l_elbow_roll;
+            arr[17] = cmd_state.l_wrist_pitch;
         }
         info!("16D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
               cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
