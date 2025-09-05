@@ -437,7 +437,7 @@ impl RobotDescription {
                 ActuatorId::Rsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Rsr => ActuatorCommand { qpos: (-10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },
                 ActuatorId::Rsy => ActuatorCommand { qpos: 0.0, kp: 40.0, kd: 0.945, ..Default::default() },
-                ActuatorId::Rep => ActuatorCommand { qpos: (90.0_f64).to_radians(), kp: 50.0, kd: 1.266, ..Default::default() },
+                ActuatorId::Rep => ActuatorCommand { qpos: (90.0_f64).to_radians(), kp: 60.0, kd: 1.266, ..Default::default() },
                 ActuatorId::Rwr => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
                 ActuatorId::Rwy => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
                 ActuatorId::Rwp => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
