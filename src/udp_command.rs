@@ -269,8 +269,8 @@ impl Default for UdpExtendedCommand {
         Self {
             x: 0.0, y: 0.0, yaw_rate: 0.0,
             base_height: 0.0, base_roll: 0.0, base_pitch: 0.0,
-            r_shoulder_pitch: 0.0, r_shoulder_roll: 0.0, r_elbow_pitch: 0.0, r_elbow_roll: 0.0, r_wrist_roll: 0.0,
-            l_shoulder_pitch: 0.0, l_shoulder_roll: 0.0, l_elbow_pitch: 0.0, l_elbow_roll: 0.0, l_wrist_roll: 0.0,
+            r_shoulder_pitch: -15.0/(std::f32::consts::PI*2.0), r_shoulder_roll: 0.0, r_elbow_pitch: 90.0/(std::f32::consts::PI*2.0), r_elbow_roll: 0.0, r_wrist_roll: 0.0,
+            l_shoulder_pitch: 15.0/(std::f32::consts::PI*2.0), l_shoulder_roll: 0.0, l_elbow_pitch: -90.0/(std::f32::consts::PI*2.0), l_elbow_roll: 0.0, l_wrist_roll: 0.0,
             r_wrist_gripper: 0.0, l_wrist_gripper: 0.0,
         }
     }
