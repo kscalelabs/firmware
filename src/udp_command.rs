@@ -299,37 +299,20 @@ impl Udp18ControlVectorInputState {
     }
 }
 
+fn gripper_command_to_angle(gripper_cmd: f32) -> f32 {
+    // gripper command will be in range [0,1] and it needs to map to angles [0,pi/6]
+    // TODO: figure out the non-linear mapping to get the exact position based on the joint linkages
+    (gripper_cmd.clamp(0.0, 1.0)) * (std::f32::consts::PI / 6.0)
+}
+
 impl crate::policy_control::InputState for Udp18ControlVectorInputState {
     fn update(&mut self, _key: crossterm::event::KeyEvent) -> std::io::Result<()> {
         // No keyboard; UDP-only.
         Ok(())
     }
     fn extract(&mut self, mut arr: ndarray::ArrayViewMut1<f32>) -> std::io::Result<()> {
-        if arr.len() < 18 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "expected arr.len() >= 18"));
-        }
-        let c = self.last_command;
-        arr[0] = c.x;               // x linear velocity [m/s]
-        arr[1] = c.y;               // y linear velocity [m/s]
-        arr[2] = c.yaw_rate;        // z angular velocity [rad/s]
-        arr[3] = c.base_height;     // base height offset [m]
-        arr[4] = c.base_roll;       // base roll [rad]
-        arr[5] = c.base_pitch;      // base pitch [rad]
-        arr[6] = c.r_shoulder_pitch;
-        arr[7] = c.r_shoulder_roll;
-        arr[8] = c.r_elbow_pitch;
-        arr[9] = c.r_elbow_roll;
-        arr[10] = c.r_wrist_roll;
-        arr[11] = c.r_wrist_gripper;
-        arr[12] = c.l_shoulder_pitch;
-        arr[13] = c.l_shoulder_roll;
-        arr[14] = c.l_elbow_pitch;
-        arr[15] = c.l_elbow_roll;
-        arr[16] = c.l_wrist_roll;
-        arr[17] = c.l_wrist_gripper;
-        debug!("18D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
-              c.x, c.y, c.yaw_rate, c.base_height, c.r_shoulder_pitch);
-        Ok(())
+        // Never used, raise an error if called
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "Udp18ControlVectorInputState.extract() should not be called, use extract_with_robot() instead"))
     }
     fn extract_with_robot(&mut self, mut arr: ndarray::ArrayViewMut1<f32>, robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
         // Extract UDP command from unified robot description state
@@ -346,13 +329,13 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[8] = cmd_state.r_elbow_pitch;
             arr[9] = cmd_state.r_elbow_roll;
             arr[10] = cmd_state.r_wrist_roll;
-            arr[11] = cmd_state.r_wrist_gripper;
+            arr[11] = gripper_command_to_angle(cmd_state.r_wrist_gripper);
             arr[12] = cmd_state.l_shoulder_pitch;
             arr[13] = cmd_state.l_shoulder_roll;
             arr[14] = cmd_state.l_elbow_pitch;
             arr[15] = cmd_state.l_elbow_roll;
             arr[16] = cmd_state.l_wrist_roll;
-            arr[17] = cmd_state.l_wrist_gripper;
+            arr[17] = gripper_command_to_angle(cmd_state.l_wrist_gripper);
 
         }
         debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
