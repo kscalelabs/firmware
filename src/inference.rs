@@ -653,6 +653,16 @@ impl std::fmt::Debug for Operate {
     }
 }
 
+fn gripper_position_to_joint_angle(pos: f64) -> f64 {
+    // clamp pos from 0 to 68
+    let clamped_pos_mm = pos.clamp(0.0, 0.068)*1e3;
+    // quadratic ax^2+bx+c
+    let a = 0.0000374545;
+    let b = 0.61298;
+    let c = -0.0170176;
+    a * clamped_pos_mm * clamped_pos_mm + b * clamped_pos_mm + c
+}
+
 impl Operate {
     /// Check if this model has an extended command input (16D or 18D, for extended UDP)
     pub fn has_extended_command(&self) -> bool {
@@ -780,10 +790,18 @@ impl Operate {
         for (i, command) in commands.iter().enumerate() {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
+            // if actuator_id is a gripper, apply the gripper position to joint angle mapping to the command
+            let joint_angle: f64;
+            if actuator_id == ActuatorId::Lwg || actuator_id == ActuatorId::Rwg {
+                let gripper_pos = *command as f64;
+                joint_angle = gripper_position_to_joint_angle(gripper_pos);
+            } else {
+                joint_angle = *command as f64;
+            }
             // get the normalized qpos
             let normalized_qpos =
                 robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
-            let err = *command as f64 - normalized_qpos;
+            let err = joint_angle - normalized_qpos;
             let unfiltered = act_state.feedback.qpos + err * robot_description.policy_scale;
 
             // One-pole LPF: y = y_prev + alpha * (x - y_prev); alpha = 1 - exp(-2*pi*fc*dt)

@@ -299,12 +299,6 @@ impl Udp18ControlVectorInputState {
     }
 }
 
-fn gripper_command_to_angle(gripper_cmd: f32) -> f32 {
-    // gripper command will be in range [0,1] and it needs to map to angles [0,pi/6]
-    // TODO: figure out the non-linear mapping to get the exact position based on the joint linkages
-    (gripper_cmd.clamp(0.0, 1.0)) * (std::f32::consts::PI / 6.0)
-}
-
 impl crate::policy_control::InputState for Udp18ControlVectorInputState {
     fn update(&mut self, _key: crossterm::event::KeyEvent) -> std::io::Result<()> {
         // No keyboard; UDP-only.
@@ -329,13 +323,13 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[8] = cmd_state.r_elbow_pitch;
             arr[9] = cmd_state.r_elbow_roll;
             arr[10] = cmd_state.r_wrist_roll;
-            arr[11] = gripper_command_to_angle(cmd_state.r_wrist_gripper);
+            arr[11] = cmd_state.r_wrist_gripper;
             arr[12] = cmd_state.l_shoulder_pitch;
             arr[13] = cmd_state.l_shoulder_roll;
             arr[14] = cmd_state.l_elbow_pitch;
             arr[15] = cmd_state.l_elbow_roll;
             arr[16] = cmd_state.l_wrist_roll;
-            arr[17] = gripper_command_to_angle(cmd_state.l_wrist_gripper);
+            arr[17] = cmd_state.l_wrist_gripper;
 
         }
         debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
