@@ -877,6 +877,7 @@ impl From<u8> for RobstrideActuatorType {
             13 => RobstrideActuatorType::Robstride02, // left_shoulder_yaw_02
             14 => RobstrideActuatorType::Robstride02, // left_elbow_02
             15 => RobstrideActuatorType::Robstride00, // left_wrist_00
+            18 => RobstrideActuatorType::Robstride05, // left_wrist_gripper_05
 
             // Right arm
             21 => RobstrideActuatorType::Robstride03, // right_shoulder_pitch_03
@@ -884,8 +885,7 @@ impl From<u8> for RobstrideActuatorType {
             23 => RobstrideActuatorType::Robstride02, // right_shoulder_yaw_02
             24 => RobstrideActuatorType::Robstride02, // right_elbow_02
             25 => RobstrideActuatorType::Robstride00, // right_wrist_00
-            26 => RobstrideActuatorType::Robstride00, // right_wrist_yaw_02
-            27 => RobstrideActuatorType::Robstride00, // right_wrist_pitch_00
+            28 => RobstrideActuatorType::Robstride05, // right_wrist_gripper_05
 
             // Left leg
             31 => RobstrideActuatorType::Robstride04, // left_hip_pitch_04
