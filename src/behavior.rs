@@ -138,7 +138,7 @@ impl Home {
                 act_id, normalized_feedback, home_position[act_id].qpos, err
             );
             // NOTE: these are currently not homed
-            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr {
+            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr && act_id != ActuatorId::Rwp && act_id != ActuatorId::Rwy {
                 ret = ret.max(err.abs());
             }
             // proportional control with clamping
@@ -302,7 +302,7 @@ impl State for Ready {
             };
 
             // Initialize UDP manager based on policy requirements
-            let use_extended = op_model.has_16d_command();
+            let use_extended = op_model.has_extended_command();
             match UnifiedUdpManager::new(10000, use_extended).await {
                 Ok(udp_mgr) => {
                     *ss.udp_manager = Some(udp_mgr);

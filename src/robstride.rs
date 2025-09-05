@@ -820,6 +820,8 @@ impl ActuatorCanClient {
             ActuatorId::Rsy => 23,
             ActuatorId::Rep => 24,
             ActuatorId::Rwr => 25,
+            ActuatorId::Rwy => 26,
+            ActuatorId::Rwp => 27,
             ActuatorId::Lhp => 31,
             ActuatorId::Lhr => 32,
             ActuatorId::Lhy => 33,
@@ -882,6 +884,8 @@ impl From<u8> for RobstrideActuatorType {
             23 => RobstrideActuatorType::Robstride02, // right_shoulder_yaw_02
             24 => RobstrideActuatorType::Robstride02, // right_elbow_02
             25 => RobstrideActuatorType::Robstride00, // right_wrist_00
+            26 => RobstrideActuatorType::Robstride00, // right_wrist_yaw_02
+            27 => RobstrideActuatorType::Robstride00, // right_wrist_pitch_00
 
             // Left leg
             31 => RobstrideActuatorType::Robstride04, // left_hip_pitch_04
