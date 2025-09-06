@@ -97,8 +97,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -33.0,
-                    max: 33.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -14.0,
@@ -116,8 +116,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -44.0,
-                    max: 44.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -17.0,
@@ -135,8 +135,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -44.0,
-                    max: 44.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -17.0,
@@ -154,8 +154,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -20.0,
-                    max: 20.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -60.0,
@@ -176,8 +176,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -15.0,
-                    max: 15.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -120.0,
@@ -198,8 +198,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -15.0,
-                    max: 15.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -5.5,
