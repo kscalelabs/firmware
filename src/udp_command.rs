@@ -50,8 +50,8 @@ impl UnifiedUdpManager {
                     // Try to parse as extended command first
                     if let Ok(cmd) = serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
                         latest = Some(cmd);
-                        debug!("Parsed extended UDP command #{} (x={}, y={}, yaw_rate={})",
-                               packets_read, cmd.x, cmd.y, cmd.yaw_rate);
+                        info!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
+                               packets_read, cmd.x, cmd.r_elbow_roll, cmd.r_wrist_gripper);
                     }
                     // Fall back to basic command format
                     else if let Ok(basic_cmd) = serde_json::from_slice::<UdpCommand>(&buf[..len]) {
@@ -269,8 +269,8 @@ impl Default for UdpExtendedCommand {
         Self {
             x: 0.0, y: 0.0, yaw_rate: 0.0,
             base_height: 0.0, base_roll: 0.0, base_pitch: 0.0,
-            r_shoulder_pitch: 0.0, r_shoulder_roll: (-15.0f32).to_radians(), r_elbow_pitch: 0.0, r_elbow_roll: (90.0f32).to_radians(), r_wrist_roll: 0.0,
-            l_shoulder_pitch: 0.0, l_shoulder_roll: (15.0f32).to_radians(), l_elbow_pitch: 0.0, l_elbow_roll: (-90.0f32).to_radians(), l_wrist_roll: 0.0,
+            r_shoulder_pitch: -15.0/(3.14*180.), r_shoulder_roll: 0.0, r_elbow_pitch: 90.0/(3.14*180.), r_elbow_roll: 0.0, r_wrist_roll: 0.0,
+            l_shoulder_pitch: rust_math::trigonometry::deg2rad(15.), l_shoulder_roll: 0.0, l_elbow_pitch: -90.0/(3.14*180.), l_elbow_roll: 0.0, l_wrist_roll: 0.0,
             r_wrist_gripper: 0.0, l_wrist_gripper: 0.0,
         }
     }
