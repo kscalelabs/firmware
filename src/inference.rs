@@ -660,7 +660,9 @@ fn gripper_position_to_joint_angle(pos: f64) -> f64 {
     let a = 0.0000374545;
     let b = 0.61298;
     let c = -0.0170176;
-    a * clamped_pos_mm * clamped_pos_mm + b * clamped_pos_mm + c
+    let angle = a * clamped_pos_mm * clamped_pos_mm + b * clamped_pos_mm + c;
+    info!("Mapped gripper position {pos} to joint angle {angle}");
+    angle
 }
 
 impl Operate {
