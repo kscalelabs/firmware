@@ -795,6 +795,8 @@ impl Operate {
             // if actuator_id is a gripper, apply the gripper position to joint angle mapping to the command
             let joint_angle: f64;
             if actuator_id == ActuatorId::Lwg || actuator_id == ActuatorId::Rwg {
+                info!("Apply gripper map on index {i}")
+                info!("Full output array is {:?}", commands);
                 let gripper_pos = *command as f64;
                 joint_angle = gripper_position_to_joint_angle(gripper_pos);
             } else {
