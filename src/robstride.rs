@@ -815,13 +815,13 @@ impl ActuatorCanClient {
             ActuatorId::Lsy => 13,
             ActuatorId::Lep => 14,
             ActuatorId::Lwr => 15,
-            ActuatorId::Lwg => 18,
+            ActuatorId::Lwg => 16,
             ActuatorId::Rsp => 21,
             ActuatorId::Rsr => 22,
             ActuatorId::Rsy => 23,
             ActuatorId::Rep => 24,
             ActuatorId::Rwr => 25,
-            ActuatorId::Rwg => 28,
+            ActuatorId::Rwg => 26,
             ActuatorId::Lhp => 31,
             ActuatorId::Lhr => 32,
             ActuatorId::Lhy => 33,
@@ -877,7 +877,7 @@ impl From<u8> for RobstrideActuatorType {
             13 => RobstrideActuatorType::Robstride02, // left_shoulder_yaw_02
             14 => RobstrideActuatorType::Robstride02, // left_elbow_02
             15 => RobstrideActuatorType::Robstride00, // left_wrist_00
-            18 => RobstrideActuatorType::Robstride05, // left_wrist_gripper_05
+            16 => RobstrideActuatorType::Robstride05, // left_wrist_gripper_05
 
             // Right arm
             21 => RobstrideActuatorType::Robstride03, // right_shoulder_pitch_03
@@ -885,7 +885,7 @@ impl From<u8> for RobstrideActuatorType {
             23 => RobstrideActuatorType::Robstride02, // right_shoulder_yaw_02
             24 => RobstrideActuatorType::Robstride02, // right_elbow_02
             25 => RobstrideActuatorType::Robstride00, // right_wrist_00
-            28 => RobstrideActuatorType::Robstride05, // right_wrist_gripper_05
+            26 => RobstrideActuatorType::Robstride05, // right_wrist_gripper_05
 
             // Left leg
             31 => RobstrideActuatorType::Robstride04, // left_hip_pitch_04
