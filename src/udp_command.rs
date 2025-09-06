@@ -50,7 +50,7 @@ impl UnifiedUdpManager {
                     // Try to parse as extended command first
                     if let Ok(cmd) = serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
                         latest = Some(cmd);
-                        debug!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
+                        info!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
                                packets_read, cmd.x, cmd.r_elbow_roll, cmd.r_wrist_gripper);
                     }
                     // Fall back to basic command format
@@ -334,8 +334,8 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[17] = cmd_state.l_wrist_gripper;
 
         }
-        info!("18D UDP command from robot_description: x={}, y={}, left elbow={}, right elbow={}", 
-              cmd_state.x, cmd_state.y, cmd_state.l_elbow_roll, cmd_state.r_elbow_roll);
+        info!("18D UDP command from robot_description: x={}, y={},  right gripper={}, right elbow={}", 
+              cmd_state.x, cmd_state.y, cmd_state.r_wrist_gripper, cmd_state.r_elbow_roll);
         Ok(())
     }
 }
