@@ -715,7 +715,6 @@ impl Operate {
                         .expect("Failed to convert to 1D array");
                     use crate::policy_control::InputState;
                     cmd.extract_with_robot(arr, robot_description);
-                    info!("Command: {:?}", cmd);
                 }
                 ModelInputType::DataType(data_type) => {
                     // extract data from robot description
