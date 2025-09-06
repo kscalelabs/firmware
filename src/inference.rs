@@ -657,7 +657,7 @@ fn gripper_position_to_joint_angle(pos: f64) -> f64 {
     // clamp pos from 0 to 68
     let clamped_pos_mm = pos.clamp(0.0, 0.068);
     // quadratic ax^2+bx+c
-    let angle = 1-clamped_pos_mm / 0.068;
+    let angle = 1.0-clamped_pos_mm / 0.068;
     info!("Mapped gripper position {pos} to joint angle {angle}");
     angle
 }
