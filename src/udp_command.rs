@@ -260,7 +260,7 @@ pub struct UdpExtendedCommand {
     pub l_elbow_pitch: f32,
     #[serde(rename = "LElbowRoll")]
     pub l_elbow_roll: f32,
-    #[serde(rename = "LWristPitch")]
+    #[serde(rename = "LWristRoll")]
     pub l_wrist_roll: f32,
     #[serde(rename = "LWristGripper")]
     pub l_wrist_gripper: f32,
