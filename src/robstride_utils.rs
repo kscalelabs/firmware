@@ -202,8 +202,8 @@ impl RobstrideActuatorType {
                     max: 0.5,
                 },
                 torque: Range {
-                    min: -5.5,
-                    max: 5.5,
+                    min: -1,
+                    max: 1,
                 },
                 kp: Range {
                     min: 0.0,
