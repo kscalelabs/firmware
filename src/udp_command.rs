@@ -5,10 +5,10 @@ use std::{
 };
 use tokio::net::UdpSocket;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, warn, info};
+use tracing::{info, error, warn, info};
 
 /// Unified UDP manager that handles both 3D and 16D command formats
-#[derive(Debug)]
+#[derive(info)]
 pub struct UnifiedUdpManager {
     socket: UdpSocket,
     current_command: UdpExtendedCommand,
@@ -28,7 +28,7 @@ impl UnifiedUdpManager {
         std_socket.bind(&addr.into())?;
         let std_socket: std::net::UdpSocket = std_socket.into();
         let socket = UdpSocket::from_std(std_socket)?;
-        debug!("UDP extended command manager listening on port {}", port);
+        info!("UDP extended command manager listening on port {}", port);
         Ok(Self {
             socket,
             current_command: UdpExtendedCommand::default(),
@@ -63,7 +63,7 @@ impl UnifiedUdpManager {
                             ..Default::default()  // All other fields remain zero
                         };
                         latest = Some(extended_cmd);
-                        debug!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
+                        info!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
                                packets_read, basic_cmd.x, basic_cmd.y, basic_cmd.yaw);
                     }
                     else {
@@ -75,7 +75,7 @@ impl UnifiedUdpManager {
             }
         }
         if let Some(cmd) = latest {
-            if packets_read > 1 { debug!("Drained {} UDP packets", packets_read); }
+            if packets_read > 1 { info!("Drained {} UDP packets", packets_read); }
             self.current_command = cmd;
             self.last_command_time = Some(std::time::Instant::now());
             Ok(true)
@@ -87,7 +87,7 @@ impl UnifiedUdpManager {
         if let Some(last_time) = self.last_command_time {
             if last_time.elapsed() > self.command_timeout {
                 // Command has timed out, return zero command
-                debug!("UDP command timed out, returning zero command");
+                info!("UDP command timed out, returning zero command");
                 UdpExtendedCommand::default()
             } else {
                 self.current_command
@@ -121,7 +121,7 @@ impl UnifiedUdpManager {
 
 
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(info, Clone, Copy, Deserialize, Serialize)]
 pub struct UdpCommand {
     #[serde(rename = "XVel")]
     pub x: f32,
@@ -144,7 +144,7 @@ impl Default for UdpCommand {
 
 
 /// UDP Command State for policy control integration
-#[derive(Debug)]
+#[derive(info)]
 pub struct UdpControlVectorInputState {
     udp_manager: Option<UnifiedUdpManager>,
     last_command: UdpCommand,
@@ -192,7 +192,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = self.last_command.y;
             arr[2] = self.last_command.yaw;
         }
-        debug!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
+        info!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
         Ok(())
     }
 
@@ -204,7 +204,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = udp_state.y;
             arr[2] = udp_state.yaw_rate;  // Now using yaw_rate from unified structure
         }
-        debug!("UDP command from robot_description: x={}, y={}, yaw_rate={}", udp_state.x, udp_state.y, udp_state.yaw_rate);
+        info!("UDP command from robot_description: x={}, y={}, yaw_rate={}", udp_state.x, udp_state.y, udp_state.yaw_rate);
         Ok(())
     }
 }
@@ -217,7 +217,7 @@ impl UdpControlVectorInputState {
 }
 
 
-#[derive(Debug, Clone, Copy, Deserialize, Serialize)]
+#[derive(info, Clone, Copy, Deserialize, Serialize)]
 pub struct UdpExtendedCommand {
     // 0..2
     #[serde(rename = "XVel")]
@@ -276,7 +276,7 @@ impl Default for UdpExtendedCommand {
     }
 }
 
-#[derive(Debug)]
+#[derive(info)]
 pub struct Udp18ControlVectorInputState {
     udp_manager: Option<UnifiedUdpManager>,
     last_command: UdpExtendedCommand,
@@ -332,7 +332,7 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[17] = cmd_state.l_wrist_gripper;
 
         }
-        debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
+        info!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
               cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
         Ok(())
     }
