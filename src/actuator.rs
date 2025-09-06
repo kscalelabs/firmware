@@ -718,7 +718,7 @@ async fn read_responses_update(
         return Err(std::io::Error::other("Socket is not in Operate state"));
     };
 
-    let n = ss.actuator_clients.len();
+    let n = 8; // TODO: make this dynamic but also not reliant on the actuator ids being sequential
     
     // Pre-compute servo ID mapping to avoid borrow conflicts
     let actuator_ids: Vec<u8> = ss.actuator_clients.iter()
