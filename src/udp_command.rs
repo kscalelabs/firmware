@@ -334,8 +334,8 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[17] = cmd_state.l_wrist_gripper;
 
         }
-        debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
-              cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
+        info!("18D UDP command from robot_description: x={}, y={}, left elbow={}, right elbow={}", 
+              cmd_state.x, cmd_state.y, cmd_state.l_elbow_roll, cmd_state.r_elbow_roll);
         Ok(())
     }
 }
