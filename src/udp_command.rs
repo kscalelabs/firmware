@@ -50,7 +50,7 @@ impl UnifiedUdpManager {
                     // Try to parse as extended command first
                     if let Ok(cmd) = serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
                         latest = Some(cmd);
-                        info!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
+                        debug!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
                                packets_read, cmd.x, cmd.r_elbow_roll, cmd.r_wrist_gripper);
                     }
                     // Fall back to basic command format
@@ -63,10 +63,10 @@ impl UnifiedUdpManager {
                             ..Default::default()  // All other fields remain zero
                         };
                         latest = Some(extended_cmd);
-                        info!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
+                        debug!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
                                packets_read, basic_cmd.x, basic_cmd.y, basic_cmd.yaw);
                         // print full JSON for debugging
-                        info!("Full basic command JSON: {}", String::from_utf8_lossy(&buf[..len]));
+                        debug!("Full basic command JSON: {}", String::from_utf8_lossy(&buf[..len]));
                     }
                     else {
                         warn!("Failed to parse UDP command JSON (packet #{}) - not valid UdpExtendedCommand or UdpCommand format", packets_read);
@@ -334,7 +334,7 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[17] = cmd_state.l_wrist_gripper;
 
         }
-        info!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
+        debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
               cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
         Ok(())
     }
