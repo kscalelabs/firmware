@@ -65,6 +65,8 @@ impl UnifiedUdpManager {
                         latest = Some(extended_cmd);
                         info!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
                                packets_read, basic_cmd.x, basic_cmd.y, basic_cmd.yaw);
+                        // print full JSON for debugging
+                        info!("Full basic command JSON: {}", String::from_utf8_lossy(&buf[..len]));
                     }
                     else {
                         warn!("Failed to parse UDP command JSON (packet #{}) - not valid UdpExtendedCommand or UdpCommand format", packets_read);
