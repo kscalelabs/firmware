@@ -64,16 +64,81 @@ def make_response_can_id(request_can_id: int, resp_mux: int) -> int:
     return lower | top | 0x80000000
 
 
-class CanMotorEmulator:
-    def __init__(self, iface: str, actuator_id: int, host_id: int, periodic: float = 0.0, dry_run=False, verbose=False):
-        self.iface = iface
+class ActuatorEmulator:
+    def __init__(self, actuator_id: int, host_id: int = 1, verbose: bool = False):
         self.actuator_id = actuator_id
         self.host_id = host_id
-        self.periodic = periodic
+        self.verbose = verbose
+
+    def log(self, *a, **kw):
+        if self.verbose:
+            print(*a, **kw)
+
+    def handle(self, bus, can_id: int, dlc: int, data: bytes):
+        mux = mux_from_can_id(can_id)
+        req_act_id = actuator_id_from_can_id(can_id)
+        self.log(f"[{bus.iface}] REQ can_id=0x{can_id:08X} mux=0x{mux:02X} act={req_act_id} dlc={dlc} data={data.hex()}")
+
+        # Only respond for requests targeting this actuator or broadcast
+        if req_act_id not in (self.actuator_id, 0xFF):
+            return
+
+        if mux == 0x00:  # ObtainIdRequest -> ObtainIdResponse
+            resp_can_id = make_response_can_id(can_id, 0x00)
+            mcu_uid = (0xDEADBEEFCAF00000 | (self.actuator_id & 0xFF)) & 0xFFFFFFFFFFFFFFFF
+            data_bytes = mcu_uid.to_bytes(8, "little")
+            bus.send(resp_can_id, data_bytes)
+
+        elif mux == 0x02:  # FeedbackRequest -> FeedbackResponse
+            resp_can_id = make_response_can_id(can_id, 0x02)
+            angle = 0
+            vel = 0
+            torque = 0
+            temp = int(25.0 * 10)
+            data_bytes = struct.pack(
+                ">HHHH",
+                angle & 0xFFFF,
+                vel & 0xFFFF,
+                torque & 0xFFFF,
+                temp & 0xFFFF,
+            )
+            bus.send(resp_can_id, data_bytes)
+
+        elif mux == 0x11:  # ReadParamRequest -> ReadParamResponse
+            resp_can_id = make_response_can_id(can_id, 0x11)
+            if len(data) >= 2:
+                index = int.from_bytes(data[0:2], "little")
+            else:
+                index = 0
+            data_bytes = struct.pack("<HHI", index & 0xFFFF, 0, 0)
+            bus.send(resp_can_id, data_bytes)
+
+        elif mux == 0x03:  # MotorEnableRequest -> reply with feedback
+            resp_can_id = make_response_can_id(can_id, 0x02)
+            temp = int(25.0 * 10)
+            data_bytes = struct.pack(
+                ">HHHH",
+                0,
+                0,
+                0,
+                temp & 0xFFFF,
+            )
+            bus.send(resp_can_id, data_bytes)
+
+        else:
+            self.log(f"[{bus.iface}] no handler for mux=0x{mux:02X}")
+
+
+class BusEmulator:
+    def __init__(self, iface: str, actuators: list, host_id: int = 1, dry_run: bool = False, verbose: bool = False, periodic: float = 0.0):
+        self.iface = iface
         self.dry_run = dry_run
         self.verbose = verbose
+        self.host_id = host_id
+        self.periodic = periodic
         self.sock = None
         self._stop = False
+        self.actuators = {a: ActuatorEmulator(a, host_id=host_id, verbose=verbose) for a in actuators}
 
     def log(self, *a, **kw):
         if self.verbose:
@@ -81,14 +146,13 @@ class CanMotorEmulator:
 
     def open(self):
         if self.dry_run:
-            self.log("dry-run: not opening socket")
+            self.log(f"[{self.iface}] dry-run: not opening socket")
             return
-        # AF_CAN raw socket
         s = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
-        # bind to interface
+        self.log(f"[{self.iface}] opening socket")
         s.bind((self.iface,))
         self.sock = s
-        self.log(f"bound to {self.iface}")
+        self.log(f"[{self.iface}] bound")
 
     def close(self):
         self._stop = True
@@ -98,70 +162,26 @@ class CanMotorEmulator:
     def send(self, can_id: int, data: bytes):
         frame = pack_frame(can_id, 8, data)
         if self.dry_run:
-            self.log("DRY SEND -> can_id=0x{:08X} data={}".format(can_id, data.hex()))
+            self.log(f"[{self.iface}] DRY SEND -> can_id=0x{can_id:08X} data={data.hex()}")
             return
-        self.sock.send(frame)
-        self.log("SENT -> can_id=0x{:08X} data={}".format(can_id, data.hex()))
+        try:
+            self.sock.send(frame)
+            self.log(f"[{self.iface}] SENT -> can_id=0x{can_id:08X} data={data.hex()}")
+        except OSError as e:
+            self.log(f"[{self.iface}] send error: {e}")
 
-    def handle_request(self, can_id: int, dlc: int, data: bytes):
-        mux = mux_from_can_id(can_id)
-        req_act_id = actuator_id_from_can_id(can_id)
-        self.log(f"REQ can_id=0x{can_id:08X} mux=0x{mux:02X} act={req_act_id} dlc={dlc} data={data.hex()}")
-
-        # Only respond for requests targeting our actuator id (or broadcast 0xFF)
-        if req_act_id not in (self.actuator_id, 0xFF):
-            self.log(f"ignoring request for actuator {req_act_id}")
-            return
-
-        if mux == 0x00:  # ObtainIdRequest -> ObtainIdResponse
-            resp_can_id = make_response_can_id(can_id, 0x00)
-            # mcu_uid: 8 bytes, create deterministic-ish value
-            mcu_uid = (0xDEADBEEFCAF00000 | (self.actuator_id & 0xFF)) & 0xFFFFFFFFFFFFFFFF
-            data_bytes = mcu_uid.to_bytes(8, "little")
-            self.send(resp_can_id, data_bytes)
-
-        elif mux == 0x02:  # FeedbackRequest -> FeedbackResponse
-            resp_can_id = make_response_can_id(can_id, 0x02)
-            # angle_scale_be, angular_vel_scale_be, torque_be, temp_be each u16 (big-endian)
-            # Provide neutral values: angle=0, vel=0, torque=0, temp=250 => 25.0C
-            angle = 0
-            vel = 0
-            torque = 0
-            temp = int(25.0 * 10)  # protocol uses temp*10
-            data_bytes = struct.pack(
-                ">HHHH",  # big-endian u16 fields
-                angle & 0xFFFF,
-                vel & 0xFFFF,
-                torque & 0xFFFF,
-                temp & 0xFFFF,
-            )
-            self.send(resp_can_id, data_bytes)
-
-        elif mux == 0x11:  # ReadParamRequest -> ReadParamResponse
-            resp_can_id = make_response_can_id(can_id, 0x11)
-            # echo index (first two bytes of data are index in request little-endian per request impl)
-            if len(data) >= 2:
-                index = int.from_bytes(data[0:2], "little")
-            else:
-                index = 0
-            # Build response data: index(u16), res1(u16)=0, value(u32)=0
-            data_bytes = struct.pack("<HHI", index & 0xFFFF, 0, 0)
-            self.send(resp_can_id, data_bytes)
-
-        elif mux == 0x03:  # MotorEnableRequest -> reply with feedback to indicate enabled
-            resp_can_id = make_response_can_id(can_id, 0x02)
-            temp = int(25.0 * 10)
-            data_bytes = struct.pack(
-                ">HHHH",
-                0,
-                0,
-                0,
-                temp & 0xFFFF,
-            )
-            self.send(resp_can_id, data_bytes)
-
+    def dispatch(self, can_id: int, dlc: int, data: bytes):
+        # route to matching actuator(s); if target is 0xFF broadcast to all
+        target = actuator_id_from_can_id(can_id)
+        if target == 0xFF:
+            for a in self.actuators.values():
+                a.handle(self, can_id, dlc, data)
         else:
-            self.log(f"no handler for mux=0x{mux:02X}")
+            act = self.actuators.get(target)
+            if act:
+                act.handle(self, can_id, dlc, data)
+            else:
+                self.log(f"[{self.iface}] no emulator for actuator {target}")
 
     def reader_loop(self):
         while not self._stop:
@@ -171,62 +191,84 @@ class CanMotorEmulator:
                     continue
                 buf = self.sock.recv(FRAME_SIZE)
                 if len(buf) < FRAME_SIZE:
-                    self.log("short read: ", len(buf))
+                    self.log(f"[{self.iface}] short read: {len(buf)}")
                     continue
                 can_id, dlc, data = unpack_frame(buf)
-                self.handle_request(can_id, dlc, data)
+                self.dispatch(can_id, dlc, data)
             except OSError as e:
-                self.log("socket error:", e)
+                self.log(f"[{self.iface}] socket error: {e}")
                 break
 
-    def periodic_feedback_loop(self):
-        # Periodically broadcast feedback frames for our actuator id
+    def periodic_loop(self):
         if self.periodic <= 0:
             return
         while not self._stop:
-            # Build a fake feedback frame
-            # Build a can_id: put actuator id in bits 15-8 and mux 0x02 in top byte, set EFF
-            can_id = ((0x02 & 0x1F) << 24) | ((self.actuator_id & 0xFF) << 8) | 0x80000000
-            temp = int(25.0 * 10)
-            data_bytes = struct.pack(
-                ">HHHH",
-                0,
-                0,
-                0,
-                temp & 0xFFFF,
-            )
-            self.send(can_id, data_bytes)
+            for aid in list(self.actuators.keys()):
+                can_id = ((0x02 & 0x1F) << 24) | ((aid & 0xFF) << 8) | 0x80000000
+                temp = int(25.0 * 10)
+                data_bytes = struct.pack(
+                    ">HHHH",
+                    0,
+                    0,
+                    0,
+                    temp & 0xFFFF,
+                )
+                self.send(can_id, data_bytes)
             time.sleep(1.0 / self.periodic)
 
-    def run(self):
+    def start(self):
         self.open()
         rt = threading.Thread(target=self.reader_loop, daemon=True)
         rt.start()
         pt = None
         if self.periodic > 0:
-            pt = threading.Thread(target=self.periodic_feedback_loop, daemon=True)
+            pt = threading.Thread(target=self.periodic_loop, daemon=True)
             pt.start()
-
-        try:
-            while True:
-                time.sleep(0.2)
-        except KeyboardInterrupt:
-            self.log("stopping")
-            self.close()
+        return rt
 
 
 def main():
     p = argparse.ArgumentParser(description="CAN motor emulator (SocketCAN)")
-    p.add_argument("--iface", default=os.environ.get("CAN_IFACE", "vcan0"), help="CAN interface (default vcan0)")
-    p.add_argument("--actuator-id", type=int, default=1, help="Actuator CAN ID (0-255)")
+    p.add_argument("--iface", default=None, help="CAN interface (if provided, run a single bus)")
+    p.add_argument("--actuator-id", type=int, default=None, help="Actuator CAN ID (0-255) (if provided, run a single bus)")
     p.add_argument("--host-id", type=int, default=1, help="Host ID to emulate")
     p.add_argument("--periodic", type=float, default=0.0, help="Periodic feedback rate (Hz). 0 = disabled")
     p.add_argument("--dry-run", action="store_true", help="Don't open socket; just print actions")
     p.add_argument("--verbose", "-v", action="store_true")
     args = p.parse_args()
 
-    emu = CanMotorEmulator(args.iface, args.actuator_id, args.host_id, args.periodic, args.dry_run, args.verbose)
-    emu.run()
+    # If user provided a single iface/actuator, run a single bus
+    if args.iface and args.actuator_id is not None:
+        bus = BusEmulator(args.iface, [args.actuator_id], host_id=args.host_id, dry_run=args.dry_run, verbose=args.verbose, periodic=args.periodic)
+        bus.start()
+        try:
+            while True:
+                time.sleep(0.2)
+        except KeyboardInterrupt:
+            bus.close()
+        sys.exit(0)
+
+    # Default behaviour: launch two buses for development convenience
+    # can0: actuators 11-16, can1: actuators 21-26
+    default_buses = [
+        ("can0", list(range(11, 17))),
+        ("can1", list(range(21, 27))),
+    ]
+
+    threads = []
+    buses = []
+    for iface, acts in default_buses:
+        b = BusEmulator(iface, acts, host_id=args.host_id, dry_run=args.dry_run, verbose=args.verbose, periodic=args.periodic)
+        buses.append(b)
+        t = b.start()
+        threads.append(t)
+
+    try:
+        while True:
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        for b in buses:
+            b.close()
 
 
 if __name__ == "__main__":
