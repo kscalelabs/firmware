@@ -57,11 +57,11 @@ def actuator_id_from_can_id(can_id: int) -> int:
 
 
 def make_response_can_id(request_can_id: int, resp_mux: int) -> int:
-    # Build response can_id: preserve lower 24 bits, set mux in top byte,
-    # and set EFF flag (0x8000_0000) so the Rust code recognizes it as a response
+    # Build response can_id: preserve lower 24 bits, set mux in top byte
+    # No EFF flag needed - the real responses don't use it
     lower = request_can_id & 0x00FFFFFF
     top = (resp_mux & 0x1F) << 24
-    return lower | top | 0x80000000
+    return lower | top
 
 
 class ActuatorEmulator:
