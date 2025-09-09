@@ -53,7 +53,7 @@ def mux_from_can_id(can_id: int) -> int:
 
 
 def actuator_id_from_can_id(can_id: int) -> int:
-    return (can_id >> 8) & 0xFF
+    return can_id & 0xFF
 
 
 def make_response_can_id(request_can_id: int, resp_mux: int) -> int:
@@ -111,6 +111,21 @@ class ActuatorEmulator:
             else:
                 index = 0
             data_bytes = struct.pack("<HHI", index & 0xFFFF, 0, 0)
+            bus.send(resp_can_id, data_bytes)
+
+        elif mux == 0x01:  # ControlCommandRequest -> reply with feedback
+            resp_can_id = make_response_can_id(can_id, 0x02)
+            angle = 0
+            vel = 0
+            torque = 0
+            temp = int(25.0 * 10)
+            data_bytes = struct.pack(
+                ">HHHH",
+                angle & 0xFFFF,
+                vel & 0xFFFF,
+                torque & 0xFFFF,
+                temp & 0xFFFF,
+            )
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x03:  # MotorEnableRequest -> reply with feedback
@@ -248,8 +263,9 @@ def main():
             bus.close()
         sys.exit(0)
 
-    # Default behaviour: launch two buses for development convenience
-    # can0: actuators 11-16, can1: actuators 21-26
+    # Default behaviour: launch two buses to match firmware configuration
+    # can0: actuators 11-16 (left arm)
+    # can1: actuators 21-26 (right arm) - based on actual CAN traffic
     default_buses = [
         ("can0", list(range(11, 17))),
         ("can1", list(range(21, 27))),
