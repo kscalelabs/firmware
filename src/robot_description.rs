@@ -433,14 +433,14 @@ impl RobotDescription {
                 ActuatorId::Lsy => ActuatorCommand { qpos: 0.0, kp: 40.0, kd: 0.945, ..Default::default() },
                 ActuatorId::Lep => ActuatorCommand { qpos: (-90.0_f64).to_radians(), kp: 75.0, kd: 2.3, ..Default::default() },
                 ActuatorId::Lwr => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
-                ActuatorId::Lwg => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+                ActuatorId::Lwg => ActuatorCommand { qpos: 0.0, kp: 8.0, kd: 0.12, ..Default::default() },
 
                 ActuatorId::Rsp => ActuatorCommand { qpos: 0.0, kp: 100.0, kd: 8.284, ..Default::default() },
                 ActuatorId::Rsr => ActuatorCommand { qpos: (-10.0_f64).to_radians(), kp: 100.0, kd: 8.257, ..Default::default() },
                 ActuatorId::Rsy => ActuatorCommand { qpos: 0.0, kp: 40.0, kd: 0.945, ..Default::default() },
                 ActuatorId::Rep => ActuatorCommand { qpos: (90.0_f64).to_radians(), kp: 75.0, kd: 2.3, ..Default::default() },
                 ActuatorId::Rwr => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
-                ActuatorId::Rwg => ActuatorCommand { qpos: 0.0, kp: 20.0, kd: 0.295, ..Default::default() },
+                ActuatorId::Rwg => ActuatorCommand { qpos: 0.0, kp: 8.0, kd: 0.12, ..Default::default() },
 
                 ActuatorId::Lhp => ActuatorCommand { qpos: (20.0_f64).to_radians(), kp: 150.0, kd: 24.722, ..Default::default() },
                 ActuatorId::Lhr => ActuatorCommand { qpos: 0.0, kp: 200.0, kd: 26.387, ..Default::default() },
