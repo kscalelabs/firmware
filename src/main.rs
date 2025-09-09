@@ -3,6 +3,7 @@
 
 pub mod hiwonder;
 pub mod typestate_serial;
+pub mod serial_device;
 
 pub mod actuator;
 pub mod actuator_manager;
@@ -113,10 +114,9 @@ fn main() {
     // Prepare tracing to forward to our thread
     let forward_layer = HeaplessForwardLayer { tx }.with_filter(trace_only_filter);
 
-    // Add stdout layer for INFO and above
-    let stdout_layer = fmt::layer().with_target(true).with_level(true).with_filter(
-        EnvFilter::from_default_env().add_directive("faux_rtos=info".parse().unwrap()),
-    );
+    let stdout_filter = EnvFilter::from_default_env();
+    
+    let stdout_layer = fmt::layer().with_target(true).with_level(true).with_filter(stdout_filter);
 
     let subscriber = tracing_subscriber::registry()
         .with(forward_layer)
