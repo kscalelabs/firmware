@@ -5,8 +5,8 @@ set -euo pipefail
 # Firmware should open the "firmware" PTY. The emulator will open the "emulator" PTY
 # and write Hiwonder-formatted 11-byte frames.
 
-EMULATOR_PTY=${EMULATOR_PTY:-/tmp/imu_emulator}
-FIRMWARE_PTY=${FIRMWARE_PTY:-/tmp/imu_firmware}
+EMULATOR_PTY=${EMULATOR_PTY:-/tmp/imu_emulator_out}
+FIRMWARE_PTY=${FIRMWARE_PTY:-/tmp/imu_emulator_in}
 PYTHON="$(command -v python3 || true)"
 if [ -z "$PYTHON" ]; then
   echo "python3 not found in PATH"

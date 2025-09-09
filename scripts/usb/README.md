@@ -8,7 +8,7 @@ Files:
 Quick start:
 1. Ensure socat and python3 are installed on your system.
 2. Run: ./scripts/usb/start.sh
-3. The script will print the firmware PTY path (e.g. /tmp/imu_firmware). Point your firmware to that path (or symlink it to /dev/ttyUSB0 as root).
+3. The script will print the firmware PTY path (e.g. /tmp/imu_emulator_in). Point your firmware to that path (or symlink it to /dev/ttyUSB0 as root).
 
 Example: run the emulator at 100Hz with a custom quaternion:
 
