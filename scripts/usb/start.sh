@@ -16,7 +16,7 @@ fi
 # Start socat to create a PTY pair (runs until killed). -d -d prints debug info to stderr.
 # link= sets a stable path for convenience.
 
-socat -d -d pty,raw,echo=0,link="$FIRMWARE_PTY" pty,raw,echo=0,link="$EMULATOR_PTY" &
+socat -d -d pty,raw,echo=0,link="$FIRMWARE_PTY",mode=0666 pty,raw,echo=0,link="$EMULATOR_PTY",mode=0666 &
 SOCAT_PID=$!
 
 trap 'echo "shutting down..."; kill "$SOCAT_PID" 2>/dev/null || true; wait "$SOCAT_PID" 2>/dev/null || true' EXIT INT TERM
