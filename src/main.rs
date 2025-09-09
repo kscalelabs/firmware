@@ -3,6 +3,7 @@
 
 pub mod hiwonder;
 pub mod typestate_serial;
+pub mod serial_device;
 
 pub mod actuator;
 pub mod actuator_manager;
