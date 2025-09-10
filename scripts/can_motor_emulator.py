@@ -69,10 +69,65 @@ class ActuatorEmulator:
         self.actuator_id = actuator_id
         self.host_id = host_id
         self.verbose = verbose
+        
+        # Internal state
+        self.position = 0.0  # Current position in radians
+        self.velocity = 0.0  # Current velocity 
+        self.torque = 0.0    # Current torque
+        self.temperature = 25.0  # Temperature in Celsius
 
     def log(self, *a, **kw):
         if self.verbose:
             print(*a, **kw)
+
+    def decode_control_command(self, data: bytes):
+        """Decode control command data and update internal state"""
+        if len(data) < 8:
+            return
+        
+        # Parse the 8-byte data payload (big-endian u16 values)
+        # angle_scale, velocity_scale, kp_scale, kd_scale
+        angle_scale, velocity_scale, kp_scale, kd_scale = struct.unpack(">HHHH", data)
+        
+        # Convert scaled values back to physical values
+        # Using typical robstride ranges: angle ±4π, velocity ±0.5, etc.
+        ANGLE_RANGE = 4.0 * 3.14159265359  # ±4π radians
+        VELOCITY_RANGE = 0.5  # ±0.5 rad/s
+        
+        # Scale from u16 range [0, 65535] to physical range [-range, +range]
+        if angle_scale != 0x7FFF:  # 0x7FFF typically means "no command"
+            self.position = (angle_scale / 32767.5) * ANGLE_RANGE - ANGLE_RANGE
+        
+        if velocity_scale != 0x7FFF:
+            self.velocity = (velocity_scale / 32767.5) * VELOCITY_RANGE - VELOCITY_RANGE
+        
+        self.log(f"[Actuator {self.actuator_id}] Updated position: {self.position:.3f} rad, velocity: {self.velocity:.3f} rad/s")
+
+    def get_feedback_data(self):
+        """Generate feedback response data"""
+        # Convert physical values back to scaled format for feedback
+        # Using typical ranges
+        ANGLE_RANGE = 4.0 * 3.14159265359
+        VELOCITY_RANGE = 0.5
+        TORQUE_RANGE = 14.0
+        
+        # Scale to u16 range [0, 65535] centered at 32767
+        angle_scaled = int((self.position + ANGLE_RANGE) / (2 * ANGLE_RANGE) * 65535)
+        vel_scaled = int((self.velocity + VELOCITY_RANGE) / (2 * VELOCITY_RANGE) * 65535)
+        torque_scaled = int((self.torque + TORQUE_RANGE) / (2 * TORQUE_RANGE) * 65535)
+        temp_scaled = int(self.temperature * 10)  # Temperature in 0.1°C units
+        
+        # Clamp to valid u16 range
+        angle_scaled = max(0, min(65535, angle_scaled))
+        vel_scaled = max(0, min(65535, vel_scaled))
+        torque_scaled = max(0, min(65535, torque_scaled))
+        temp_scaled = max(0, min(65535, temp_scaled))
+        
+        return struct.pack(">HHHH", 
+                          angle_scaled & 0xFFFF,
+                          vel_scaled & 0xFFFF, 
+                          torque_scaled & 0xFFFF,
+                          temp_scaled & 0xFFFF)
 
     def handle(self, bus, can_id: int, dlc: int, data: bytes):
         mux = mux_from_can_id(can_id)
@@ -91,17 +146,7 @@ class ActuatorEmulator:
 
         elif mux == 0x02:  # FeedbackRequest -> FeedbackResponse
             resp_can_id = make_response_can_id(can_id, 0x02)
-            angle = 0
-            vel = 0
-            torque = 0
-            temp = int(25.0 * 10)
-            data_bytes = struct.pack(
-                ">HHHH",
-                angle & 0xFFFF,
-                vel & 0xFFFF,
-                torque & 0xFFFF,
-                temp & 0xFFFF,
-            )
+            data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x11:  # ReadParamRequest -> ReadParamResponse
@@ -114,30 +159,14 @@ class ActuatorEmulator:
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x01:  # ControlCommandRequest -> reply with feedback
+            self.decode_control_command(data)
             resp_can_id = make_response_can_id(can_id, 0x02)
-            angle = 0
-            vel = 0
-            torque = 0
-            temp = int(25.0 * 10)
-            data_bytes = struct.pack(
-                ">HHHH",
-                angle & 0xFFFF,
-                vel & 0xFFFF,
-                torque & 0xFFFF,
-                temp & 0xFFFF,
-            )
+            data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x03:  # MotorEnableRequest -> reply with feedback
             resp_can_id = make_response_can_id(can_id, 0x02)
-            temp = int(25.0 * 10)
-            data_bytes = struct.pack(
-                ">HHHH",
-                0,
-                0,
-                0,
-                temp & 0xFFFF,
-            )
+            data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
         else:
