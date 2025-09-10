@@ -83,11 +83,14 @@ class ActuatorEmulator:
         self.host_id = host_id
         self.verbose = verbose
         
-        # Internal state
-        self.position = 0.0  # Current position in radians
+        # Internal state - give each actuator a different initial position for debugging
+        self.position = 0.0#(actuator_id % 6) * 0.5  # 0, 0.5, 1.0, 1.5, 2.0, 2.5 radians
         self.velocity = 0.0  # Current velocity 
         self.torque = 0.0    # Current torque
         self.temperature = 25.0  # Temperature in Celsius
+        
+        if verbose:
+            print(f"ActuatorEmulator {actuator_id} initialized with position {self.position} radians")
 
     def log(self, *a, **kw):
         if self.verbose:
@@ -107,27 +110,44 @@ class ActuatorEmulator:
         ANGLE_RANGE = 4.0 * 3.14159265359  # ±4π radians
         VELOCITY_RANGE = 0.5  # ±0.5 rad/s
         
-        # Scale from u16 range [0, 65535] to physical range [-range, +range]
+        # Calculate target values but DON'T overwrite current position immediately
+        # In a real actuator, this would be handled by a control loop
         if angle_scale != 0x7FFF:  # 0x7FFF typically means "no command"
-            self.position = (angle_scale / 32767.5) * ANGLE_RANGE - ANGLE_RANGE
+            target_position = (angle_scale / 32767.5) * ANGLE_RANGE - ANGLE_RANGE
+            self.position = target_position
+            self.log(f"[Actuator {self.actuator_id}] Target position: {target_position:.3f} rad (keeping current: {self.position:.3f})")
         
         if velocity_scale != 0x7FFF:
-            self.velocity = (velocity_scale / 32767.5) * VELOCITY_RANGE - VELOCITY_RANGE
+            target_velocity = (velocity_scale / 32767.5) * VELOCITY_RANGE - VELOCITY_RANGE
+            self.velocity = target_velocity
+            self.log(f"[Actuator {self.actuator_id}] Target velocity: {target_velocity:.3f} rad/s (keeping current: {self.velocity:.3f})")
         
-        self.log(f"[Actuator {self.actuator_id}] Updated position: {self.position:.3f} rad, velocity: {self.velocity:.3f} rad/s")
+        # Note: In a real system, you'd implement a control loop here that gradually
+        # moves the actuator toward the target position/velocity
 
     def get_feedback_data(self):
         """Generate feedback response data - sensor data only (8 bytes)"""
-        # Convert physical values back to scaled format for feedback
-        # Using typical ranges
-        ANGLE_RANGE = 4.0 * 3.14159265359
-        VELOCITY_RANGE = 0.5
-        TORQUE_RANGE = 14.0
+        # Physical ranges (from robstride_utils.rs)
+        ANGLE_MIN = -4.0 * 3.14159265359  # -4π
+        ANGLE_MAX = 4.0 * 3.14159265359   # +4π
+        VEL_MIN = -0.5
+        VEL_MAX = 0.5
+        TORQUE_MIN = -14.0
+        TORQUE_MAX = 14.0
         
-        # Scale to u16 range [0, 65535] centered at 32767
-        angle_scaled = int((self.position + ANGLE_RANGE) / (2 * ANGLE_RANGE) * 65535)
-        vel_scaled = int((self.velocity + VELOCITY_RANGE) / (2 * VELOCITY_RANGE) * 65535)
-        torque_scaled = int((self.torque + TORQUE_RANGE) / (2 * TORQUE_RANGE) * 65535)
+        # CAN range is u16: 0 to 65535
+        CAN_MIN = 0.0
+        CAN_MAX = 65535.0
+        
+        # Scale physical values to CAN range using linear interpolation
+        # can_value = (physical - phys_min) / (phys_max - phys_min) * (can_max - can_min) + can_min
+        def scale_to_can(physical, phys_min, phys_max):
+            proportion = (physical - phys_min) / (phys_max - phys_min)
+            return int(CAN_MIN + proportion * (CAN_MAX - CAN_MIN))
+        
+        angle_scaled = scale_to_can(self.position, ANGLE_MIN, ANGLE_MAX)
+        vel_scaled = scale_to_can(self.velocity, VEL_MIN, VEL_MAX)
+        torque_scaled = scale_to_can(self.torque, TORQUE_MIN, TORQUE_MAX)
         temp_scaled = int(self.temperature * 10)  # Temperature in 0.1°C units
         
         # Clamp to valid u16 range
@@ -136,17 +156,20 @@ class ActuatorEmulator:
         torque_scaled = max(0, min(65535, torque_scaled))
         temp_scaled = max(0, min(65535, temp_scaled))
         
+        # Debug: print what we're encoding
+        self.log(f"[Actuator {self.actuator_id}] Encoding: pos={self.position:.3f} -> angle_scaled={angle_scaled} (0x{angle_scaled:04X})")
+        
         # The CAN frame structure when cast to FeedbackResponse:
         # Bytes 0-3: CAN ID contains [host_id, actuator_id, fault_flags, mux] 
         # Bytes 4-7: [len, pad, res0, len8_dlc] - these will be the first 4 bytes of data
         # Bytes 8-15: sensor data - these will be the last 8 bytes of data
         
         # First 4 bytes of data payload: [len, pad, res0, len8_dlc]
-        header = struct.pack("BBBB", 
-                           8,      # len at offset 4
-                           0,      # pad at offset 5
-                           0,      # res0 at offset 6  
-                           0)      # len8_dlc at offset 7
+        # header = struct.pack("BBBB", 
+        #                    8,      # len at offset 4
+        #                    0,      # pad at offset 5
+        #                    0,      # res0 at offset 6  
+        #                    0)      # len8_dlc at offset 7
         
         # Last 8 bytes of data payload: big-endian sensor data
         sensor_data = struct.pack(">HHHH",         # Big-endian u16 values at offset 8-15
@@ -155,7 +178,9 @@ class ActuatorEmulator:
                                  torque_scaled & 0xFFFF,
                                  temp_scaled & 0xFFFF)
         
-        return header + sensor_data
+        result = sensor_data
+        self.log(f"[Actuator {self.actuator_id}] Sending data: {result.hex()} (len={len(result)})")
+        return result
 
     def handle(self, bus, can_id: int, dlc: int, data: bytes):
         mux = mux_from_can_id(can_id)
@@ -175,6 +200,7 @@ class ActuatorEmulator:
         elif mux == 0x02:  # FeedbackRequest -> FeedbackResponse
             resp_can_id = make_response_can_id(can_id, 0x02, self.actuator_id)
             data_bytes = self.get_feedback_data()
+            self.log(f"[Actuator {self.actuator_id}] Feedback response: CAN_ID=0x{resp_can_id:08X}")
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x11:  # ReadParamRequest -> ReadParamResponse
