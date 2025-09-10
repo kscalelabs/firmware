@@ -6,6 +6,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::time::timeout;
 use tokio_serial::{SerialPortBuilderExt, SerialStream};
 use tracing::{error, info, warn};
+use crate::serial_device::SerialDevice;
 
 use futures::{Stream, StreamExt};
 use std::task::{Context, Poll};
@@ -36,7 +37,7 @@ pub enum SerialBaudRate {
 struct Store {
     devpath: String,
     baud: SerialBaudRate,
-    port: Option<SerialStream>,
+    port: Option<SerialDevice>,
 }
 
 impl Store {
@@ -72,13 +73,11 @@ impl State for Reset {
     fn transition_fut(mut self) -> impl std::future::Future<Output = StateTransitionResult> {
         async move {
             let ss = self.shared_state.as_mut().project();
-            let builder = tokio_serial::new(ss.devpath.as_str(), *ss.baud as u32);
-            match builder.open_native_async() {
-                Ok(port) => {
-                    {
-                        use tokio_serial::SerialPort;
-                        port.clear(tokio_serial::ClearBuffer::All);
-                    }
+            
+            // Use our custom SerialDevice that handles both real serial and PTYs
+            match SerialDevice::open(ss.devpath.as_str(), *ss.baud as u32).await {
+                Ok(mut port) => {
+                    port.clear(tokio_serial::ClearBuffer::All);
                     *ss.port = Some(port);
                     // Transition to the next state
                     StateTransitionResult {
@@ -88,12 +87,14 @@ impl State for Reset {
                         result: Ok(()),
                     }
                 }
-                Err(e) => StateTransitionResult {
-                    state: StateStore::Reset(Reset {
-                        shared_state: self.shared_state,
-                    }),
-                    result: Err(e.into()),
-                },
+                Err(e) => {
+                    StateTransitionResult {
+                        state: StateStore::Reset(Reset {
+                            shared_state: self.shared_state,
+                        }),
+                        result: Err(e),
+                    }
+                }
             }
         }
     }
@@ -114,7 +115,7 @@ impl State for Operate {
 }
 
 impl Operate {
-    pub async fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+    pub async fn read_exact(&mut self, buf: &mut [u8]) -> io::Result<()> {
         let ss = self.shared_state.as_mut().project();
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
@@ -126,50 +127,35 @@ impl Operate {
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
         *ss.baud = baud;
-        {
-            use tokio_serial::SerialPort;
-            port.set_baud_rate(baud as u32).map_err(|e| e.into())
-        }
+        port.set_baud_rate(baud as u32)
     }
 
     pub fn try_read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let ss = self.shared_state.as_mut().project();
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
-        {
-            use tokio_serial::SerialPort;
-            port.try_read(buf)
-        }
+        port.try_read(buf)
     }
 
     pub async fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let ss = self.shared_state.as_mut().project();
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
-        {
-            use tokio_serial::SerialPort;
-            port.read(buf).await
-        }
+        port.read(buf).await
     }
 
     pub fn clear(&mut self, clear_buffer: tokio_serial::ClearBuffer) -> io::Result<()> {
         let ss = self.shared_state.as_mut().project();
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
-        {
-            use tokio_serial::SerialPort;
-            port.clear(clear_buffer).map_err(|e| e.into())
-        }
+        port.clear(clear_buffer)
     }
 
     pub async fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         let ss = self.shared_state.as_mut().project();
         // SAFETY: port must not None
         let port = ss.port.as_mut().unwrap();
-        {
-            use tokio_serial::SerialPort;
-            port.write(buf).await
-        }
+        port.write(buf).await
     }
 }
 
@@ -213,10 +199,7 @@ impl SerialPort {
         // SAFETY: we can unpin as the future is finished
         let unpinned = unsafe { Pin::get_unchecked_mut(shared_state.as_mut()) };
         unpinned.baud = baud;
-        {
-            use tokio_serial::SerialPort;
-            unpinned.port.as_mut().unwrap().set_baud_rate(baud as u32)?
-        }
+        unpinned.port.as_mut().unwrap().set_baud_rate(baud as u32)?;
 
         self.state = Some(StateStore::Operate(Operate { shared_state }));
         Ok(())
