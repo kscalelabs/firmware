@@ -33,6 +33,15 @@ FRAME_FMT = "<I4B8s"  # little-endian: u32, 4 x u8, 8 bytes
 FRAME_SIZE = struct.calcsize(FRAME_FMT)
 
 
+# pub struct CanFrame {
+#     pub can_id: u32,
+#     pub len: u8,
+#     pub pad: u8,
+#     pub res0: u8,
+#     pub len8_dlc: u8,
+#     pub can_data: [u8; CAN_MAX_DLEN],
+# }
+
 def pack_frame(can_id: int, dlc: int, data: bytes) -> bytes:
     data = (data or b"")[:8]
     data = data.ljust(8, b"\x00")
@@ -56,12 +65,16 @@ def actuator_id_from_can_id(can_id: int) -> int:
     return can_id & 0xFF
 
 
-def make_response_can_id(request_can_id: int, resp_mux: int) -> int:
-    # Build response can_id: preserve lower 24 bits, set mux in top byte
-    # No EFF flag needed - the real responses don't use it
-    lower = request_can_id & 0x00FFFFFF
-    top = (resp_mux & 0x1F) << 24
-    return lower | top
+def make_response_can_id(request_can_id: int, resp_mux: int, actuator_id: int) -> int:
+    # Build response can_id that will be interpreted as the first 4 bytes of FeedbackResponse
+    # FeedbackResponse layout: host_id(0) + actuator_can_id(1) + fault_flags(2) + mux(3)
+    # Pack these into a u32 CAN ID in little-endian format
+    host_id = 0xFD  # Standard host ID used by firmware  
+    fault_flags = 0  # No faults
+    
+    # Pack as little-endian u32: [host_id, actuator_id, fault_flags, mux]
+    response_can_id = (host_id & 0xFF) | ((actuator_id & 0xFF) << 8) | ((fault_flags & 0xFF) << 16) | ((resp_mux & 0xFF) << 24)
+    return response_can_id
 
 
 class ActuatorEmulator:
@@ -104,7 +117,7 @@ class ActuatorEmulator:
         self.log(f"[Actuator {self.actuator_id}] Updated position: {self.position:.3f} rad, velocity: {self.velocity:.3f} rad/s")
 
     def get_feedback_data(self):
-        """Generate feedback response data"""
+        """Generate feedback response data - sensor data only (8 bytes)"""
         # Convert physical values back to scaled format for feedback
         # Using typical ranges
         ANGLE_RANGE = 4.0 * 3.14159265359
@@ -123,11 +136,26 @@ class ActuatorEmulator:
         torque_scaled = max(0, min(65535, torque_scaled))
         temp_scaled = max(0, min(65535, temp_scaled))
         
-        return struct.pack(">HHHH", 
-                          angle_scaled & 0xFFFF,
-                          vel_scaled & 0xFFFF, 
-                          torque_scaled & 0xFFFF,
-                          temp_scaled & 0xFFFF)
+        # The CAN frame structure when cast to FeedbackResponse:
+        # Bytes 0-3: CAN ID contains [host_id, actuator_id, fault_flags, mux] 
+        # Bytes 4-7: [len, pad, res0, len8_dlc] - these will be the first 4 bytes of data
+        # Bytes 8-15: sensor data - these will be the last 8 bytes of data
+        
+        # First 4 bytes of data payload: [len, pad, res0, len8_dlc]
+        header = struct.pack("BBBB", 
+                           8,      # len at offset 4
+                           0,      # pad at offset 5
+                           0,      # res0 at offset 6  
+                           0)      # len8_dlc at offset 7
+        
+        # Last 8 bytes of data payload: big-endian sensor data
+        sensor_data = struct.pack(">HHHH",         # Big-endian u16 values at offset 8-15
+                                 angle_scaled & 0xFFFF,
+                                 vel_scaled & 0xFFFF, 
+                                 torque_scaled & 0xFFFF,
+                                 temp_scaled & 0xFFFF)
+        
+        return header + sensor_data
 
     def handle(self, bus, can_id: int, dlc: int, data: bytes):
         mux = mux_from_can_id(can_id)
@@ -139,18 +167,18 @@ class ActuatorEmulator:
             return
 
         if mux == 0x00:  # ObtainIdRequest -> ObtainIdResponse
-            resp_can_id = make_response_can_id(can_id, 0x00)
+            resp_can_id = make_response_can_id(can_id, 0x00, self.actuator_id)
             mcu_uid = (0xDEADBEEFCAF00000 | (self.actuator_id & 0xFF)) & 0xFFFFFFFFFFFFFFFF
             data_bytes = mcu_uid.to_bytes(8, "little")
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x02:  # FeedbackRequest -> FeedbackResponse
-            resp_can_id = make_response_can_id(can_id, 0x02)
+            resp_can_id = make_response_can_id(can_id, 0x02, self.actuator_id)
             data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x11:  # ReadParamRequest -> ReadParamResponse
-            resp_can_id = make_response_can_id(can_id, 0x11)
+            resp_can_id = make_response_can_id(can_id, 0x11, self.actuator_id)
             if len(data) >= 2:
                 index = int.from_bytes(data[0:2], "little")
             else:
@@ -160,12 +188,12 @@ class ActuatorEmulator:
 
         elif mux == 0x01:  # ControlCommandRequest -> reply with feedback
             self.decode_control_command(data)
-            resp_can_id = make_response_can_id(can_id, 0x02)
+            resp_can_id = make_response_can_id(can_id, 0x02, self.actuator_id)
             data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
         elif mux == 0x03:  # MotorEnableRequest -> reply with feedback
-            resp_can_id = make_response_can_id(can_id, 0x02)
+            resp_can_id = make_response_can_id(can_id, 0x02, self.actuator_id)
             data_bytes = self.get_feedback_data()
             bus.send(resp_can_id, data_bytes)
 
