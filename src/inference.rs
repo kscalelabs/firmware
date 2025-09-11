@@ -94,7 +94,6 @@ impl PolicyStepDescriptor {
         } else {
             self.step_id = Some(0);
         }
-        self.timestamp_now();
     }
 
     fn timestamp_now(&mut self) {
@@ -676,6 +675,7 @@ impl Operate {
             kb_manager,
             ..
         } = self.shared_state.as_mut().project();
+        step_description.timestamp_now();
 
         for (input_type, input_val) in step_input_types.iter_mut().zip(step_input_vec.iter_mut()) {
             match input_type {
