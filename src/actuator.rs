@@ -622,7 +622,7 @@ impl State for Configure {
 
             // wait for responses
             let to = tokio::time::timeout(
-                std::time::Duration::from_millis(150),
+                std::time::Duration::from_millis(10),
                 read_responses(self.shared_state.as_mut()),
             );
 
@@ -777,7 +777,7 @@ async fn read_responses_update(
     let mut rem = n; // Wait for responses from all actuators
     
     // Use overall timeout to prevent infinite hanging, but much longer than before
-    const OVERALL_TIMEOUT_MS: u64 = 100; // This is not good, please do better
+    const OVERALL_TIMEOUT_MS: u64 = 10; // This is not good, please do better
     let overall_timeout = tokio::time::timeout(
         std::time::Duration::from_millis(OVERALL_TIMEOUT_MS),
         async {
