@@ -31,17 +31,18 @@ from kscale_vr_teleop._assets import ASSETS_DIR
 import rerun as rr
 
 logger = URDFLogger(ASSETS_DIR/'kbot_legless/robot.urdf')
+joints_config = {}
 motor_id_to_joint_mapping = {
     11: "dof_left_shoulder_pitch_03",
-    12: "dof_left_shouldeR_roll_03",
+    12: "dof_left_shoulder_roll_03",
     13: "dof_left_shoulder_yaw_02",
     14: "dof_left_elbow_02",
     15: "dof_left_wrist_00",
     21: "dof_right_shoulder_pitch_03",
     22: "dof_right_shoulder_roll_03",
-    23: "dof_right_elbow_yaw_02",
-    24: "dof_right_elbow_pitch_02",
-    25: "dof_right_wrist_yaw_02",
+    23: "dof_right_shoulder_yaw_02",
+    24: "dof_right_elbow_02",
+    25: "dof_right_wrist_00",
 }
 # Frame layout used by the Rust code: packed repr with total size 16 bytes
 # struct CanFrame { u32 can_id; u8 len; u8 pad; u8 res0; u8 len8_dlc; u8 data[8]; }
@@ -49,7 +50,8 @@ FRAME_FMT = "<I4B8s"  # little-endian: u32, 4 x u8, 8 bytes
 FRAME_SIZE = struct.calcsize(FRAME_FMT)
 
 
-rr.init("can_motor_emulator", spawn=True)
+rr.init("can_motor_emulator")
+rr.spawn()
 # pub struct CanFrame {
 #     pub can_id: u32,
 #     pub len: u8,
@@ -310,10 +312,12 @@ class BusEmulator:
                     continue
                 can_id, dlc, data = unpack_frame(buf)
                 self.dispatch(can_id, dlc, data)
-                joints_config = {
+                joints_config.update({
                     motor_id_to_joint_mapping[act.actuator_id]: act.position
                     for act in self.actuators.values()
-                }
+                    if act.actuator_id in motor_id_to_joint_mapping
+                })
+                print(joints_config)
                 logger.log(joints_config)
             except OSError as e:
                 self.log(f"[{self.iface}] socket error: {e}")
