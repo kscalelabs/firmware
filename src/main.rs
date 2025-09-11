@@ -75,7 +75,7 @@ async fn driver() -> std::io::Result<()> {
         // iterate over each SlowCounter in sc_vec
         // get a future
         let next = pinned.next();
-        let to = tokio::time::timeout(std::time::Duration::from_millis(100), next);
+        let to = tokio::time::timeout(std::time::Duration::from_millis(10), next);
 
         let res = to.await;
 
