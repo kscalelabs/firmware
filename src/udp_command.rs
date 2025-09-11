@@ -320,7 +320,7 @@ impl crate::policy_control::InputState for Udp16ControlVectorInputState {
         arr[13] = c.l_elbow_pitch;
         arr[14] = c.l_elbow_roll;
         arr[15] = c.l_wrist_pitch;
-        info!("16D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
+        debug!("16D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
               c.x, c.y, c.yaw_rate, c.base_height, c.r_shoulder_pitch);
         Ok(())
     }
@@ -345,7 +345,7 @@ impl crate::policy_control::InputState for Udp16ControlVectorInputState {
             arr[14] = cmd_state.l_elbow_roll;
             arr[15] = cmd_state.l_wrist_pitch;
         }
-        info!("16D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
+        debug!("16D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
               cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
         Ok(())
     }
