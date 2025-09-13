@@ -11,17 +11,15 @@ class CANInterface:
         self.canbus_range = range(0, 7)
         self.actuator_range = range(10, 50)
 
-        self.sockets = {}
-        self.actuators = {}
-
         self.MUX_PING = 0x00
         self.MUX_CONTROL = 0x01
         self.MUX_FEEDBACK = 0x02
         self.MUX_MOTOR_ENABLE = 0x03
         self.EFF = 0x8000_0000
 
+        self.sockets = {}
+        self.actuators = {}
         self.scan()
-
 
     def scan(self):
         for canbus in self.canbus_range:
@@ -36,61 +34,47 @@ class CANInterface:
 
             print(f"Scanning bus {canbus}")
             for actuator_id in self.actuator_range:
-                frame = self._build_obtain_id_frame(actuator_id)
-                print(f"Sending frame: {frame.hex()}")
-                sock.send(frame)
-                try:
-                    sock.settimeout(0.01) # TODO increase after debugging
-                    resp_frame = sock.recv(self.FRAME_SIZE)
-                    output = struct.unpack(self.FRAME_FMT, resp_frame)
-                    print(f"Response CAN_ID: 0x{output[0]:08X}")
-                    # Output tuple contains: (can_id, dlc, pad, res0, len8_dlc, data)
-                    can_id, dlc, pad, res0, len8_dlc, data = output
-                    print(f"DLC: {dlc}, Padding: {pad}, Reserved: {res0}, Length: {len8_dlc}")
-                    print(f"Data bytes: {data.hex()}")
+                if self.ping_actuator(canbus, actuator_id):
                     self.actuators[f"can{canbus}"].append(actuator_id)
-                except socket.timeout:
-                    pass
 
-        print("\033[1;36m🔍 Scan complete\033[0m")
+        print("\033[1;36m🔍 CAN scan complete\033[0m")
         total_actuators = sum(len(actuators) for actuators in self.actuators.values())
         print(f"\033[1;32mFound {total_actuators} actuators on {len(self.sockets)} sockets\033[0m")
         for canbus, actuators in self.actuators.items():
             print(f"\033[1;34m{canbus}\033[0m: \033[1;35m{actuators}\033[0m")
 
-    def _build_obtain_id_frame(self, actuator_can_id: int) -> bytes:
+    def ping_actuator(self, canbus: str, actuator_can_id: int):
+        try:
+            frame = self._build_ping_frame(actuator_can_id)
+            self.sockets[canbus].send(frame)
+            self.sockets[canbus].settimeout(0.01)
+            resp_frame = self.sockets[canbus].recv(self.FRAME_SIZE)
+            _ = struct.unpack(self.FRAME_FMT, resp_frame)
+            return True
+        except:
+            return False
+
+    def _build_ping_frame(self, actuator_can_id: int) -> bytes:
         can_id = (actuator_can_id & 0xFF) | ((self.host_id & 0xFFFF) << 8) | ((self.MUX_PING & 0x1F) << 24)
         can_id |= 0x8000_0000 # set EFF flag
         length = 8
         payload = b'\x00' * length # empty payload
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
-    def _build_motor_enable_frame(self, actuator_can_id: int, length: int = 8, eff: bool = True) -> bytes:
-        """
-        Build MotorEnableRequest frame (mux 0x03).
-        Identifier packing: [b0=actuator_can_id][b1..b2=host_id LE][b3=mux|EFFbit]
-        MotorEnableRequest carries no data payload.
-        """
-        can_id = ((actuator_can_id & 0xFF)
-                  | (self.host_id << 8)
-                  | ((self.MUX_MOTOR_ENABLE & 0x1F) << 24))
-        if eff:
-            can_id |= self.EFF
-        payload = b"\x00" * 8  # MotorEnableRequest carries no data
-        return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
     def enable_motor(self, canbus: str, actuator_can_id: int):
-        """
-        Send motor enable command to the specified actuator on the given CAN bus.
-        """
-        if canbus not in self.sockets:
-            raise ValueError(f"CAN bus {canbus} not available")
-        if actuator_can_id not in self.actuators.get(canbus, []):
-            raise ValueError(f"Actuator {actuator_can_id} not found on {canbus}")
-
         frame = self._build_motor_enable_frame(actuator_can_id)
         self.sockets[canbus].send(frame)
         print(f"Sent motor enable command to {canbus} actuator {actuator_can_id}")
+
+    def _build_motor_enable_frame(self, actuator_can_id: int, length: int = 8) -> bytes:
+        can_id = ((actuator_can_id & 0xFF)
+                  | (self.host_id << 8)
+                  | ((self.MUX_MOTOR_ENABLE & 0x1F) << 24))
+        can_id |= self.EFF
+        payload = b"\x00" * 8
+        return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
+
 
     def get_actuator_feedback(self) -> Dict[str, int]:
         for can, sock in self.sockets.items():
@@ -100,7 +84,6 @@ class CANInterface:
                 resp_frame = sock.recv(self.FRAME_SIZE)
                 result = self._parse_feedback_response(resp_frame)
                 print(f"Feedback from {can} actuator {actuator_id}: {result}")
-
 
 
 
