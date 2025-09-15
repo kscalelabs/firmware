@@ -1,4 +1,5 @@
 import math
+import traceback
 import socket
 import struct
 from typing import Dict
@@ -26,8 +27,8 @@ class CANInterface:
             sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
             try:
                 sock.bind((f"can{canbus}",))
-                self.sockets[f"can{canbus}"] = sock
-                self.actuators[f"can{canbus}"] = []
+                self.sockets[canbus] = sock
+                self.actuators[canbus] = []
             except Exception as e:
                 print(f"bus {canbus} not available: {e}")
                 continue
@@ -35,7 +36,7 @@ class CANInterface:
             print(f"Scanning bus {canbus}")
             for actuator_id in self.actuator_range:
                 if self.ping_actuator(canbus, actuator_id):
-                    self.actuators[f"can{canbus}"].append(actuator_id)
+                    self.actuators[canbus].append(actuator_id)
 
         print("\033[1;36m🔍 CAN scan complete\033[0m")
         total_actuators = sum(len(actuators) for actuators in self.actuators.values())
@@ -51,7 +52,11 @@ class CANInterface:
             resp_frame = self.sockets[canbus].recv(self.FRAME_SIZE)
             _ = struct.unpack(self.FRAME_FMT, resp_frame)
             return True
-        except:
+        except socket.timeout:
+            return False
+        except Exception as e:
+            print(f"Error pinging actuator {actuator_can_id} on {canbus}: {e}")
+            traceback.print_exc()
             return False
 
     def _build_ping_frame(self, actuator_can_id: int) -> bytes:
@@ -251,21 +256,31 @@ def main():
     can_interface.get_actuator_feedback()
 
     # Enable motor for actuator 21 before controlling it
-    can_interface.enable_motor("can0", 21)
+    # can_interface.enable_motor("can0", 21)
 
     # make act 21 move to 1 rad
-    can_interface.set_pd_target(
-        canbus="can0",
-        actuator_can_id=21,
-        angle=1, # rad
-        angular_vel=0,
-        kp=2 * 13, # not scaled / 13
-        kd=1 * 650, # not scaled / 650
-    )
+    # can_interface.set_pd_target(
+    #     canbus="can0",
+    #     actuator_can_id=21,
+    #     angle=1, # rad
+    #     angular_vel=0,
+    #     kp=2 * 13, # not scaled / 13
+    #     kd=1 * 650, # not scaled / 650
+    # )
 
 
 if __name__ == "__main__":
     exit(0 if main() else 1)
 
 
+# todo: 
+# - poll at high freq. see what happens. 
+# poll all acts
+# set all acts
+# calibrate value scalings
+# done
+# clean up and simplify
 
+
+# 15 FD 00 80 08 00 00 00 00 00 00 00 00 00 00 00  # this is working and getting a response
+# 15 fd 00 80 08 00 00 00 00 00 00 00 00 00 00 00 # this is not working
