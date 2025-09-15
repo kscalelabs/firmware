@@ -315,6 +315,8 @@ class MotorDriver:
 
         self.ci.read_actuator_params()
 
+        # self.ci.check_errors() # TODO check all actuators dont return errors, else stop and print error
+
         # set all act to some safe normal operating point
         # self.ci.set_pd_target()
 
@@ -334,11 +336,15 @@ class MotorDriver:
         # self.ci.enable_all_actuators()
 
         # forever loop
-        # self._loop()
+        self._loop()
 
     def _loop(self):
+        
         while True:
+            before = time.perf_counter()
             self.ci.get_actuator_feedback()
+            after = time.perf_counter()
+            print(f"Time taken: {(after - before)*1000:.3f} ms")
             time.sleep(0.1)
 
 
