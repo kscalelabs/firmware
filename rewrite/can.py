@@ -5,6 +5,9 @@ import socket
 import struct
 from typing import Dict
 
+from robot import RobotConfig
+
+
 class CANInterface:
     """ Communication only """
     def __init__(self):
@@ -86,13 +89,16 @@ class CANInterface:
 
 
     def get_actuator_feedback(self) -> Dict[str, int]:
+        results = {}
         for can, sock in self.sockets.items():
             for actuator_id in self.actuators[can]:
                 frame = self._build_feedback_request(actuator_id)
                 sock.send(frame)
                 resp_frame = sock.recv(self.FRAME_SIZE)
                 result = self._parse_feedback_response(resp_frame)
-                print(f"can{can}: act {actuator_id}: {result}")
+                # print(f"can{can}: act {actuator_id}: {result}")
+                results[actuator_id] = result
+        return results
 
     def _build_feedback_request(self, actuator_can_id: int) -> bytes:
         can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_FEEDBACK & 0x1F) << 24))
@@ -101,7 +107,7 @@ class CANInterface:
         payload = b'\x00' * length # empty payload
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
-    def _parse_feedback_response(self,frame: bytes) -> Dict[str, int]:
+    def _parse_feedback_response(self, frame: bytes) -> Dict[str, int]:
         if len(frame) != 16:
             raise ValueError("frame must be exactly 16 bytes")
 
@@ -116,19 +122,19 @@ class CANInterface:
             raise ValueError(f"unexpected mux 0x{mux:02X} in feedback response")
 
         angle_be, ang_vel_be, torque_be, temp_be = struct.unpack(">HHHH", payload)
-        angle = self._raw_to_rad(angle_be)
-        ang_vel = self._raw_to_rad(ang_vel_be)
-        torque = torque_be # TODO
-        temp = temp_be / 10 
+        # angle = self._raw_to_rad(angle_be)
+        # ang_vel = self._raw_to_rad(ang_vel_be)
+        # torque = torque_be # TODO
+        # temp = temp_be / 10 
 
         return {
             "host_id": b0,
             "actuator_can_id": b1,
             "fault_flags": b2,
-            "angle_raw": angle,
-            "angular_velocity_raw": ang_vel,
-            "torque_raw": torque,
-            "temperature_raw": temp,
+            "angle_raw": angle_be,
+            "angular_velocity_raw": ang_vel_be,
+            "torque_raw": torque_be,
+            "temperature_raw": temp_be,
         }
 
 
@@ -311,6 +317,7 @@ class CANInterface:
 class MotorDriver:
     """ Driver logic """
     def __init__(self):
+        self.robotcfg = RobotConfig()
         self.ci = CANInterface()
 
         self.ci.read_actuator_params()
@@ -342,9 +349,20 @@ class MotorDriver:
         
         while True:
             before = time.perf_counter()
-            self.ci.get_actuator_feedback()
+            fb = self.ci.get_actuator_feedback()
             after = time.perf_counter()
-            print(f"Time taken: {(after - before)*1000:.3f} ms")
+            # print(f"Time taken: {(after - before)*1000:.3f} ms")
+
+            for actuator_id, fb in fb.items():
+                if actuator_id == 41:
+                    print(f"Physical angle: {self.robotcfg.actuators[actuator_id].can_to_physical_angle(fb['angle_raw']):.3f}")
+                # print(f"Actuator {actuator_id}: {fb}")
+                # print(f"Physical velocity: {self.robotcfg.actuators[actuator_id].can_to_physical_velocity(fb['angular_velocity_raw'])}")
+                # print(f"Physical torque: {self.robotcfg.actuators[actuator_id].can_to_physical_torque(fb['torque_raw'])}")
+
+                
+
+            # exit(0)
             time.sleep(0.1)
 
 
