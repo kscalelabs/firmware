@@ -1,10 +1,12 @@
 import math
+import time
 import traceback
 import socket
 import struct
 from typing import Dict
 
 class CANInterface:
+    """ Communication only """
     def __init__(self):
         self.FRAME_FMT = '<IBBBB8s' # <I = little-endian u32; 4B = len, pad, res0, len8_dlc; 8s = 8 data bytes
         self.FRAME_SIZE = struct.calcsize(self.FRAME_FMT)
@@ -16,13 +18,16 @@ class CANInterface:
         self.MUX_CONTROL = 0x01
         self.MUX_FEEDBACK = 0x02
         self.MUX_MOTOR_ENABLE = 0x03
+        self.MUX_READ_PARAM = 0x11
+
+
         self.EFF = 0x8000_0000
 
         self.sockets = {}
         self.actuators = {}
-        self.scan()
+        self._scan()
 
-    def scan(self):
+    def _scan(self):
         for canbus in self.canbus_range:
             sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
             try:
@@ -35,7 +40,7 @@ class CANInterface:
 
             print(f"Scanning bus {canbus}")
             for actuator_id in self.actuator_range:
-                if self.ping_actuator(canbus, actuator_id):
+                if self._ping_actuator(canbus, actuator_id):
                     self.actuators[canbus].append(actuator_id)
 
         print("\033[1;36m🔍 CAN scan complete\033[0m")
@@ -44,7 +49,7 @@ class CANInterface:
         for canbus, actuators in self.actuators.items():
             print(f"\033[1;34m{canbus}\033[0m: \033[1;35m{actuators}\033[0m")
 
-    def ping_actuator(self, canbus: str, actuator_can_id: int):
+    def _ping_actuator(self, canbus: str, actuator_can_id: int):
         try:
             frame = self._build_ping_frame(actuator_can_id)
             self.sockets[canbus].send(frame)
@@ -124,6 +129,88 @@ class CANInterface:
             "angular_velocity_raw": ang_vel,
             "torque_raw": torque,
             "temperature_raw": temp,
+        }
+
+
+    def read_actuator_param(self, param_index: int) -> Dict[str, int]:
+        for can, sock in self.sockets.items():
+            for actuator_id in self.actuators[can]:
+                frame = self._build_read_param_request(actuator_id, param_index)
+                sock.send(frame)
+                resp_frame = sock.recv(self.FRAME_SIZE)
+                result = self._parse_read_param_response(resp_frame)
+                print(f"can{can}: act {actuator_id}: param 0x{param_index:04X}: {result}")
+
+    def read_actuator_params(self) -> Dict[str, int]:
+        """Read ALL available parameters from all actuators"""
+        params_to_read = {
+            # Control/Operational parameters (0x7000 range)
+            "run_mode": 0x7005,
+            "iq_ref": 0x7006,
+            "spd_ref": 0x700A,
+            "limit_torque": 0x700B,
+            "cur_kp": 0x7010,
+            "cur_ki": 0x7011,
+            "cur_filt_gain": 0x7014,
+            "loc_ref": 0x7016,
+            "limit_spd": 0x7017,
+            "limit_cur": 0x7018,
+            "mech_pos": 0x7019,
+            "iqf": 0x701A,
+            "mech_vel": 0x701B,
+            "vbus": 0x701C,
+            "loc_kp": 0x701E,
+            "spd_kp": 0x701F,
+            "spd_ki": 0x7020,
+            "spd_filt_gain": 0x7021,
+            "acc_rad": 0x7022,
+            "vel_max": 0x7024,
+            "acc_set": 0x7025,
+            "ep_scan_time": 0x7026,
+            "can_timeout": 0x7028,
+            "zero_sta": 0x7029,
+
+            # Fault/Diagnostic parameters (0x3000 range)
+            "motor_fault": 0x3022,
+            "warn_status": 0x3023,
+            "drv_fault1": 0x3024,
+            "drv_fault2": 0x3025,
+        }
+
+        print(f"Reading {len(params_to_read)} parameters from all actuators...")
+        for param_name, param_index in params_to_read.items():
+            print(f"Reading param 0x{param_index:04X} ({param_name})")
+            self.read_actuator_param(param_index)
+
+    def _build_read_param_request(self, actuator_can_id: int, param_index: int) -> bytes:
+        can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_READ_PARAM & 0x1F) << 24))
+        can_id |= self.EFF
+        length = 8
+        payload = struct.pack("<HHI", param_index & 0xFFFF, 0, 0)  # index (u16), reserved (u16), reserved (u32)
+        return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
+
+    def _parse_read_param_response(self, frame: bytes) -> Dict[str, int]:
+        if len(frame) != 16:
+            raise ValueError("frame must be exactly 16 bytes")
+
+        can_id, _length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
+        b0 = (can_id >> 0)  & 0xFF  # host_id (u8)
+        b1 = (can_id >> 8)  & 0xFF  # actuator_can_id (u8)
+        b2 = (can_id >> 16) & 0xFF  # fault_flags (u8)
+        b3 = (can_id >> 24) & 0xFF  # mux + EFF-in-byte
+        mux = b3 & 0x1F
+
+        if mux != self.MUX_READ_PARAM:
+            raise ValueError(f"unexpected mux 0x{mux:02X} in read param response")
+
+        index, res1, value = struct.unpack("<HHI", payload)
+
+        return {
+            "host_id": b0,
+            "actuator_can_id": b1,
+            "fault_flags": b2,
+            "param_index": index,
+            "param_value": value,
         }
 
 
@@ -221,23 +308,43 @@ class CANInterface:
         }
 
 
+class MotorDriver:
+    """ Driver logic """
+    def __init__(self):
+        self.ci = CANInterface()
+
+        self.ci.read_actuator_params()
+
+        # set all act to some safe normal operating point
+        # self.ci.set_pd_target()
+
+                    # Enable motor for actuator 21 before controlling it
+                    # can_interface.enable_motor("can0", 21)
+
+                    # make act 21 move to 1 rad
+                    # can_interface.set_pd_target(
+                    #     canbus="can0",
+                    #     actuator_can_id=21,
+                    #     angle=1, # rad
+                    #     angular_vel=0,
+                    #     kp=2 * 13, # not scaled / 13
+                    #     kd=1 * 650, # not scaled / 650
+                    # )
+
+        # self.ci.enable_all_actuators()
+
+        # forever loop
+        # self._loop()
+
+    def _loop(self):
+        while True:
+            self.ci.get_actuator_feedback()
+            time.sleep(0.1)
+
+
 
 def main():
-    can_interface = CANInterface()
-    can_interface.get_actuator_feedback()
-
-    # Enable motor for actuator 21 before controlling it
-    # can_interface.enable_motor("can0", 21)
-
-    # make act 21 move to 1 rad
-    # can_interface.set_pd_target(
-    #     canbus="can0",
-    #     actuator_can_id=21,
-    #     angle=1, # rad
-    #     angular_vel=0,
-    #     kp=2 * 13, # not scaled / 13
-    #     kd=1 * 650, # not scaled / 650
-    # )
+    driver = MotorDriver()
 
 
 if __name__ == "__main__":
@@ -251,7 +358,3 @@ if __name__ == "__main__":
 # calibrate value scalings
 # done
 # clean up and simplify
-
-
-# 15 FD 00 80 08 00 00 00 00 00 00 00 00 00 00 00  # this is working and getting a response
-# 15 fd 00 80 08 00 00 00 00 00 00 00 00 00 00 00 # this is not working
