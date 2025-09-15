@@ -72,12 +72,11 @@ class CANInterface:
         self.sockets[canbus].send(frame)
         print(f"Sent motor enable command to {canbus} actuator {actuator_can_id}")
 
-    def _build_motor_enable_frame(self, actuator_can_id: int, length: int = 8) -> bytes:
-        can_id = ((actuator_can_id & 0xFF)
-                  | (self.host_id << 8)
-                  | ((self.MUX_MOTOR_ENABLE & 0x1F) << 24))
+    def _build_motor_enable_frame(self, actuator_can_id: int) -> bytes:
+        can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_MOTOR_ENABLE & 0x1F) << 24))
         can_id |= self.EFF
-        payload = b"\x00" * 8
+        length = 8
+        payload = b'\x00' * length # empty payload
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
 
@@ -88,41 +87,25 @@ class CANInterface:
                 sock.send(frame)
                 resp_frame = sock.recv(self.FRAME_SIZE)
                 result = self._parse_feedback_response(resp_frame)
-                print(f"Feedback from {can} actuator {actuator_id}: {result}")
+                print(f"can{can}: act {actuator_id}: {result}")
 
-
-
-    def _build_feedback_request(self, actuator_can_id: int, length: int = 8, eff: bool = True) -> bytes:
-        """
-        Compose a FeedbackRequest frame (mux 0x02).
-        Identifier packing: [b0=actuator_can_id][b1..b2=host_id LE][b3=mux|EFFbit]
-        """
-        can_id = ((actuator_can_id & 0xFF)
-                  | (self.host_id << 8)
-                  | ((self.MUX_FEEDBACK & 0x1F) << 24))
-        if eff:
-            can_id |= self.EFF
-        payload = b"\x00" * 8  # request carries no data
+    def _build_feedback_request(self, actuator_can_id: int) -> bytes:
+        can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_FEEDBACK & 0x1F) << 24))
+        can_id |= self.EFF
+        length = 8
+        payload = b'\x00' * length # empty payload
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
     def _parse_feedback_response(self,frame: bytes) -> Dict[str, int]:
-        """
-        Parse a 16-byte FeedbackResponse frame.
-        Response can_id bytes (little-endian u32 reinterpreted as 4 bytes):
-          b0=host_id, b1=actuator_can_id, b2=fault_flags, b3=mux|EFFbit
-        Data payload (8 bytes) is four big-endian u16 words:
-          angle_be, angular_vel_be, torque_be, temp_be
-        """
         if len(frame) != 16:
             raise ValueError("frame must be exactly 16 bytes")
 
-        can_id, length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
+        can_id, _length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
         b0 = (can_id >> 0)  & 0xFF  # host_id (u8)
         b1 = (can_id >> 8)  & 0xFF  # actuator_can_id (u8)
         b2 = (can_id >> 16) & 0xFF  # fault_flags (u8)
         b3 = (can_id >> 24) & 0xFF  # mux + EFF-in-byte
         mux = b3 & 0x1F
-        eff = bool(can_id & self.EFF)
 
         if mux != self.MUX_FEEDBACK:
             raise ValueError(f"unexpected mux 0x{mux:02X} in feedback response")
@@ -134,9 +117,6 @@ class CANInterface:
         temp = temp_be / 10 
 
         return {
-            "eff": int(eff),
-            "length": length,
-            "mux": mux,
             "host_id": b0,
             "actuator_can_id": b1,
             "fault_flags": b2,
@@ -193,25 +173,16 @@ class CANInterface:
         angular_vel_scale: int,
         kp_scale: int,
         kd_scale: int,
-        length: int = 8,
-        eff: bool = True
     ) -> bytes:
-        """
-        Build ControlCommandRequest frame (mux 0x01).
-        - torque_scale goes into identifier bytes [1..2] (little-endian u16)
-        - angle/angular_vel/kp/kd go into payload as big-endian u16s
-        """
-        can_id = ((actuator_can_id & 0xFF)
-                  | (self._clamp_u16(torque_scale) << 8)
-                  | ((self.MUX_CONTROL & 0x1F) << 24))
-        if eff:
-            can_id |= self.EFF
+        can_id = ((actuator_can_id & 0xFF) | (self._clamp_u16(torque_scale) << 8) | ((self.MUX_CONTROL & 0x1F) << 24))
+        can_id |= self.EFF
 
         payload = struct.pack(">HHHH",
                               self._clamp_u16(angle_scale),
                               self._clamp_u16(angular_vel_scale),
                               self._clamp_u16(kp_scale),
                               self._clamp_u16(kd_scale))
+        length = 8
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
 
