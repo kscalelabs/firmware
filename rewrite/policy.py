@@ -37,5 +37,5 @@ def get_onnx_sessions(kinfer_path):
     for _ in range(100):
         step_session.run(None, step_dummy_inputs)
 
-    return init_session, step_session
+    return init_session, step_session, metadata
 
