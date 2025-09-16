@@ -58,7 +58,7 @@ def main():
         step_session.run(None, step_dummy_inputs)
 
     # Benchmark step function
-    num_passes = 100
+    num_passes = 1000
     times = []
     print(f"\nBenchmarking {num_passes} step forward passes...")
 
