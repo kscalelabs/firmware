@@ -5,6 +5,47 @@ import time
 import mmap
 import os
 
+
+def quaternion_conjugate(q):
+    """Compute quaternion conjugate"""
+    qw, qx, qy, qz = q
+    return (qw, -qx, -qy, -qz)
+
+def quaternion_multiply(q1, q2):
+    """Multiply two quaternions"""
+    w1, x1, y1, z1 = q1
+    w2, x2, y2, z2 = q2
+
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+
+    return (w, x, y, z)
+
+def rotate_vector_by_quaternion(v, q, inverse=False):
+    """Rotate vector v by quaternion q"""
+    vx, vy, vz = v
+
+    # Convert vector to quaternion (0, vx, vy, vz)
+    v_quat = (0.0, vx, vy, vz)
+
+    if inverse:
+        # For inverse rotation, use conjugate of q
+        q_conj = quaternion_conjugate(q)
+        # Rotate: v' = q_conj * v_quat * q
+        temp = quaternion_multiply(q_conj, v_quat)
+        result_quat = quaternion_multiply(temp, q)
+    else:
+        # Rotate: v' = q * v_quat * q_conj
+        q_conj = quaternion_conjugate(q)
+        temp = quaternion_multiply(q, v_quat)
+        result_quat = quaternion_multiply(temp, q_conj)
+
+    # Extract vector part from result quaternion
+    return (result_quat[1], result_quat[2], result_quat[3])
+
+
 class IMUReader:
     def __init__(self, device='/dev/ttyUSB0', baudrate=230400, shm_path='/tmp/imu_shm'):
         # Serial setup
@@ -26,6 +67,10 @@ class IMUReader:
         # Track last values to avoid unnecessary writes
         self.last_gyro = None
         self.last_quaternion = None
+        self.last_projected_gravity = None
+
+        # standard gravity
+        self.gravity = (0.0, 0.0, -9.81)
         
     def _parse_gyro(self, data):
         """Parse gyroscope data from IMU packet"""
@@ -41,7 +86,8 @@ class IMUReader:
         qy = struct.unpack('<h', data[6:8])[0] / 32768.0
         qz = struct.unpack('<h', data[8:10])[0] / 32768.0
         return (qw, qx, qy, qz)
-    
+
+
     def _update_shared_memory(self, timestamp, gyro_data=None, quaternion_data=None):
         """Update shared memory only if data has changed"""
         data_changed = False
@@ -52,6 +98,7 @@ class IMUReader:
             
         if quaternion_data and quaternion_data != self.last_quaternion:
             self.last_quaternion = quaternion_data
+            self.last_projected_gravity = rotate_vector_by_quaternion(self.gravity, quaternion_data, inverse=True)
             data_changed = True
             
         if data_changed:
@@ -67,7 +114,6 @@ class IMUReader:
     
     def run(self):
         """Main IMU reading loop"""
-        last_update = time.time()
         
         while True:
             time.sleep(0.0001)  # 100us delay to decrease CPU usage from 100% to 7%
@@ -83,19 +129,17 @@ class IMUReader:
                     if data[1] == 0x52:  # Gyro
                         gyro_data = self._parse_gyro(data)
                         self._update_shared_memory(now, gyro_data=gyro_data)
-                        last_update = now
                         
                     elif data[1] == 0x59:  # Quaternion
                         quaternion_data = self._parse_quaternion(data)
                         self._update_shared_memory(now, quaternion_data=quaternion_data)
-                        last_update = now
 
     def test(self):
         """Test function that runs the IMU reader and prints data"""
         last_print = time.time()
         
         while True:
-            time.sleep(0.0001)  # 100us delay to decrease CPU usage from 100% to 7%
+            time.sleep(0.0001)
             
             # Read byte-by-byte until we find sync byte
             if self.serial.read(1) == b'\x55':
@@ -117,8 +161,20 @@ class IMUReader:
                         print(f"dt={dt:.3f} quat: w={quaternion_data[0]:.3f} x={quaternion_data[1]:.3f} y={quaternion_data[2]:.3f} z={quaternion_data[3]:.3f}")
                         self._update_shared_memory(now, quaternion_data=quaternion_data)
                         last_print = now
+    
+    def get_projected_gravity_and_gyroscope(self):
+        """Get the latest projected gravity and gyroscope data
 
-# Usage example (for testing)
+        Returns:
+            tuple: (projected_gravity, gyro) where each is a tuple of 3 floats
+        """
+        proj_grav = self.last_projected_gravity or (0.0, 0.0, -9.81)
+        gyro = self.last_gyro or (0.0, 0.0, 0.0)
+        return proj_grav, gyro
+
+
+
+# for testing
 if __name__ == "__main__":
     reader = IMUReader()
     reader.test()

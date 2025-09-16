@@ -218,23 +218,25 @@ class MotorDriver:
 
         input("Press Enter to start policy...")
         print("🤖 Running policy...")
-        self._loop()
+        # self._sine_wave()
 
-    def _loop(self):
-        # while True:
-            # before = time.perf_counter()
-            # fb = self.ci.get_actuator_feedback()
-            # after = time.perf_counter()
-            # # print(f"Time taken: {(after - before)*1000:.3f} ms")
-        
-
-
+    def _sine_wave(self):
         t0 = time.perf_counter()
         while True:
             angle = 3.14158/2 * math.sin(2 * math.pi * 0.5 * (time.perf_counter() - t0))
             action = {k: angle for k in self.acts}
             self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.1)
             time.sleep(0.1)
+
+    def get_joint_angles_and_velocities(self):
+        fb = self.ci.get_actuator_feedback()
+        joint_angles = {k: self.robot.actuators[k].can_to_physical_angle(fb[k]['angle_raw']) for k in self.acts}
+        joint_velocities = {k: self.robot.actuators[k].can_to_physical_velocity(fb[k]['angular_velocity_raw']) for k in self.acts}
+        return joint_angles, joint_velocities
+
+    def take_action(self, action: dict[int, float]):
+        # TODO joint order, joint offsets
+        self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.01)
 
 
 def main():
