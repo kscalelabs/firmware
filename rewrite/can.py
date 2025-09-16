@@ -210,7 +210,7 @@ class MotorDriver:
         home_targets = {id: self.robot.actuators[id].joint_bias for id in self.robot.actuators.keys()}
         print("\nHoming...")
         for scale in [math.exp(math.log(0.001) + (math.log(1.0) - math.log(0.001)) * i / 29) for i in range(30)]:  # Logarithmic interpolation from 0.001 to 1.0 in 30 steps
-            print(f"PD scaling={scale:.3f}")
+            print(f"PD ramp: {scale:.3f}")
             self.ci.set_pd_targets(home_targets, robotcfg=self.robot, scaling=scale)
             time.sleep(.1)
         print("✅ Homing complete")
@@ -228,10 +228,15 @@ class MotorDriver:
 
     def get_joint_angles_and_velocities(self, joint_order: list[str]) -> tuple[list[float], list[float]]:
         fb = self.ci.get_actuator_feedback()
-        joint_angles = {id: self.robot.actuators[id].can_to_physical_angle(fb[id]['angle_raw']) for id in self.robot.actuators.keys()}
+
+        # TODO testbench stuff
+        joint_angles_raw = {id: fb[id]['angle_raw'] if id in fb else 0 for id in self.robot.actuators.keys()}
+        joint_velocities_raw = {id: fb[id]['angular_velocity_raw'] if id in fb else 0 for id in self.robot.actuators.keys()}
+
+        joint_angles = {id: self.robot.actuators[id].can_to_physical_angle(joint_angles_raw[id]) for id in self.robot.actuators.keys()}
         joint_angles_ordered = [joint_angles[self.robot.full_name_to_actuator_id[name]] for name in joint_order]
 
-        joint_velocities = {id: self.robot.actuators[id].can_to_physical_velocity(fb[id]['angular_velocity_raw']) for id in self.robot.actuators.keys()}
+        joint_velocities = {id: self.robot.actuators[id].can_to_physical_velocity(joint_velocities_raw[id]) for id in self.robot.actuators.keys()}
         joint_velocities_ordered = [joint_velocities[self.robot.full_name_to_actuator_id[name]] for name in joint_order]
 
         return joint_angles_ordered, joint_velocities_ordered

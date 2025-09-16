@@ -155,7 +155,7 @@ def actuator_ranges(actuator_type: RobstrideActuatorType):
 
 
 class RobotConfig:
-    actuators = {
+    actuators: dict[int, ActuatorConfig] = {
         # Left arm
         11: ActuatorConfig(
             can_id=11,
@@ -379,5 +379,5 @@ class RobotConfig:
         ),
     }
 
-    def __post_init__(self):
+    def __init__(self):
         self.full_name_to_actuator_id = {act.full_name: act.can_id for act in self.actuators.values()}
