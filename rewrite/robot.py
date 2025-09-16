@@ -1,6 +1,7 @@
 from enum import Enum
-from math import pi
 from dataclasses import dataclass
+import math
+from math import pi
 
 
 class RobstrideActuatorType(Enum):
@@ -14,10 +15,11 @@ class RobstrideActuatorType(Enum):
 class ActuatorConfig:
     can_id: int
     name: str
+    full_name: str
     actuator_type: RobstrideActuatorType
     # joint_min: float
     # joint_max: float
-    # joint_zero: float
+    joint_bias: float
     kp: float
     kd: float
     # can ranges:
@@ -153,186 +155,229 @@ def actuator_ranges(actuator_type: RobstrideActuatorType):
 
 
 class RobotConfig:
-        actuators = {
-            # Left arm
-            11: ActuatorConfig(
-                can_id=11,
-                name="lsp",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=8.284,
-            ),
+    actuators = {
+        # Left arm
+        11: ActuatorConfig(
+            can_id=11,
+            name="lsp",
+            full_name="dof_left_shoulder_pitch_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=8.284,
+            joint_bias=0.0,
+        ),
 
-            12: ActuatorConfig(
-                can_id=12,
-                name="lsr",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=8.257,
-            ),
+        12: ActuatorConfig(
+            can_id=12,
+            name="lsr",
+            full_name="dof_left_shoulder_roll_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=8.257,
+            joint_bias=math.radians(10.0),
+        ),
 
-            13: ActuatorConfig(
-                can_id=13,
-                name="lsy",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=100.0,
-                kd=2.945,
-            ),
+        13: ActuatorConfig(
+            can_id=13,
+            name="lsy",
+            full_name="dof_left_shoulder_yaw_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=100.0,
+            kd=2.945,
+            joint_bias=0.0,
+        ),
 
-            14: ActuatorConfig(
-                can_id=14,
-                name="lep",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=80.0,
-                kd=2.266,
-            ),
+        14: ActuatorConfig(
+            can_id=14,
+            name="lep",
+            full_name="dof_left_elbow_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=80.0,
+            kd=2.266,
+            joint_bias=math.radians(-90.0),
+        ),
 
-            15: ActuatorConfig(
-                can_id=15,
-                name="lwr",
-                actuator_type=RobstrideActuatorType.Robstride00,
-                **actuator_ranges(RobstrideActuatorType.Robstride00),
-                kp=20.0,
-                kd=0.295,
-            ),
-            
+        15: ActuatorConfig(
+            can_id=15,
+            name="lwr",
+            full_name="dof_left_wrist_00",
+            actuator_type=RobstrideActuatorType.Robstride00,
+            **actuator_ranges(RobstrideActuatorType.Robstride00),
+            kp=20.0,
+            kd=0.295,
+            joint_bias=0.0,
+        ),
+        
 
-            # Right arm
-            21: ActuatorConfig(
-                can_id=21,
-                name="rsp",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=8.284,
-            ),
+        # Right arm
+        21: ActuatorConfig(
+            can_id=21,
+            name="rsp",
+            full_name="dof_right_shoulder_pitch_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=8.284,
+            joint_bias=0.0,
+        ),
 
-            22: ActuatorConfig(
-                can_id=22,
-                name="rsr",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=8.257,
-            ),
+        22: ActuatorConfig(
+            can_id=22,
+            name="rsr",
+            full_name="dof_right_shoulder_roll_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=8.257,
+            joint_bias=math.radians(-10.0),
+        ),
 
-            23: ActuatorConfig(
-                can_id=23,
-                name="rsy",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=100.0,
-                kd=2.945,
-            ),
+        23: ActuatorConfig(
+            can_id=23,
+            name="rsy",
+            full_name="dof_right_shoulder_yaw_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=100.0,
+            kd=2.945,
+            joint_bias=0.0,
+        ),
 
-            24: ActuatorConfig(
-                can_id=24,
-                name="rep",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=100.0,
-                kd=2.266,
-            ),
+        24: ActuatorConfig(
+            can_id=24,
+            name="rep",
+            full_name="dof_right_elbow_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=100.0,
+            kd=2.266,
+            joint_bias=math.radians(90.0),
+        ),
 
-            25: ActuatorConfig(
-                can_id=25,
-                name="rwr",
-                actuator_type=RobstrideActuatorType.Robstride00,
-                **actuator_ranges(RobstrideActuatorType.Robstride00),
-                kp=20.0,
-                kd=0.295,
-            ),
-            
+        25: ActuatorConfig(
+            can_id=25,
+            name="rwr",
+            full_name="dof_right_wrist_00",
+            actuator_type=RobstrideActuatorType.Robstride00,
+            **actuator_ranges(RobstrideActuatorType.Robstride00),
+            kp=20.0,
+            kd=0.295,
+            joint_bias=0.0,
+        ),
+        
 
-            # Left leg
-            31: ActuatorConfig(
-                can_id=31,
-                name="lhp",
-                actuator_type=RobstrideActuatorType.Robstride04,
-                **actuator_ranges(RobstrideActuatorType.Robstride04),
-                kp=150.0,
-                kd=24.722,
-            ),
+        # Left leg
+        31: ActuatorConfig(
+            can_id=31,
+            name="lhp",
+            full_name="dof_left_hip_pitch_04",
+            actuator_type=RobstrideActuatorType.Robstride04,
+            **actuator_ranges(RobstrideActuatorType.Robstride04),
+            kp=150.0,
+            kd=24.722,
+            joint_bias=math.radians(20.0),
+        ),
 
-            32: ActuatorConfig(
-                can_id=32,
-                name="lhr",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=200.0,
-                kd=26.387,
-            ),
+        32: ActuatorConfig(
+            can_id=32,
+            name="lhr",
+            full_name="dof_left_hip_roll_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=200.0,
+            kd=26.387,
+            joint_bias=0.0,
+        ),
 
-            33: ActuatorConfig(
-                can_id=33,
-                name="lhy",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=3.419,
-            ),
+        33: ActuatorConfig(
+            can_id=33,
+            name="lhy",
+            full_name="dof_left_hip_yaw_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=3.419,
+            joint_bias=0.0,
+        ),
 
-            34: ActuatorConfig(
-                can_id=34,
-                name="lkp",
-                actuator_type=RobstrideActuatorType.Robstride04,
-                **actuator_ranges(RobstrideActuatorType.Robstride04),
-                kp=150.0,
-                kd=8.654,
-            ),
+        34: ActuatorConfig(
+            can_id=34,
+            name="lkp",
+            full_name="dof_left_knee_04",
+            actuator_type=RobstrideActuatorType.Robstride04,
+            **actuator_ranges(RobstrideActuatorType.Robstride04),
+            kp=150.0,
+            kd=8.654,
+            joint_bias=math.radians(50.0),
+        ),
 
-            35: ActuatorConfig(
-                can_id=35,
-                name="lap",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=40.0,
-                kd=0.99,
-            ),
+        35: ActuatorConfig(
+            can_id=35,
+            name="lap",
+            full_name="dof_left_ankle_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=40.0,
+            kd=0.99,
+            joint_bias=math.radians(-30.0),
+        ),
 
-            # Right leg
-            41: ActuatorConfig(
-                can_id=41,
-                name="rhp",
-                actuator_type=RobstrideActuatorType.Robstride04,
-                **actuator_ranges(RobstrideActuatorType.Robstride04),
-                kp=150.0,
-                kd=24.722,
-            ),
-            42: ActuatorConfig(
-                can_id=42,
-                name="rhr",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=200.0,
-                kd=26.387,
-            ),
-            43: ActuatorConfig(
-                can_id=43,
-                name="rhy",
-                actuator_type=RobstrideActuatorType.Robstride03,
-                **actuator_ranges(RobstrideActuatorType.Robstride03),
-                kp=100.0,
-                kd=3.419,
-            ),
-            44: ActuatorConfig(
-                can_id=44,
-                name="rkp",
-                actuator_type=RobstrideActuatorType.Robstride04,
-                **actuator_ranges(RobstrideActuatorType.Robstride04),
-                kp=150.0,
-                kd=8.654,
-            ),
-            45: ActuatorConfig(
-                can_id=45,
-                name="rap",
-                actuator_type=RobstrideActuatorType.Robstride02,
-                **actuator_ranges(RobstrideActuatorType.Robstride02),
-                kp=40.0,
-                kd=0.99,
-            ),
-        }
+        # Right leg
+        41: ActuatorConfig(
+            can_id=41,
+            name="rhp",
+            full_name="dof_right_hip_pitch_04",
+            actuator_type=RobstrideActuatorType.Robstride04,
+            **actuator_ranges(RobstrideActuatorType.Robstride04),
+            kp=150.0,
+            kd=24.722,
+            joint_bias=math.radians(-20.0),
+        ),
+        42: ActuatorConfig(
+            can_id=42,
+            name="rhr",
+            full_name="dof_right_hip_roll_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=200.0,
+            kd=26.387,
+            joint_bias=0.0,
+        ),
+        43: ActuatorConfig(
+            can_id=43,
+            name="rhy",
+            full_name="dof_right_hip_yaw_03",
+            actuator_type=RobstrideActuatorType.Robstride03,
+            **actuator_ranges(RobstrideActuatorType.Robstride03),
+            kp=100.0,
+            kd=3.419,
+            joint_bias=0.0,
+        ),
+        44: ActuatorConfig(
+            can_id=44,
+            name="rkp",
+            full_name="dof_right_knee_04",
+            actuator_type=RobstrideActuatorType.Robstride04,
+            **actuator_ranges(RobstrideActuatorType.Robstride04),
+            kp=150.0,
+            kd=8.654,
+            joint_bias=math.radians(50.0),
+        ),
+        45: ActuatorConfig(
+            can_id=45,
+            name="rap",
+            full_name="dof_right_ankle_02",
+            actuator_type=RobstrideActuatorType.Robstride02,
+            **actuator_ranges(RobstrideActuatorType.Robstride02),
+            kp=40.0,
+            kd=0.99,
+            joint_bias=math.radians(30.0),
+        ),
+    }
+
+    def __post_init__(self):
+        self.full_name_to_actuator_id = {act.full_name: act.can_id for act in self.actuators.values()}
