@@ -200,8 +200,6 @@ class MotorDriver:
             temp = self.robot.actuators[act_id].can_to_physical_temperature(state['temperature_raw'])
             print(f"{act_id:3d} | {name:3s} | \033[1;34m{angle:5.2f}\033[0m | \033[1;35m{velocity:8.2f}\033[0m | \033[1;33m{torque:6.2f}\033[0m | \033[1;36m{temp:5.1f}\033[0m | {fault_color}{state['fault_flags']:3d}\033[0m")
         
-        self.ci.set_pd_targets({k: 1.0 for k in self.acts}, robotcfg=self.robot, scaling=0.01)
-
         if any(state['fault_flags'] > 0 for state in states.values()):
             print("\033[1;31m❌ Actuator faults detected\033[0m")
             # exit(1) # TODO for some reason we get 128 uncalibrated faults
@@ -248,10 +246,10 @@ if __name__ == "__main__":
 
 
 #todo:
-# can link up automatic
 # zeros
-# cpu priority 
 # loop in model
 # loop in imu
+# can link up automatic
 # bench
+# cpu priority 
 # go faster
