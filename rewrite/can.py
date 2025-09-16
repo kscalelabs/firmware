@@ -184,7 +184,6 @@ class MotorDriver:
     def __init__(self):
         self.robot = RobotConfig()
         self.ci = CANInterface()
-        self.acts: list[int] = sum([self.ci.actuators[canbus] for canbus in self.ci.sockets.keys()], [])
 
         states = self.ci.get_actuator_feedback()
 
@@ -208,7 +207,7 @@ class MotorDriver:
         self.ci.enable_motors()
         print(f"✅ Motors enabled")
 
-        home_targets = {k: 0.0 for k in self.acts} # TODO policy zeros
+        home_targets = {id: self.robot.actuators[id].joint_bias for id in self.robot.actuators.keys()}
         print("\nHoming...")
         for scale in [math.exp(math.log(0.001) + (math.log(1.0) - math.log(0.001)) * i / 29) for i in range(30)]:  # Logarithmic interpolation from 0.001 to 1.0 in 30 steps
             print(f"PD scaling={scale:.3f}")
@@ -218,29 +217,33 @@ class MotorDriver:
 
         input("Press Enter to start policy...")
         print("🤖 Running policy...")
-        # self._sine_wave()
 
-    def _sine_wave(self):
+    def sine_wave(self):
         t0 = time.perf_counter()
         while True:
             angle = 3.14158/2 * math.sin(2 * math.pi * 0.5 * (time.perf_counter() - t0))
-            action = {k: angle for k in self.acts}
+            action = {id: angle + self.robot.actuators[id].joint_bias for id in self.robot.actuators.keys()}
             self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.1)
             time.sleep(0.1)
 
-    def get_joint_angles_and_velocities(self):
+    def get_joint_angles_and_velocities(self, joint_order: list[str]) -> tuple[list[float], list[float]]:
         fb = self.ci.get_actuator_feedback()
-        joint_angles = {k: self.robot.actuators[k].can_to_physical_angle(fb[k]['angle_raw']) for k in self.acts}
-        joint_velocities = {k: self.robot.actuators[k].can_to_physical_velocity(fb[k]['angular_velocity_raw']) for k in self.acts}
-        return joint_angles, joint_velocities
+        joint_angles = {id: self.robot.actuators[id].can_to_physical_angle(fb[id]['angle_raw']) for id in self.robot.actuators.keys()}
+        joint_angles_ordered = [joint_angles[self.robot.full_name_to_actuator_id[name]] for name in joint_order]
 
-    def take_action(self, action: dict[int, float]):
-        # TODO joint order, joint offsets
-        self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.01)
+        joint_velocities = {id: self.robot.actuators[id].can_to_physical_velocity(fb[id]['angular_velocity_raw']) for id in self.robot.actuators.keys()}
+        joint_velocities_ordered = [joint_velocities[self.robot.full_name_to_actuator_id[name]] for name in joint_order]
+
+        return joint_angles_ordered, joint_velocities_ordered
+
+    def take_action(self, action: list[float], joint_order: list[str]):
+        action = {self.robot.actuators[self.robot.full_name_to_actuator_id[name]].can_id: action for name, action in zip(joint_order, action)}
+        self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.01) # TODO after debugging get this back
 
 
 def main():
     driver = MotorDriver()
+    driver.sine_wave()
 
 
 if __name__ == "__main__":
@@ -251,7 +254,5 @@ if __name__ == "__main__":
 # zeros
 # loop in model
 # loop in imu
-# can link up automatic
 # bench
-# cpu priority 
 # go faster
