@@ -72,6 +72,9 @@ class ActuatorConfig:
         proportion = (physical_value - self.kd_can_min) / (self.kd_can_max - self.kd_can_min)
         return 0.0 + proportion * (65535.0 - 0.0)
     
+    def can_to_physical_temperature(self, can_value: float) -> float:
+        return can_value / 10.0
+    
     @property
     def raw_kp(self):
         return self.physical_to_can_kp(self.kp)

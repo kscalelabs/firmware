@@ -101,7 +101,7 @@ class CANInterface:
                 sock.send(frame)
                 resp_frame = sock.recv(self.FRAME_SIZE)
                 result = self._parse_feedback_response(resp_frame)
-                assert result['actuator_can_id'] == actuator_id, f"mismatch in actuator id -- probably missed a response: {result}"
+                assert result['actuator_can_id'] == actuator_id, f"mismatch in actuator id -- probably missed a response earlier: {result}"
                 results[actuator_id] = result
         return results
 
@@ -182,25 +182,44 @@ class CANInterface:
 class MotorDriver:
     """ Driver logic """
     def __init__(self):
-        self.robotcfg = RobotConfig()
+        self.robot = RobotConfig()
         self.ci = CANInterface()
+        self.acts: list[int] = sum([self.ci.actuators[canbus] for canbus in self.ci.sockets.keys()], [])
 
-        self.acts = sum([self.ci.actuators[canbus] for canbus in self.ci.sockets.keys()], [])
+        states = self.ci.get_actuator_feedback()
 
-        # # TODO check all actuators dont return errors, else stop and print error
-        # self.ci.read_actuator_params()
-        # self.ci.check_errors() 
+        print("\033[1;36mActuator states:\033[0m")
+        print("ID  | Nam | Angle | Velocity | Torque | Temp  | Faults")
+        print("----|-----|-------|----------|--------|-------|-------")
+        for act_id, state in states.items():
+            name = self.robot.actuators[act_id].name[:3]
+            fault_color = "\033[1;31m" if state['fault_flags'] > 0 else "\033[1;32m"
+            angle = self.robot.actuators[act_id].can_to_physical_angle(state['angle_raw'])
+            velocity = self.robot.actuators[act_id].can_to_physical_velocity(state['angular_velocity_raw'])
+            torque = self.robot.actuators[act_id].can_to_physical_torque(state['torque_raw'])
+            temp = self.robot.actuators[act_id].can_to_physical_temperature(state['temperature_raw'])
+            print(f"{act_id:3d} | {name:3s} | \033[1;34m{angle:5.2f}\033[0m | \033[1;35m{velocity:8.2f}\033[0m | \033[1;33m{torque:6.2f}\033[0m | \033[1;36m{temp:5.1f}\033[0m | {fault_color}{state['fault_flags']:3d}\033[0m")
+        
+        self.ci.set_pd_targets({k: 1.0 for k in self.acts}, robotcfg=self.robot, scaling=0.01)
 
-        # slowly set all acts to 0
+        if any(state['fault_flags'] > 0 for state in states.values()):
+            print("\033[1;31m❌ Actuator faults detected\033[0m")
+            # exit(1) # TODO for some reason we get 128 uncalibrated faults
+
+        input("Press Enter to proceed to enable motors...")
         self.ci.enable_motors()
         print(f"✅ Motors enabled")
 
-        self.ci.set_pd_targets({k: 0.0 for k in self.acts}, robotcfg=self.robotcfg, scaling=0.005)
-        time.sleep(2)
-        self.ci.set_pd_targets({k: 0.0 for k in self.acts}, robotcfg=self.robotcfg, scaling=0.05)
-        time.sleep(2)
+        home_targets = {k: 0.0 for k in self.acts} # TODO policy zeros
+        print("\nHoming...")
+        for scale in [math.exp(math.log(0.001) + (math.log(1.0) - math.log(0.001)) * i / 29) for i in range(30)]:  # Logarithmic interpolation from 0.001 to 1.0 in 30 steps
+            print(f"PD scaling={scale:.3f}")
+            self.ci.set_pd_targets(home_targets, robotcfg=self.robot, scaling=scale)
+            time.sleep(.1)
+        print("✅ Homing complete")
 
-        # forever loop
+        input("Press Enter to start policy...")
+        print("🤖 Running policy...")
         self._loop()
 
     def _loop(self):
@@ -216,7 +235,7 @@ class MotorDriver:
         while True:
             angle = 3.14158/2 * math.sin(2 * math.pi * 0.5 * (time.perf_counter() - t0))
             action = {k: angle for k in self.acts}
-            self.ci.set_pd_targets(action, robotcfg=self.robotcfg, scaling=0.1)
+            self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.1)
             time.sleep(0.1)
 
 
@@ -229,6 +248,7 @@ if __name__ == "__main__":
 
 
 #todo:
+# can link up automatic
 # zeros
 # cpu priority 
 # loop in model
