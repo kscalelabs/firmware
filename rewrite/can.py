@@ -24,7 +24,6 @@ class CANInterface:
         self.MUX_MOTOR_ENABLE = 0x03
         self.MUX_READ_PARAM = 0x11
 
-
         self.EFF = 0x8000_0000
 
         self.sockets = {}
@@ -80,7 +79,6 @@ class CANInterface:
         for canbus in self.sockets.keys():
             for actuator_id in self.actuators[canbus]:
                 self._enable_motor(canbus, actuator_id)
-        print(f"✅ Motors enabled")
 
     def _enable_motor(self, canbus: int, actuator_can_id: int):
         frame = self._build_motor_enable_frame(actuator_can_id)
@@ -141,89 +139,6 @@ class CANInterface:
         }
 
 
-    def read_actuator_param(self, param_index: int) -> Dict[str, int]:
-        for can, sock in self.sockets.items():
-            for actuator_id in self.actuators[can]:
-                frame = self._build_read_param_request(actuator_id, param_index)
-                sock.send(frame)
-                resp_frame = sock.recv(self.FRAME_SIZE)
-                result = self._parse_read_param_response(resp_frame)
-                print(f"can{can}: act {actuator_id}: param 0x{param_index:04X}: {result}")
-
-    def read_actuator_params(self) -> Dict[str, int]:
-        """Read ALL available parameters from all actuators"""
-        params_to_read = {
-            # Control/Operational parameters (0x7000 range)
-            "run_mode": 0x7005,
-            "iq_ref": 0x7006,
-            "spd_ref": 0x700A,
-            "limit_torque": 0x700B,
-            "cur_kp": 0x7010,
-            "cur_ki": 0x7011,
-            "cur_filt_gain": 0x7014,
-            "loc_ref": 0x7016,
-            "limit_spd": 0x7017,
-            "limit_cur": 0x7018,
-            "mech_pos": 0x7019,
-            "iqf": 0x701A,
-            "mech_vel": 0x701B,
-            "vbus": 0x701C,
-            "loc_kp": 0x701E,
-            "spd_kp": 0x701F,
-            "spd_ki": 0x7020,
-            "spd_filt_gain": 0x7021,
-            "acc_rad": 0x7022,
-            "vel_max": 0x7024,
-            "acc_set": 0x7025,
-            "ep_scan_time": 0x7026,
-            "can_timeout": 0x7028,
-            "zero_sta": 0x7029,
-
-            # Fault/Diagnostic parameters (0x3000 range)
-            "motor_fault": 0x3022,
-            "warn_status": 0x3023,
-            "drv_fault1": 0x3024,
-            "drv_fault2": 0x3025,
-        }
-
-        print(f"Reading {len(params_to_read)} parameters from all actuators...")
-        for param_name, param_index in params_to_read.items():
-            print(f"Reading param 0x{param_index:04X} ({param_name})")
-            self.read_actuator_param(param_index)
-
-    def _build_read_param_request(self, actuator_can_id: int, param_index: int) -> bytes:
-        can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_READ_PARAM & 0x1F) << 24))
-        can_id |= self.EFF
-        length = 8
-        payload = struct.pack("<HHI", param_index & 0xFFFF, 0, 0)  # index (u16), reserved (u16), reserved (u32)
-        return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
-
-    def _parse_read_param_response(self, frame: bytes) -> Dict[str, int]:
-        if len(frame) != 16:
-            raise ValueError("frame must be exactly 16 bytes")
-
-        can_id, _length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
-        b0 = (can_id >> 0)  & 0xFF  # host_id (u8)
-        b1 = (can_id >> 8)  & 0xFF  # actuator_can_id (u8)
-        b2 = (can_id >> 16) & 0xFF  # fault_flags (u8)
-        b3 = (can_id >> 24) & 0xFF  # mux + EFF-in-byte
-        mux = b3 & 0x1F
-
-        if mux != self.MUX_READ_PARAM:
-            raise ValueError(f"unexpected mux 0x{mux:02X} in read param response")
-
-        index, res1, value = struct.unpack("<HHI", payload)
-
-        return {
-            "host_id": b0,
-            "actuator_can_id": b1,
-            "fault_flags": b2,
-            "param_index": index,
-            "param_value": value,
-        }
-
-
-
     def set_pd_targets(self, actions: dict[int, float], robotcfg: RobotConfig, scaling: float = 1.0):
         for canbus in self.sockets.keys():
             for actuator_id in self.actuators[canbus]:
@@ -246,7 +161,6 @@ class CANInterface:
         #     phys = self.feedback_to_physical_pd_command(fb)
         #     return raw, fb, phys
 
-
     def _build_pd_command(
         self,
         actuator_can_id: int,
@@ -264,39 +178,6 @@ class CANInterface:
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
 
-    # def _parse_feedback_response_pd_command(self, frame: bytes):
-    #     if len(frame) != 16:
-    #         raise ValueError("expeccommandted 16-byte CAN frame")
-    #     can_id, length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
-    #     b0 = (can_id >> 0)  & 0xFF   # host_id (u8)
-    #     b1 = (can_id >> 8)  & 0xFF   # actuator_can_id (u8)
-    #     b2 = (can_id >> 16) & 0xFF   # fault_flags (u8)
-    #     b3 = (can_id >> 24) & 0xFF   # mux|eff-byte
-    #     mux = b3 & 0x1F
-    #     angle_be, ang_vel_be, torque_be, temp_be = struct.unpack(">HHHH", payload)
-    #     return {
-    #         "eff": 1 if (can_id & self.EFF) else 0,
-    #         "length": length,
-    #         "mux": mux,
-    #         "host_id": b0,
-    #         "actuator_can_id": b1,
-    #         "fault_flags": b2,
-    #         "angle_raw": angle_be,
-    #         "angular_velocity_raw": ang_vel_be,
-    #         "torque_raw": torque_be,
-    #         "temperature_raw": temp_be,
-    #     }
-
-    # def feedback_to_physical_pd_command(self, fb: dict):
-    #     return {
-    #         "actuator_can_id": fb["actuator_can_id"],
-    #         "angle_rad": self._raw_to_rad(fb["angle_raw"]),
-    #         "angular_velocity_rad_s": self._raw_to_rad(fb["angular_velocity_raw"]),
-    #         "torque_Nm": fb["torque_raw"],
-    #         "temperature_C": fb["temperature_raw"],
-    #         "fault_flags": fb["fault_flags"],
-    #     }
-
 
 class MotorDriver:
     """ Driver logic """
@@ -312,11 +193,12 @@ class MotorDriver:
 
         # slowly set all acts to 0
         self.ci.enable_motors()
-        self.ci.set_pd_targets({k: 0.0 for k in self.acts},robotcfg=self.robotcfg, scaling=0.005)
-        time.sleep(2)
-        self.ci.set_pd_targets({k: 0.0 for k in self.acts},robotcfg=self.robotcfg, scaling=0.05)
-        time.sleep(2)
+        print(f"✅ Motors enabled")
 
+        self.ci.set_pd_targets({k: 0.0 for k in self.acts}, robotcfg=self.robotcfg, scaling=0.005)
+        time.sleep(2)
+        self.ci.set_pd_targets({k: 0.0 for k in self.acts}, robotcfg=self.robotcfg, scaling=0.05)
+        time.sleep(2)
 
         # forever loop
         self._loop()
@@ -346,11 +228,10 @@ if __name__ == "__main__":
     exit(0 if main() else 1)
 
 
-# todo: 
-# - poll at high freq. see what happens. 
-# poll all acts
-# set all acts
-# calibrate value scalings
-# done
-# clean up and simplify
-# deal with uncalled messages
+#todo:
+# zeros
+# cpu priority 
+# loop in model
+# loop in imu
+# bench
+# go faster

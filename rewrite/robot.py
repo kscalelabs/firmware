@@ -3,7 +3,6 @@ from math import pi
 from dataclasses import dataclass
 
 
-
 class RobstrideActuatorType(Enum):
     Robstride00 = 0
     Robstride01 = 1
