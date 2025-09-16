@@ -1,4 +1,5 @@
 import math
+from string import printable
 import time
 import traceback
 import socket
@@ -35,6 +36,7 @@ class CANInterface:
             sock = socket.socket(socket.AF_CAN, socket.SOCK_RAW, socket.CAN_RAW)
             try:
                 sock.bind((f"can{canbus}",))
+                sock.settimeout(0.01)
                 self.sockets[canbus] = sock
                 self.actuators[canbus] = []
             except Exception as e:
@@ -56,15 +58,14 @@ class CANInterface:
         try:
             frame = self._build_ping_frame(actuator_can_id)
             self.sockets[canbus].send(frame)
-            self.sockets[canbus].settimeout(0.01)
             resp_frame = self.sockets[canbus].recv(self.FRAME_SIZE)
             _ = struct.unpack(self.FRAME_FMT, resp_frame)
             return True
         except socket.timeout:
             return False
         except Exception as e:
-            print(f"Error pinging actuator {actuator_can_id} on {canbus}: {e}")
-            traceback.print_exc()
+            # print(f"Error pinging actuator {actuator_can_id} on {canbus}: {e}")
+            # traceback.print_exc()
             return False
 
     def _build_ping_frame(self, actuator_can_id: int) -> bytes:
@@ -75,10 +76,16 @@ class CANInterface:
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
 
-    def enable_motor(self, canbus: str, actuator_can_id: int):
+    def enable_motors(self):
+        for canbus in self.sockets.keys():
+            for actuator_id in self.actuators[canbus]:
+                self._enable_motor(canbus, actuator_id)
+        print(f"✅ Motors enabled")
+
+    def _enable_motor(self, canbus: int, actuator_can_id: int):
         frame = self._build_motor_enable_frame(actuator_can_id)
         self.sockets[canbus].send(frame)
-        print(f"Sent motor enable command to {canbus} actuator {actuator_can_id}")
+        raw = self.sockets[canbus].recv(16) # receive response to keep can buffer clear
 
     def _build_motor_enable_frame(self, actuator_can_id: int) -> bytes:
         can_id = ((actuator_can_id & 0xFF) | (self.host_id << 8) | ((self.MUX_MOTOR_ENABLE & 0x1F) << 24))
@@ -96,7 +103,7 @@ class CANInterface:
                 sock.send(frame)
                 resp_frame = sock.recv(self.FRAME_SIZE)
                 result = self._parse_feedback_response(resp_frame)
-                # print(f"can{can}: act {actuator_id}: {result}")
+                assert result['actuator_can_id'] == actuator_id, f"mismatch in actuator id -- probably missed a response: {result}"
                 results[actuator_id] = result
         return results
 
@@ -122,10 +129,6 @@ class CANInterface:
             raise ValueError(f"unexpected mux 0x{mux:02X} in feedback response")
 
         angle_be, ang_vel_be, torque_be, temp_be = struct.unpack(">HHHH", payload)
-        # angle = self._raw_to_rad(angle_be)
-        # ang_vel = self._raw_to_rad(ang_vel_be)
-        # torque = torque_be # TODO
-        # temp = temp_be / 10 
 
         return {
             "host_id": b0,
@@ -220,98 +223,79 @@ class CANInterface:
         }
 
 
-    @staticmethod
-    def _raw_to_rad(x: int) -> float:
-        return (x - 32768) / 16384 * (2 * math.pi)
 
-    @staticmethod
-    def _rad_to_raw(x: float) -> int:
-        return int(x / (2 * math.pi) * 16384 + 32768)
+    def set_pd_targets(self, actions: dict[int, float], robotcfg: RobotConfig, scaling: float = 1.0):
+        for canbus in self.sockets.keys():
+            for actuator_id in self.actuators[canbus]:
+                self._set_pd_target(canbus, actuator_id, actions[actuator_id], robotcfg, scaling)
 
-    @staticmethod
-    def _u16(x: float | int) -> int:
-        return int(x) & 0xFFFF
-
-
-    @staticmethod
-    def _clamp_u16(x: float) -> int:
-        return max(0, min(65535, int(round(x))))
-
-
-    def set_pd_target(self, canbus: str, actuator_can_id: int, angle: float, angular_vel: float, kp: float, kd: float):
-        torque_scale = 0
-        angle_scale = self._rad_to_raw(angle)
-        angular_vel_scale = self._rad_to_raw(angular_vel)
-        print(f"Angle scale: {angle_scale}, Angular vel scale: {angular_vel_scale}")
-        kp_scale = 1
-        kd_scale = 0.1
-        frame = self.build_pd_command(actuator_can_id, torque_scale, angle_scale, angular_vel_scale, kp_scale, kd_scale)
+    def _set_pd_target(self, canbus: int, actuator_can_id: int, angle: float, robotcfg: RobotConfig, scaling: float = 1.0):
+        assert 0.0 <= scaling <= 1.0
+        frame = self._build_pd_command(
+            actuator_can_id, 
+            int(robotcfg.actuators[actuator_can_id].physical_to_can_torque(0)), 
+            int(robotcfg.actuators[actuator_can_id].physical_to_can_angle(angle)),
+            int(robotcfg.actuators[actuator_can_id].physical_to_can_velocity(0)),
+            int(robotcfg.actuators[actuator_can_id].raw_kp*scaling), 
+            int(robotcfg.actuators[actuator_can_id].raw_kd*scaling)
+        )
         self.sockets[canbus].send(frame)
-
-        self.sockets[canbus].settimeout(0.25)
-        raw = self.sockets[canbus].recv(16)
-        print(f"Raw response: {raw.hex()}")
-        fb = self.parse_feedback_response_pd_command(raw)
-        print(f"Feedback: {fb}")
-        if fb["mux"] == self.MUX_CONTROL and fb["actuator_can_id"] == actuator_can_id:
-            phys = self.feedback_to_physical_pd_command(fb)
-            return raw, fb, phys
+        raw = self.sockets[canbus].recv(16) # just drop response
+        # fb = self._parse_feedback_response_pd_command(raw)
+        # if fb["mux"] == self.MUX_CONTROL and fb["actuator_can_id"] == actuator_can_id:
+        #     phys = self.feedback_to_physical_pd_command(fb)
+        #     return raw, fb, phys
 
 
-    def build_pd_command(
+    def _build_pd_command(
         self,
         actuator_can_id: int,
-        torque_scale: int,
-        angle_scale: int,
-        angular_vel_scale: int,
-        kp_scale: int,
-        kd_scale: int,
+        raw_torque: int,
+        raw_angle: int,
+        raw_angular_vel: int,
+        raw_kp: int,
+        raw_kd: int,
     ) -> bytes:
-        can_id = ((actuator_can_id & 0xFF) | (self._clamp_u16(torque_scale) << 8) | ((self.MUX_CONTROL & 0x1F) << 24))
+        assert isinstance(raw_torque, int) and isinstance(raw_angle, int) and isinstance(raw_angular_vel, int) and isinstance(raw_kp, int) and isinstance(raw_kd, int)
+        can_id = ((actuator_can_id & 0xFF) | (raw_torque << 8) | ((self.MUX_CONTROL & 0x1F) << 24))
         can_id |= self.EFF
-
-        payload = struct.pack(">HHHH",
-                              self._clamp_u16(angle_scale),
-                              self._clamp_u16(angular_vel_scale),
-                              self._clamp_u16(kp_scale),
-                              self._clamp_u16(kd_scale))
+        payload = struct.pack(">HHHH", raw_angle, raw_angular_vel, raw_kp, raw_kd)
         length = 8
         return struct.pack(self.FRAME_FMT, can_id, length & 0xFF, 0, 0, 0, payload)
 
 
+    # def _parse_feedback_response_pd_command(self, frame: bytes):
+    #     if len(frame) != 16:
+    #         raise ValueError("expeccommandted 16-byte CAN frame")
+    #     can_id, length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
+    #     b0 = (can_id >> 0)  & 0xFF   # host_id (u8)
+    #     b1 = (can_id >> 8)  & 0xFF   # actuator_can_id (u8)
+    #     b2 = (can_id >> 16) & 0xFF   # fault_flags (u8)
+    #     b3 = (can_id >> 24) & 0xFF   # mux|eff-byte
+    #     mux = b3 & 0x1F
+    #     angle_be, ang_vel_be, torque_be, temp_be = struct.unpack(">HHHH", payload)
+    #     return {
+    #         "eff": 1 if (can_id & self.EFF) else 0,
+    #         "length": length,
+    #         "mux": mux,
+    #         "host_id": b0,
+    #         "actuator_can_id": b1,
+    #         "fault_flags": b2,
+    #         "angle_raw": angle_be,
+    #         "angular_velocity_raw": ang_vel_be,
+    #         "torque_raw": torque_be,
+    #         "temperature_raw": temp_be,
+    #     }
 
-    def parse_feedback_response_pd_command(self, frame: bytes):
-        if len(frame) != 16:
-            raise ValueError("expected 16-byte CAN frame")
-        can_id, length, _pad, _res0, _len8, payload = struct.unpack("<IBBBB8s", frame)
-        b0 = (can_id >> 0)  & 0xFF   # host_id (u8)
-        b1 = (can_id >> 8)  & 0xFF   # actuator_can_id (u8)
-        b2 = (can_id >> 16) & 0xFF   # fault_flags (u8)
-        b3 = (can_id >> 24) & 0xFF   # mux|eff-byte
-        mux = b3 & 0x1F
-        angle_be, ang_vel_be, torque_be, temp_be = struct.unpack(">HHHH", payload)
-        return {
-            "eff": 1 if (can_id & self.EFF) else 0,
-            "length": length,
-            "mux": mux,
-            "host_id": b0,
-            "actuator_can_id": b1,
-            "fault_flags": b2,
-            "angle_raw": angle_be,
-            "angular_velocity_raw": ang_vel_be,
-            "torque_raw": torque_be,
-            "temperature_raw": temp_be,
-        }
-
-    def feedback_to_physical_pd_command(self, fb: dict):
-        return {
-            "actuator_can_id": fb["actuator_can_id"],
-            "angle_rad": self._raw_to_rad(fb["angle_raw"]),
-            "angular_velocity_rad_s": self._raw_to_rad(fb["angular_velocity_raw"]),
-            "torque_Nm": fb["torque_raw"],
-            "temperature_C": fb["temperature_raw"],
-            "fault_flags": fb["fault_flags"],
-        }
+    # def feedback_to_physical_pd_command(self, fb: dict):
+    #     return {
+    #         "actuator_can_id": fb["actuator_can_id"],
+    #         "angle_rad": self._raw_to_rad(fb["angle_raw"]),
+    #         "angular_velocity_rad_s": self._raw_to_rad(fb["angular_velocity_raw"]),
+    #         "torque_Nm": fb["torque_raw"],
+    #         "temperature_C": fb["temperature_raw"],
+    #         "fault_flags": fb["fault_flags"],
+    #     }
 
 
 class MotorDriver:
@@ -320,51 +304,38 @@ class MotorDriver:
         self.robotcfg = RobotConfig()
         self.ci = CANInterface()
 
-        self.ci.read_actuator_params()
+        self.acts = sum([self.ci.actuators[canbus] for canbus in self.ci.sockets.keys()], [])
 
-        # self.ci.check_errors() # TODO check all actuators dont return errors, else stop and print error
+        # # TODO check all actuators dont return errors, else stop and print error
+        # self.ci.read_actuator_params()
+        # self.ci.check_errors() 
 
-        # set all act to some safe normal operating point
-        # self.ci.set_pd_target()
+        # slowly set all acts to 0
+        self.ci.enable_motors()
+        self.ci.set_pd_targets({k: 0.0 for k in self.acts},robotcfg=self.robotcfg, scaling=0.005)
+        time.sleep(2)
+        self.ci.set_pd_targets({k: 0.0 for k in self.acts},robotcfg=self.robotcfg, scaling=0.05)
+        time.sleep(2)
 
-                    # Enable motor for actuator 21 before controlling it
-                    # can_interface.enable_motor("can0", 21)
-
-                    # make act 21 move to 1 rad
-                    # can_interface.set_pd_target(
-                    #     canbus="can0",
-                    #     actuator_can_id=21,
-                    #     angle=1, # rad
-                    #     angular_vel=0,
-                    #     kp=2 * 13, # not scaled / 13
-                    #     kd=1 * 650, # not scaled / 650
-                    # )
-
-        # self.ci.enable_all_actuators()
 
         # forever loop
         self._loop()
 
     def _loop(self):
+        # while True:
+            # before = time.perf_counter()
+            # fb = self.ci.get_actuator_feedback()
+            # after = time.perf_counter()
+            # # print(f"Time taken: {(after - before)*1000:.3f} ms")
         
+
+
+        t0 = time.perf_counter()
         while True:
-            before = time.perf_counter()
-            fb = self.ci.get_actuator_feedback()
-            after = time.perf_counter()
-            # print(f"Time taken: {(after - before)*1000:.3f} ms")
-
-            for actuator_id, fb in fb.items():
-                if actuator_id == 41:
-                    print(f"Physical angle: {self.robotcfg.actuators[actuator_id].can_to_physical_angle(fb['angle_raw']):.3f}")
-                # print(f"Actuator {actuator_id}: {fb}")
-                # print(f"Physical velocity: {self.robotcfg.actuators[actuator_id].can_to_physical_velocity(fb['angular_velocity_raw'])}")
-                # print(f"Physical torque: {self.robotcfg.actuators[actuator_id].can_to_physical_torque(fb['torque_raw'])}")
-
-                
-
-            # exit(0)
+            angle = 3.14158/2 * math.sin(2 * math.pi * 0.5 * (time.perf_counter() - t0))
+            action = {k: angle for k in self.acts}
+            self.ci.set_pd_targets(action, robotcfg=self.robotcfg, scaling=0.1)
             time.sleep(0.1)
-
 
 
 def main():
@@ -382,3 +353,4 @@ if __name__ == "__main__":
 # calibrate value scalings
 # done
 # clean up and simplify
+# deal with uncalled messages

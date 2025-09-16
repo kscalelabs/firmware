@@ -19,9 +19,9 @@ class ActuatorConfig:
     # joint_min: float
     # joint_max: float
     # joint_zero: float
-    # kp: float
-    # kd: float
-    # can ranges
+    kp: float
+    kd: float
+    # can ranges:
     angle_can_min: float
     angle_can_max: float
     velocity_can_min: float
@@ -72,6 +72,14 @@ class ActuatorConfig:
     def physical_to_can_kd(self, physical_value: float) -> float:
         proportion = (physical_value - self.kd_can_min) / (self.kd_can_max - self.kd_can_min)
         return 0.0 + proportion * (65535.0 - 0.0)
+    
+    @property
+    def raw_kp(self):
+        return self.physical_to_can_kp(self.kp)
+    
+    @property
+    def raw_kd(self):
+        return self.physical_to_can_kd(self.kd)
 
 
 def actuator_ranges(actuator_type: RobstrideActuatorType):
@@ -150,6 +158,8 @@ class RobotConfig:
                 name="lsp",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=8.284,
             ),
 
             12: ActuatorConfig(
@@ -157,6 +167,8 @@ class RobotConfig:
                 name="lsr",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=8.257,
             ),
 
             13: ActuatorConfig(
@@ -164,6 +176,8 @@ class RobotConfig:
                 name="lsy",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=100.0,
+                kd=2.945,
             ),
 
             14: ActuatorConfig(
@@ -171,6 +185,8 @@ class RobotConfig:
                 name="lep",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=80.0,
+                kd=2.266,
             ),
 
             15: ActuatorConfig(
@@ -178,6 +194,8 @@ class RobotConfig:
                 name="lwr",
                 actuator_type=RobstrideActuatorType.Robstride00,
                 **actuator_ranges(RobstrideActuatorType.Robstride00),
+                kp=20.0,
+                kd=0.295,
             ),
             
 
@@ -187,6 +205,8 @@ class RobotConfig:
                 name="rsp",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=8.284,
             ),
 
             22: ActuatorConfig(
@@ -194,6 +214,8 @@ class RobotConfig:
                 name="rsr",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=8.257,
             ),
 
             23: ActuatorConfig(
@@ -201,6 +223,8 @@ class RobotConfig:
                 name="rsy",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=100.0,
+                kd=2.945,
             ),
 
             24: ActuatorConfig(
@@ -208,6 +232,8 @@ class RobotConfig:
                 name="rep",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=100.0,
+                kd=2.266,
             ),
 
             25: ActuatorConfig(
@@ -215,6 +241,8 @@ class RobotConfig:
                 name="rwr",
                 actuator_type=RobstrideActuatorType.Robstride00,
                 **actuator_ranges(RobstrideActuatorType.Robstride00),
+                kp=20.0,
+                kd=0.295,
             ),
             
 
@@ -224,6 +252,8 @@ class RobotConfig:
                 name="lhp",
                 actuator_type=RobstrideActuatorType.Robstride04,
                 **actuator_ranges(RobstrideActuatorType.Robstride04),
+                kp=150.0,
+                kd=24.722,
             ),
 
             32: ActuatorConfig(
@@ -231,6 +261,8 @@ class RobotConfig:
                 name="lhr",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=200.0,
+                kd=26.387,
             ),
 
             33: ActuatorConfig(
@@ -238,6 +270,8 @@ class RobotConfig:
                 name="lhy",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=3.419,
             ),
 
             34: ActuatorConfig(
@@ -245,6 +279,8 @@ class RobotConfig:
                 name="lkp",
                 actuator_type=RobstrideActuatorType.Robstride04,
                 **actuator_ranges(RobstrideActuatorType.Robstride04),
+                kp=150.0,
+                kd=8.654,
             ),
 
             35: ActuatorConfig(
@@ -252,6 +288,8 @@ class RobotConfig:
                 name="lap",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=40.0,
+                kd=0.99,
             ),
 
             # Right leg
@@ -260,29 +298,39 @@ class RobotConfig:
                 name="rhp",
                 actuator_type=RobstrideActuatorType.Robstride04,
                 **actuator_ranges(RobstrideActuatorType.Robstride04),
+                kp=150.0,
+                kd=24.722,
             ),
             42: ActuatorConfig(
                 can_id=42,
                 name="rhr",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=200.0,
+                kd=26.387,
             ),
             43: ActuatorConfig(
                 can_id=43,
                 name="rhy",
                 actuator_type=RobstrideActuatorType.Robstride03,
                 **actuator_ranges(RobstrideActuatorType.Robstride03),
+                kp=100.0,
+                kd=3.419,
             ),
             44: ActuatorConfig(
                 can_id=44,
                 name="rkp",
                 actuator_type=RobstrideActuatorType.Robstride04,
                 **actuator_ranges(RobstrideActuatorType.Robstride04),
+                kp=150.0,
+                kd=8.654,
             ),
             45: ActuatorConfig(
                 can_id=45,
                 name="rap",
                 actuator_type=RobstrideActuatorType.Robstride02,
                 **actuator_ranges(RobstrideActuatorType.Robstride02),
+                kp=40.0,
+                kd=0.99,
             ),
         }
