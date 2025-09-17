@@ -78,13 +78,11 @@ def update_shared_memory(shm, shm_lock, timestamp, gyro, quaternion):
         try:
             shm.seek(0)
             shm.write(packed_data)
-            shm.flush()
         finally:
             shm_lock.release()
     else:
         shm.seek(0)
         shm.write(packed_data)
-        shm.flush()
 
 
 class IMUReader:
@@ -167,7 +165,7 @@ class IMUReader:
         last_quaternion = (0.0, 0.0, 0.0, 0.0)
 
         while running_event.is_set():
-            time.sleep(0.0001)  # 100us delay to decrease CPU usage from 100% to 7%
+            time.sleep(0.0001)
 
             # Read byte-by-byte until we find sync byte
             if serial_conn.read(1) == b'\x55':
