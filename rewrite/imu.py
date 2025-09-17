@@ -86,6 +86,7 @@ def update_shared_memory(shm, shm_lock, timestamp, gyro, quaternion):
 
 
 class IMUReader:
+    """Reads IMU data from a serial port in a separate process and shares via shared memory"""
     def __init__(self, device='/dev/ttyUSB0', baudrate=230400, shm_path='/tmp/imu_shm'):
         # Serial configuration (child process will open the port)
         self.device = device
