@@ -38,7 +38,7 @@ done
 bash ~/kbot_deployment/scripts/reset_max_torques.sh
 
 run_firmware() {
-    sudo -E chrt 80 /home/dpsh/miniforge3/envs/jax/bin/python main.py $policy
+    sudo -E chrt 80 /home/dpsh/miniconda3/envs/jax/bin/python main.py $policy
 }
 
 

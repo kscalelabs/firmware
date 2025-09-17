@@ -243,7 +243,7 @@ class MotorDriver:
 
     def take_action(self, action: list[float], joint_order: list[str]):
         action = {self.robot.actuators[self.robot.full_name_to_actuator_id[name]].can_id: action for name, action in zip(joint_order, action)}
-        self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=0.1) # TODO after debugging get this back
+        self.ci.set_pd_targets(action, robotcfg=self.robot, scaling=1.0)
 
 
 def main():
@@ -253,11 +253,3 @@ def main():
 
 if __name__ == "__main__":
     exit(0 if main() else 1)
-
-
-#todo:
-# zeros
-# loop in model
-# loop in imu
-# bench
-# go faster

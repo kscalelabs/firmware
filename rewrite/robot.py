@@ -365,7 +365,7 @@ class RobotConfig:
             **actuator_ranges(RobstrideActuatorType.Robstride04),
             kp=150.0,
             kd=8.654,
-            joint_bias=math.radians(50.0),
+            joint_bias=math.radians(-50.0),
         ),
         45: ActuatorConfig(
             can_id=45,
