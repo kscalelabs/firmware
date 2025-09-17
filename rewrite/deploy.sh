@@ -8,7 +8,7 @@ fi
 
 # download kinfer model
 policy_dir="./policies"
-remote_policies="klog:~/kodachrome/policies/"
+remote_policies="mu:~/kodachrome/policies/"
 
 mkdir -p "$policy_dir"
 rsync -aLP --ignore-existing "$remote_policies" "$policy_dir/"
@@ -37,10 +37,13 @@ done
 # set max torques
 bash ~/kbot_deployment/scripts/reset_max_torques.sh
 
-# run
-klog-deploy --no-wait run_firmware "$policy"
-
-
 run_firmware() {
     sudo -E chrt 80 /home/dpsh/miniforge3/envs/jax/bin/python main.py $policy
 }
+
+
+# run
+# klog-deploy --no-wait run_firmware "$policy"
+
+run_firmware "$policy"
+
