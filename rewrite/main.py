@@ -47,7 +47,7 @@ def runner(kinfer_path):
         t5 = time.perf_counter()
 
         dt = time.perf_counter() - t
-        print(f"dt={dt*1000:.2f} ms, t1={(t1-t)*1000:.2f} ms, t2={(t2-t1)*1000:.2f} ms, t3={(t3-t2)*1000:.2f} ms, t4={(t4-t3)*1000:.2f} ms, t5={(t5-t4)*1000:.2f} ms")
+        print(f"dt={dt*1000:.2f} ms, get joints={(t1-t)*1000:.2f} ms, get imu={(t2-t1)*1000:.2f} ms, .step()={(t3-t2)*1000:.2f} ms, lpf={(t4-t3)*1000:.2f} ms, take action={(t5-t4)*1000:.2f} ms")
         while time.perf_counter() - t < 0.020: # wait for 50 hz
             time.sleep(0.001)
 
@@ -59,5 +59,4 @@ if __name__ == "__main__":
     runner(args.kinfer_path)
 
 
-# TODO map joint orders
 # TODO move lpf to policy - no signals are modified in the firmware
