@@ -27,3 +27,11 @@ This is the first commit that is tested on the bot. Work is still pending.
 ## IMU Emulation
 1. Set the environment variable `IMU_DEV` to `/tmp/imu_emulator_in` (e.g. add `export IMU_DEV=/tmp/imu_emulator_in` to your bashrc)
 2. run `sudo scripts/usb/start.sh` (run without sudo if you aren't running `faux-rtos` with sudo)
+
+Running everything example
+```
+alias stream='source /home/dpsh/webrtc-pi-env/bin/activate && cd ~/vr_teleop && py gstreamer.py'
+alias fingers='conda activate vr && cd ~/vr_teleop/src/kscale_vr_teleop && py finger_udp_listener.py'
+alias deploy='conda activate klog && cd ~/kbot_deployment && ./deploy_from_queue'
+alias imu_emulate='cd ~/firmware/scripts/usb && sudo ./start.sh'
+```
