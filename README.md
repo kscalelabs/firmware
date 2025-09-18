@@ -23,3 +23,7 @@ This is the first commit that is tested on the bot. Work is still pending.
 
 ## Long Term
 - [ ] Use zenoh for shared memory queues between processes
+
+## IMU Emulation
+1. Set the environment variable `IMU_DEV` to `/tmp/imu_emulator_in` (e.g. add `export IMU_DEV=/tmp/imu_emulator_in` to your bashrc)
+2. run `sudo scripts/usb/start.sh` (run without sudo if you aren't running `faux-rtos` with sudo)
