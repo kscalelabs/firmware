@@ -33,7 +33,7 @@ impl UnifiedUdpManager {
             socket,
             current_command: UdpExtendedCommand::default(),
             last_command_time: None,
-            command_timeout: Duration::from_millis(500),
+            command_timeout: Duration::from_secs(30),
         })
     }
 

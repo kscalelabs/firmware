@@ -701,6 +701,7 @@ impl ActuatorCanClient {
             }
             ActuatorResponse::Feedback(resp) => {
                 debug!("Received Feedback response: {:?}", resp);
+                debug!("Raw feedback frame: {:02x?}", bytemuck::bytes_of(response));
                 if resp.actuator_can_id != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -712,11 +713,11 @@ impl ActuatorCanClient {
                 Ok(Some(self.update_from_feedback(&resp, response)))
             }
             ActuatorResponse::ReadParam(resp) => {
-                debug!("Received Feedback response: {:?}", resp);
+                debug!("Received ReadParam response: {:?}", resp);
                 if resp.actuator_can_id != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
-                        "Feedback response does not match expected actuator CAN ID",
+                        "ReadParam response does not match expected actuator CAN ID",
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
