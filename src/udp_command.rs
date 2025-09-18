@@ -28,12 +28,12 @@ impl UnifiedUdpManager {
         std_socket.bind(&addr.into())?;
         let std_socket: std::net::UdpSocket = std_socket.into();
         let socket = UdpSocket::from_std(std_socket)?;
-        debug!("UDP extended command manager listening on port {}", port);
+        info!("UDP extended command manager listening on port {}", port);
         Ok(Self {
             socket,
             current_command: UdpExtendedCommand::default(),
             last_command_time: None,
-            command_timeout: Duration::from_millis(500),
+            command_timeout: Duration::from_secs(30),
         })
     }
 
@@ -50,8 +50,8 @@ impl UnifiedUdpManager {
                     // Try to parse as extended command first
                     if let Ok(cmd) = serde_json::from_slice::<UdpExtendedCommand>(&buf[..len]) {
                         latest = Some(cmd);
-                        debug!("Parsed extended UDP command #{} (x={}, y={}, yaw_rate={})",
-                               packets_read, cmd.x, cmd.y, cmd.yaw_rate);
+                        info!("Parsed extended UDP command #{} (x={}, elbow={}, right gripper={})",
+                               packets_read, cmd.x, cmd.r_elbow_roll, cmd.r_wrist_gripper);
                     }
                     // Fall back to basic command format
                     else if let Ok(basic_cmd) = serde_json::from_slice::<UdpCommand>(&buf[..len]) {
@@ -65,6 +65,8 @@ impl UnifiedUdpManager {
                         latest = Some(extended_cmd);
                         debug!("Parsed basic UDP command #{} (converted to extended): x={}, y={}, yaw={}",
                                packets_read, basic_cmd.x, basic_cmd.y, basic_cmd.yaw);
+                        // print full JSON for debugging
+                        debug!("Full basic command JSON: {}", String::from_utf8_lossy(&buf[..len]));
                     }
                     else {
                         warn!("Failed to parse UDP command JSON (packet #{}) - not valid UdpExtendedCommand or UdpCommand format", packets_read);
@@ -75,7 +77,7 @@ impl UnifiedUdpManager {
             }
         }
         if let Some(cmd) = latest {
-            if packets_read > 1 { debug!("Drained {} UDP packets", packets_read); }
+            if packets_read > 1 { info!("Drained {} UDP packets", packets_read); }
             self.current_command = cmd;
             self.last_command_time = Some(std::time::Instant::now());
             Ok(true)
@@ -87,7 +89,7 @@ impl UnifiedUdpManager {
         if let Some(last_time) = self.last_command_time {
             if last_time.elapsed() > self.command_timeout {
                 // Command has timed out, return zero command
-                debug!("UDP command timed out, returning zero command");
+                info!("UDP command timed out, returning zero command");
                 UdpExtendedCommand::default()
             } else {
                 self.current_command
@@ -192,7 +194,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = self.last_command.y;
             arr[2] = self.last_command.yaw;
         }
-        debug!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
+        info!("UDP command: x={}, y={}, yaw={}", self.last_command.x, self.last_command.y, self.last_command.yaw);
         Ok(())
     }
 
@@ -204,7 +206,7 @@ impl crate::policy_control::InputState for UdpControlVectorInputState {
             arr[1] = udp_state.y;
             arr[2] = udp_state.yaw_rate;  // Now using yaw_rate from unified structure
         }
-        debug!("UDP command from robot_description: x={}, y={}, yaw_rate={}", udp_state.x, udp_state.y, udp_state.yaw_rate);
+        info!("UDP command from robot_description: x={}, y={}, yaw_rate={}", udp_state.x, udp_state.y, udp_state.yaw_rate);
         Ok(())
     }
 }
@@ -246,10 +248,8 @@ pub struct UdpExtendedCommand {
     pub r_elbow_roll: f32,
     #[serde(rename = "RWristRoll")]
     pub r_wrist_roll: f32,
-    #[serde(rename = "RWristYaw")]
-    pub r_wrist_yaw: f32,
-    #[serde(rename = "RWristPitch")]
-    pub r_wrist_pitch: f32,
+    #[serde(rename = "RWristGripper")]
+    pub r_wrist_gripper: f32,
 
     // 11..15 left arm
     #[serde(rename = "LShoulderPitch")]
@@ -260,8 +260,10 @@ pub struct UdpExtendedCommand {
     pub l_elbow_pitch: f32,
     #[serde(rename = "LElbowRoll")]
     pub l_elbow_roll: f32,
-    #[serde(rename = "LWristPitch")]
-    pub l_wrist_pitch: f32,
+    #[serde(rename = "LWristRoll")]
+    pub l_wrist_roll: f32,
+    #[serde(rename = "LWristGripper")]
+    pub l_wrist_gripper: f32,
 }
 
 impl Default for UdpExtendedCommand {
@@ -269,9 +271,9 @@ impl Default for UdpExtendedCommand {
         Self {
             x: 0.0, y: 0.0, yaw_rate: 0.0,
             base_height: 0.0, base_roll: 0.0, base_pitch: 0.0,
-            r_shoulder_pitch: 0.0, r_shoulder_roll: 0.0, r_elbow_pitch: 0.0, r_elbow_roll: 0.0, r_wrist_pitch: 0.0,
-            l_shoulder_pitch: 0.0, l_shoulder_roll: 0.0, l_elbow_pitch: 0.0, l_elbow_roll: 0.0, l_wrist_pitch: 0.0,
-            r_wrist_yaw: 0.0, r_wrist_roll: 0.0,
+            r_shoulder_pitch: 0.0, r_shoulder_roll: (-15.0f32).to_radians(), r_elbow_pitch: 0.0, r_elbow_roll: (90.0f32).to_radians(), r_wrist_roll: 0.0,
+            l_shoulder_pitch: 0.0, l_shoulder_roll: (15.0f32).to_radians(), l_elbow_pitch: 0.0, l_elbow_roll: (-90.0f32).to_radians(), l_wrist_roll: 0.0,
+            r_wrist_gripper: 0.0, l_wrist_gripper: 0.0,
         }
     }
 }
@@ -305,31 +307,8 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
         Ok(())
     }
     fn extract(&mut self, mut arr: ndarray::ArrayViewMut1<f32>) -> std::io::Result<()> {
-        if arr.len() < 18 {
-            return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "expected arr.len() >= 18"));
-        }
-        let c = self.last_command;
-        arr[0] = c.x;               // x linear velocity [m/s]
-        arr[1] = c.y;               // y linear velocity [m/s]
-        arr[2] = c.yaw_rate;        // z angular velocity [rad/s]
-        arr[3] = c.base_height;     // base height offset [m]
-        arr[4] = c.base_roll;       // base roll [rad]
-        arr[5] = c.base_pitch;      // base pitch [rad]
-        arr[6] = c.r_shoulder_pitch;
-        arr[7] = c.r_shoulder_roll;
-        arr[8] = c.r_elbow_pitch;
-        arr[9] = c.r_elbow_roll;
-        arr[10] = c.r_wrist_roll;
-        arr[11] = c.r_wrist_yaw;
-        arr[12] = c.r_wrist_pitch;
-        arr[13] = c.l_shoulder_pitch;
-        arr[14] = c.l_shoulder_roll;
-        arr[15] = c.l_elbow_pitch;
-        arr[16] = c.l_elbow_roll;
-        arr[17] = c.l_wrist_pitch;
-        debug!("18D UDP command: x={}, y={}, yaw={}, base_height={}, r_shoulder_pitch={}", 
-              c.x, c.y, c.yaw_rate, c.base_height, c.r_shoulder_pitch);
-        Ok(())
+        // Never used, raise an error if called
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "Udp18ControlVectorInputState.extract() should not be called, use extract_with_robot() instead"))
     }
     fn extract_with_robot(&mut self, mut arr: ndarray::ArrayViewMut1<f32>, robot_description: &crate::robot_description::RobotDescription) -> std::io::Result<()> {
         // Extract UDP command from unified robot description state
@@ -346,16 +325,17 @@ impl crate::policy_control::InputState for Udp18ControlVectorInputState {
             arr[8] = cmd_state.r_elbow_pitch;
             arr[9] = cmd_state.r_elbow_roll;
             arr[10] = cmd_state.r_wrist_roll;
-            arr[11] = cmd_state.r_wrist_yaw;
-            arr[12] = cmd_state.r_wrist_pitch;
-            arr[13] = cmd_state.l_shoulder_pitch;
-            arr[14] = cmd_state.l_shoulder_roll;
-            arr[15] = cmd_state.l_elbow_pitch;
-            arr[16] = cmd_state.l_elbow_roll;
-            arr[17] = cmd_state.l_wrist_pitch;
+            arr[11] = cmd_state.r_wrist_gripper;
+            arr[12] = cmd_state.l_shoulder_pitch;
+            arr[13] = cmd_state.l_shoulder_roll;
+            arr[14] = cmd_state.l_elbow_pitch;
+            arr[15] = cmd_state.l_elbow_roll;
+            arr[16] = cmd_state.l_wrist_roll;
+            arr[17] = cmd_state.l_wrist_gripper;
+
         }
-        debug!("18D UDP command from robot_description: x={}, y={}, yaw_rate={}, base_height={}", 
-              cmd_state.x, cmd_state.y, cmd_state.yaw_rate, cmd_state.base_height);
+        debug!("18D UDP command from robot_description: x={}, y={},  right gripper={}, right elbow={}", 
+              cmd_state.x, cmd_state.y, cmd_state.r_wrist_gripper, cmd_state.r_elbow_roll);
         Ok(())
     }
 }

@@ -138,7 +138,7 @@ impl Home {
                 act_id, normalized_feedback, home_position[act_id].qpos, err
             );
             // NOTE: these are currently not homed
-            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr && act_id != ActuatorId::Rwp && act_id != ActuatorId::Rwy {
+            if act_id != ActuatorId::Rwr && act_id != ActuatorId::Lwr && act_id != ActuatorId::Rwg && act_id != ActuatorId::Lwg {
                 ret = ret.max(err.abs());
             }
             // proportional control with clamping
@@ -519,7 +519,7 @@ impl State for Policy {
 
             let start_time = std::time::Instant::now();
 
-            let mut interval = tokio::time::interval(Duration::from_millis(20));
+            let mut interval = tokio::time::interval(Duration::from_millis(10));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut iteration_start = std::time::Instant::now();
 

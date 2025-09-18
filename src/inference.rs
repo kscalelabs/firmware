@@ -94,7 +94,6 @@ impl PolicyStepDescriptor {
         } else {
             self.step_id = Some(0);
         }
-        self.timestamp_now();
     }
 
     fn timestamp_now(&mut self) {
@@ -653,6 +652,15 @@ impl std::fmt::Debug for Operate {
     }
 }
 
+fn gripper_position_to_joint_angle(pos: f64) -> f64 {
+    // clamp pos from 0 to 68
+    let clamped_pos_mm = pos.clamp(0.0, 0.068);
+    // quadratic ax^2+bx+c
+    let angle = 1.0-clamped_pos_mm / 0.068;
+    info!("Mapped gripper position {pos} to joint angle {angle}");
+    angle
+}
+
 impl Operate {
     /// Check if this model has an extended command input (16D or 18D, for extended UDP)
     pub fn has_extended_command(&self) -> bool {
@@ -676,6 +684,7 @@ impl Operate {
             kb_manager,
             ..
         } = self.shared_state.as_mut().project();
+        step_description.timestamp_now();
 
         for (input_type, input_val) in step_input_types.iter_mut().zip(step_input_vec.iter_mut()) {
             match input_type {
@@ -780,10 +789,18 @@ impl Operate {
         for (i, command) in commands.iter().enumerate() {
             let actuator_id = cmd_idx_to_actuator_id[i];
             let act_state = &mut actuator_states[actuator_id];
+            // if actuator_id is a gripper, apply the gripper position to joint angle mapping to the command
+            let joint_angle: f64;
+            if actuator_id == ActuatorId::Lwg || actuator_id == ActuatorId::Rwg {
+                let gripper_pos = *command as f64;
+                joint_angle = gripper_position_to_joint_angle(gripper_pos);
+            } else {
+                joint_angle = *command as f64;
+            }
             // get the normalized qpos
             let normalized_qpos =
                 robot_description::normalize_actuator_qpos(act_state.feedback.qpos);
-            let err = *command as f64 - normalized_qpos;
+            let err = joint_angle - normalized_qpos;
             let unfiltered = act_state.feedback.qpos + err * robot_description.policy_scale;
 
             // One-pole LPF: y = y_prev + alpha * (x - y_prev); alpha = 1 - exp(-2*pi*fc*dt)
@@ -1085,13 +1102,13 @@ fn try_dof_to_actuator_id(dof: &str) -> std::io::Result<ActuatorId> {
         "dof_right_shoulder_yaw_02" => ActuatorId::Rsy,
         "dof_right_elbow_02" => ActuatorId::Rep,
         "dof_right_wrist_00" => ActuatorId::Rwr,
-        "dof_right_wrist_yaw_00" => ActuatorId::Rwy,
-        "dof_right_wrist_pitch_00" => ActuatorId::Rwp,
+        "dof_right_wrist_gripper_05" => ActuatorId::Rwg,
         "dof_left_shoulder_pitch_03" => ActuatorId::Lsp,
         "dof_left_shoulder_roll_03" => ActuatorId::Lsr,
         "dof_left_shoulder_yaw_02" => ActuatorId::Lsy,
         "dof_left_elbow_02" => ActuatorId::Lep,
         "dof_left_wrist_00" => ActuatorId::Lwr,
+        "dof_left_wrist_gripper_05" => ActuatorId::Lwg,
         "dof_right_hip_pitch_04" => ActuatorId::Rhp,
         "dof_right_hip_roll_03" => ActuatorId::Rhr,
         "dof_right_hip_yaw_03" => ActuatorId::Rhy,

@@ -55,6 +55,7 @@ pub enum RobstrideActuatorType {
     Robstride02,
     Robstride03,
     Robstride04,
+    Robstride05,
 }
 
 impl RobstrideActuatorType {
@@ -96,8 +97,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -33.0,
-                    max: 33.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -14.0,
@@ -115,8 +116,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -44.0,
-                    max: 44.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -17.0,
@@ -134,8 +135,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -44.0,
-                    max: 44.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -17.0,
@@ -153,8 +154,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -20.0,
-                    max: 20.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -60.0,
@@ -175,8 +176,8 @@ impl RobstrideActuatorType {
                     max: 4.0 * PI,
                 },
                 velocity: Range {
-                    min: -15.0,
-                    max: 15.0,
+                    min: -0.5,
+                    max: 0.5,
                 },
                 torque: Range {
                     min: -120.0,
@@ -189,6 +190,28 @@ impl RobstrideActuatorType {
                 kd: Range {
                     min: 0.0,
                     max: 100.0,
+                },
+            },
+            RobstrideActuatorType::Robstride05 => RangeSet {
+                angle: Range {
+                    min: -4.0 * PI,
+                    max: 4.0 * PI,
+                },
+                velocity: Range {
+                    min: -0.5,
+                    max: 0.5,
+                },
+                torque: Range {
+                    min: -1.0,
+                    max: 1.0,
+                },
+                kp: Range {
+                    min: 0.0,
+                    max: 500.0,
+                },
+                kd: Range {
+                    min: 0.0,
+                    max: 5.0,
                 },
             },
         }

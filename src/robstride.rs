@@ -701,6 +701,7 @@ impl ActuatorCanClient {
             }
             ActuatorResponse::Feedback(resp) => {
                 debug!("Received Feedback response: {:?}", resp);
+                debug!("Raw feedback frame: {:02x?}", bytemuck::bytes_of(response));
                 if resp.actuator_can_id != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
@@ -712,11 +713,11 @@ impl ActuatorCanClient {
                 Ok(Some(self.update_from_feedback(&resp, response)))
             }
             ActuatorResponse::ReadParam(resp) => {
-                debug!("Received Feedback response: {:?}", resp);
+                debug!("Received ReadParam response: {:?}", resp);
                 if resp.actuator_can_id != self.actuator_can_id {
                     return Err(std::io::Error::new(
                         std::io::ErrorKind::InvalidData,
-                        "Feedback response does not match expected actuator CAN ID",
+                        "ReadParam response does not match expected actuator CAN ID",
                     ));
                 }
                 self.state = ActuatorClientState::Ready;
@@ -815,13 +816,13 @@ impl ActuatorCanClient {
             ActuatorId::Lsy => 13,
             ActuatorId::Lep => 14,
             ActuatorId::Lwr => 15,
+            ActuatorId::Lwg => 16,
             ActuatorId::Rsp => 21,
             ActuatorId::Rsr => 22,
             ActuatorId::Rsy => 23,
             ActuatorId::Rep => 24,
             ActuatorId::Rwr => 25,
-            ActuatorId::Rwy => 26,
-            ActuatorId::Rwp => 27,
+            ActuatorId::Rwg => 26,
             ActuatorId::Lhp => 31,
             ActuatorId::Lhr => 32,
             ActuatorId::Lhy => 33,
@@ -877,6 +878,7 @@ impl From<u8> for RobstrideActuatorType {
             13 => RobstrideActuatorType::Robstride02, // left_shoulder_yaw_02
             14 => RobstrideActuatorType::Robstride02, // left_elbow_02
             15 => RobstrideActuatorType::Robstride00, // left_wrist_00
+            16 => RobstrideActuatorType::Robstride05, // left_wrist_gripper_05
 
             // Right arm
             21 => RobstrideActuatorType::Robstride03, // right_shoulder_pitch_03
@@ -884,8 +886,7 @@ impl From<u8> for RobstrideActuatorType {
             23 => RobstrideActuatorType::Robstride02, // right_shoulder_yaw_02
             24 => RobstrideActuatorType::Robstride02, // right_elbow_02
             25 => RobstrideActuatorType::Robstride00, // right_wrist_00
-            26 => RobstrideActuatorType::Robstride00, // right_wrist_yaw_02
-            27 => RobstrideActuatorType::Robstride00, // right_wrist_pitch_00
+            26 => RobstrideActuatorType::Robstride05, // right_wrist_gripper_05
 
             // Left leg
             31 => RobstrideActuatorType::Robstride04, // left_hip_pitch_04
