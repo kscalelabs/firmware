@@ -44,6 +44,6 @@ echo "(Set IMU_DEV environment variable: export IMU_DEV=$FIRMWARE_PTY)"
 echo "(Or run as root to symlink to /dev/ttyUSB0: sudo ln -sf $FIRMWARE_PTY /dev/ttyUSB0)"
 
 # Pass through any additional args to the Python emulator (e.g. --rate)
-"$PYTHON" "$(dirname "$0")/imu_emulator.py" --port "$EMULATOR_PTY" "$@"
+"$PYTHON" "$(dirname "$0")/imu_emulator.py" --port "$EMULATOR_PTY" --rate 100.0 "$@"
 
 # end trap will kill socat
