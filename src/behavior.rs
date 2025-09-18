@@ -519,7 +519,7 @@ impl State for Policy {
 
             let start_time = std::time::Instant::now();
 
-            let mut interval = tokio::time::interval(Duration::from_millis(20));
+            let mut interval = tokio::time::interval(Duration::from_millis(10));
             interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
             let mut iteration_start = std::time::Instant::now();
 

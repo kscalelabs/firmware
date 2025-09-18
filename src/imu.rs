@@ -293,9 +293,11 @@ impl Default for ImuManager {
 
 impl ImuManager {
     pub fn new() -> Self {
+        let dev = std::env::var("IMU_DEV").unwrap_or_else(|_| "/dev/ttyUSB0".to_string());
+        info!("Using IMU device path: {}", dev);
         Self {
             state: Some(StateStore::Reset(Reset {
-                shared_state: Box::pin(Store::new("/dev/ttyUSB0")),
+                shared_state: Box::pin(Store::new(&dev)),
             })),
             target: None,
             pending_fut: None,
