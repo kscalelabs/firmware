@@ -13,6 +13,7 @@ import os
 import sys
 import time
 import struct
+from time import monotonic, sleep
 
 FRAME_SIZE = 11
 START = 0x55
@@ -69,24 +70,26 @@ def main():
 
     print(f"Writing Hiwonder quaternion frames to {args.port} @ {args.rate}Hz (interval {interval}s)")
 
-    spinner = ['|', '/', '-', '\\']
-    spinner_index = 0
-
+    next_t = monotonic()
     try:
         while True:
             frame = make_quat_frame(w_raw, x_raw, y_raw, z_raw)
             try:
                 os.write(fd, frame)
-                # print loading spinner
-                print(f"\r{spinner_index} Sent frame: {frame.hex()}", end='', flush=True)
-                spinner_index+=1
+                now = monotonic()
+                if now >= next_t:
+                    missed = int((now - next_t) / interval) + 1
+                    next_t += missed * interval
+                else:
+                    sleep(next_t - now)
+                    next_t += interval
 
             except BrokenPipeError:
                 print("Peer closed PTY (broken pipe). Exiting.", file=sys.stderr)
                 break
             if args.debug:
                 print(frame.hex())
-            time.sleep(interval)
+            # time.sleep(interval)
     except KeyboardInterrupt:
         pass
     finally:
